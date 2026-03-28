@@ -4,7 +4,7 @@ This document describes the intended end-state architecture for webmux.
 
 The current repository is a scaffold. Source files under `packages/` demonstrate boundaries and API direction, but they do not yet implement every behavior described below.
 
-webmux is a web client for tmux. It connects to an existing tmux server, reads session/window/pane state, streams PTY data over WebSocket, and renders it in a browser via xterm.js.
+webmux is a web client for tmux. It connects to an existing tmux server, reads session/window/pane state, streams pane data over WebSocket, and renders it in a browser via xterm.js.
 
 ## Core principle
 
@@ -14,9 +14,9 @@ webmux is additive. It doesn't manage tmux — it observes and proxies it. A use
 
 ```
 Browser (xterm.js)
-    ↕ WebSocket (binary PTY data + JSON control)
+    ↕ WebSocket (binary pane data + JSON control)
 Bridge daemon (Bun)
-    ↕ PTY fd read/write + tmux CLI commands
+    ↕ tty writes + tmux pipe-pane output + tmux CLI commands
 tmux server
     ↕ PTY
 Shell / application (zsh, vim, Claude Code, etc.)
@@ -30,7 +30,7 @@ Defines the protocol contract. Message types, session/window/pane data structure
 ### @webmux/bridge
 A Bun server daemon. It does three things:
 1. **Discovers tmux state** by running `tmux list-sessions`, `tmux list-windows`, `tmux list-panes` and parsing the output into `@webmux/shared` types.
-2. **Streams PTY data** by reading from each pane's PTY file descriptor and forwarding bytes over per-pane WebSocket connections.
+2. **Streams pane output** by attaching `tmux pipe-pane -O` to each active pane stream and forwarding bytes over per-pane WebSocket connections.
 3. **Accepts input** by receiving keystrokes from clients over WebSocket and writing them to the correct pane's PTY fd.
 
 The bridge also manages the **client handoff mutex** — tracking which connected client currently "owns" the session for input purposes.
@@ -57,11 +57,12 @@ Keypress in browser
 ```
 This path must have zero buffering. See docs/architecture/latency.md.
 
-### Output (PTY → screen)
+### Output (pane → screen)
 ```
 Application writes to stdout
-  → PTY fd becomes readable
-  → @webmux/bridge reads bytes in tight loop
+  → tmux receives pane output on the PTY master it owns
+  → tmux pipe-pane writes those bytes into the bridge FIFO
+  → @webmux/bridge reads bytes from that FIFO
   → sends binary WebSocket frame per read chunk
   → @webmux/client receives frame, emits pane data event
   → xterm.js Terminal.write(data)
@@ -113,4 +114,4 @@ Each consumer imports `@webmux/client` and implements its own rendering layer. T
 
 ## Future: tmux -CC control mode
 
-v0 uses polling (`tmux list-*` commands) to discover state and direct PTY fd access for data. A future version may use `tmux -CC` (control mode) which gives structured events for all state changes. This would replace the polling loop but the rest of the architecture stays the same. The bridge still proxies data over WebSocket, the client SDK API doesn't change, consumers don't know the difference.
+v0 uses polling (`tmux list-*` commands) to discover state, direct TTY writes for input, and `tmux pipe-pane -O` for pane output. A future version may use `tmux -CC` (control mode) which gives structured events for all state changes. This would replace the polling loop but the rest of the architecture stays the same. The bridge still proxies data over WebSocket, the client SDK API doesn't change, consumers don't know the difference.

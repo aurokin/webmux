@@ -24,6 +24,7 @@ interface ControlSocketData {
 interface DataSocketData {
   type: 'data';
   paneId: string;
+  connectionId: string;
   clientId: string | null;
   authenticated: boolean;
 }
@@ -40,7 +41,7 @@ interface ServerOptions {
 
 export function createWebSocketServer(options: ServerOptions) {
   const { port, host, token, tmux, sessionManager } = options;
-  const ptyManager = new PtyManager();
+  const ptyManager = new PtyManager(tmux);
 
   // Track connected control clients for broadcasting
   const controlClients = new Set<ServerWebSocket<ControlSocketData>>();
@@ -87,7 +88,13 @@ export function createWebSocketServer(options: ServerOptions) {
       if (paneMatch) {
         const paneId = paneMatch[1];
         const upgraded = server.upgrade(req, {
-          data: { type: 'data', paneId, clientId, authenticated: true },
+          data: {
+            type: 'data',
+            paneId,
+            connectionId: crypto.randomUUID(),
+            clientId,
+            authenticated: true,
+          },
         });
         return upgraded ? undefined : new Response('Upgrade failed', { status: 500 });
       }
@@ -127,6 +134,7 @@ export function createWebSocketServer(options: ServerOptions) {
           ptyManager.openPane(
             paneId,
             ttyPath,
+            ws.data.connectionId,
             (data) => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(data);
@@ -182,7 +190,7 @@ export function createWebSocketServer(options: ServerOptions) {
         }
 
         if (ws.data.type === 'data') {
-          ptyManager.closePane(ws.data.paneId);
+          ptyManager.closePaneSubscriber(ws.data.paneId, ws.data.connectionId);
         }
       },
     },

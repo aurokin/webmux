@@ -1,14 +1,14 @@
 # PTY Lifecycle
 
-Each tmux pane has a PTY (pseudo-terminal) device. The bridge reads output from and writes input to these PTY devices directly, bypassing tmux's rendering layer.
+Each tmux pane has a PTY (pseudo-terminal) device. The bridge writes input directly to that PTY device, but it does not read output from the pane's slave TTY. tmux owns the PTY master, so pane output is bridged via `tmux pipe-pane -O` into a per-pane FIFO that the bridge reads.
 
 ## How we get the PTY path
 
 When discovering panes via `tmux list-panes`, the `#{pane_tty}` format variable gives us the PTY device path (e.g., `/dev/pts/4`). This is the slave side of the PTY pair that the shell/application is connected to.
 
-## Opening the PTY
+## Input path
 
-The bridge opens the PTY device for reading and writing. On Linux:
+The bridge opens the pane TTY device for writing input. On Linux:
 
 ```typescript
 const fd = fs.openSync(pane.ttyPath, fs.constants.O_RDWR | fs.constants.O_NOCTTY);
@@ -16,19 +16,33 @@ const fd = fs.openSync(pane.ttyPath, fs.constants.O_RDWR | fs.constants.O_NOCTTY
 
 `O_NOCTTY` prevents the bridge from becoming the controlling terminal for the pane's process group.
 
+This fd is used only for writes. It is not used for output reads.
+
 ### Alternative: Bun's native PTY API
 
 For panes that the bridge itself creates (not pre-existing tmux panes), Bun's `Bun.spawn({ terminal: { ... } })` can be used to create a PTY directly. However, for v0, we're connecting to existing tmux panes, so we open their PTY devices directly.
+
+## Output path
+
+The slave TTY path from `#{pane_tty}` is not a readable copy of the pane's stdout stream. Per `pty(7)`, bytes written by the application to the slave are readable from the PTY master, and tmux owns that master.
+
+For v0, the bridge attaches a tmux output pipe instead:
+
+```bash
+tmux pipe-pane -O -t '%0' "exec cat > /tmp/webmux-pane-_0-abc123.fifo"
+```
+
+The bridge creates a FIFO per active pane stream, asks tmux to pipe pane output into it, and reads that FIFO as a long-lived byte stream.
 
 ## Read loop
 
 For each pane, the bridge runs a read loop that:
 
-1. Reads available bytes from the PTY fd.
+1. Reads available bytes from the pane FIFO.
 2. Sends them as a binary WebSocket frame on the pane's data channel.
 3. Repeats.
 
-The read loop must be non-blocking. Use Bun's async file I/O or `readable` events on the fd.
+The read loop must be event-driven. Use Bun's async file I/O or `readable`/`data` events on the fd so pane output is forwarded as bytes arrive.
 
 ```typescript
 // Pseudocode — actual implementation may use Bun.file() or node:fs streams
@@ -44,9 +58,9 @@ stream.on('data', (chunk: Buffer) => {
 
 ### What if no client is connected?
 
-Target behavior: if no client is connected for a pane's data channel, the bridge should still read from the PTY fd to prevent the PTY buffer from filling up (which would block the application writing to it). Read and discard.
+Target behavior: if no client is connected for a pane's data channel, the bridge should still keep the tmux output pipe drained so the producer cannot stall. Read and discard.
 
-Current implementation: the bridge opens a PTY stream when a pane data socket connects and closes it when that socket disconnects. Read-and-discard behavior with no subscriber has not been implemented yet.
+Current implementation: the bridge opens a pane stream when the first pane data socket connects, fans output out to every subscriber on that pane, and closes the FIFO and tmux pipe when the last subscriber disconnects. Read-and-discard behavior with no subscriber has not been implemented yet.
 
 ## Write path (input)
 
@@ -63,9 +77,10 @@ This is the most latency-sensitive line in the entire codebase. See `docs/archit
 ## Pane lifecycle
 
 1. **Pane discovered:** Bridge finds a new pane in poll results and records its tty path and metadata.
-2. **Client connects:** Client opens WebSocket to `/pane/:paneId`. Bridge opens the PTY fd and starts forwarding output to that socket.
-3. **Client disconnects:** Current implementation closes the PTY fd and stops the read loop for that pane connection.
-4. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
+2. **Client connects:** Client opens WebSocket to `/pane/:paneId`. Bridge opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes to that socket.
+3. **Additional clients connect to the same pane:** The bridge reuses the same pane stream and fans output out to each subscriber.
+4. **Last client disconnects:** Current implementation closes the pane stream, detaches the tmux output pipe, and removes the FIFO.
+5. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
 
 ## Resize
 
@@ -80,6 +95,6 @@ This triggers `SIGWINCH` in the application running in the pane, causing it to r
 
 ## Error handling
 
-- If the PTY fd becomes unreadable (pane process exited), the read loop should detect EOF and clean up.
-- If `writeSync` fails (PTY closed), log and close the data channel. The next poll cycle will detect the pane removal.
-- PTY devices can disappear if tmux kills a pane. The bridge must handle `ENOENT` and `EIO` gracefully.
+- If the tmux output pipe disappears or closes, the FIFO read loop should clean up.
+- If `writeSync` fails (TTY closed), log and close the pane stream. The next poll cycle will detect the pane removal.
+- PTY devices can disappear if tmux kills a pane. The bridge must handle `ENOENT`, `EIO`, and teardown races gracefully.

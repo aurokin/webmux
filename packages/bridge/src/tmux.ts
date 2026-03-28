@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared';
 import type { Session, Window, Pane } from '@webmux/shared';
 import type { SessionManager } from './session';
@@ -76,6 +77,29 @@ export class TmuxClient {
     }
 
     return stdout.trim();
+  }
+
+  /**
+   * Run a tmux command synchronously.
+   *
+   * Used only for connection lifecycle work where the caller cannot await.
+   */
+  private execSync(args: string[]): string {
+    const cmd = ['tmux'];
+    if (this.socketPath) cmd.push('-S', this.socketPath);
+    cmd.push(...args);
+
+    try {
+      return execFileSync(cmd[0], cmd.slice(1), {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).trim();
+    } catch (error) {
+      const stderr = error instanceof Error && 'stderr' in error
+        ? String(error.stderr ?? '').trim()
+        : '';
+      throw new Error(`tmux ${args[0]} failed: ${stderr || String(error)}`);
+    }
   }
 
   /**
@@ -257,6 +281,14 @@ export class TmuxClient {
 
   async resizeSession(sessionId: string, cols: number, rows: number): Promise<void> {
     await this.exec(['resize-window', '-t', `${sessionId}:`, '-x', String(cols), '-y', String(rows)]);
+  }
+
+  pipePaneOutput(paneId: string, shellCommand: string): void {
+    this.execSync(['pipe-pane', '-O', '-t', paneId, shellCommand]);
+  }
+
+  closePanePipe(paneId: string): void {
+    this.execSync(['pipe-pane', '-t', paneId]);
   }
 
   /**

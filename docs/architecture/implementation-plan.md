@@ -75,13 +75,15 @@ Goal: pane output and input actually flow through the bridge.
 
 Status:
 - Initial PTY stream hookup landed on 2026-03-28.
-- Pane data sockets now resolve tty paths, open PTY streams on connect, forward PTY bytes to the socket, write input bytes back to the PTY, and clean up on socket close.
-- This phase is still incomplete for broader lifecycle behavior such as passive read/discard with no subscriber and multi-client fan-out.
+- Multi-subscriber pane stream fan-out landed on 2026-03-28.
+- The bridge now writes input directly to pane TTY fds, mirrors pane output through `tmux pipe-pane -O` into per-pane FIFOs, and fans one pane stream out to multiple pane WebSocket subscribers.
+- Live bridge-side validation passed on 2026-03-28 for real input writes and shared output delivery.
+- Phase 2 is complete.
 
 Tasks:
 - Resolve pane id to tty path through `SessionManager`
 - Open pane PTYs on demand in `PtyManager`
-- Stream PTY bytes to pane WebSocket clients
+- Stream pane output bytes to pane WebSocket clients
 - Write incoming pane input bytes to the correct PTY
 - Handle pane closure, PTY disappearance, and reconnect cleanup safely
 
@@ -162,6 +164,7 @@ Goal: move from working prototype to dependable tool.
 Tasks:
 - Add end-to-end tests around bridge, client, and web behavior
 - Test against tmux version variance and pane lifecycle edge cases
+- Add passive read-and-discard behavior for panes with no active subscribers if output backpressure requires it
 - Profile latency and throughput under noisy panes
 - Improve logging and operator-facing diagnostics
 - Decide packaging and distribution strategy for the CLI and bridge

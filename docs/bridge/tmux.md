@@ -26,7 +26,7 @@ And for each window, panes:
 tmux list-panes -t '$WINDOW_ID' -F '#{pane_id}<sep>#{pane_index}<sep>#{pane_width}<sep>#{pane_height}<sep>#{pane_current_command}<sep>#{pane_pid}<sep>#{pane_tty}<sep>#{window_zoomed_flag}'
 ```
 
-The `pane_tty` field gives us the PTY device path (e.g., `/dev/pts/4`). This is how we connect to the pane's data stream without going through tmux's rendering.
+The `pane_tty` field gives us the PTY slave device path (e.g., `/dev/pts/4`). The bridge uses this path for input writes, pane metadata, and ownership checks.
 
 The bridge stores pane metadata on each discovered window in addition to the parsed layout tree. That keeps tty lookup, pane labels, and future ownership checks tied to the same snapshot.
 
@@ -46,7 +46,7 @@ Polling interval is configurable. 500ms is a reasonable default — it catches w
 - Pane current command changes
 
 ### What polling does NOT catch
-- Pane content changes (handled by direct PTY reading, not tmux)
+- Pane content changes (handled by tmux output pipes, not polling)
 - Keystroke input (handled by direct PTY writing, not tmux)
 - Sub-second state changes (they'll be caught on the next poll)
 
@@ -64,9 +64,11 @@ tmux select-window -t '$WINDOW_ID'
 
 The next poll cycle will pick up the resulting state change.
 
-## PTY access
+## Pane data access
 
-The bridge does NOT read pane content through tmux. It reads directly from the PTY device that tmux's pane process is connected to. This gives us raw byte-level access to the terminal output stream — the same stream that a terminal emulator would read.
+The bridge writes input directly to the pane TTY device. For output, it uses `tmux pipe-pane -O` to mirror pane bytes into a per-pane FIFO that the bridge reads and fans out to pane WebSocket subscribers.
+
+This is a correction to the earlier scaffold assumption that reading the slave TTY would provide pane output. It does not. Per `pty(7)`, bytes written by the application to the slave are readable from the PTY master, and tmux owns that master.
 
 See `docs/bridge/pty.md` for PTY lifecycle details.
 
