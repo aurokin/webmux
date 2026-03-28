@@ -11,6 +11,7 @@ import type { Session, SessionOwnership, ClientType, BridgeMessage, Pane } from 
  */
 export class SessionManager {
   private sessions: Session[];
+  private snapshotHash: string;
   private ownership = new Map<string, SessionOwnership>();
 
   /** Set by the WebSocket server to broadcast state changes. */
@@ -18,6 +19,7 @@ export class SessionManager {
 
   constructor(initialSessions: Session[]) {
     this.sessions = initialSessions;
+    this.snapshotHash = JSON.stringify(initialSessions);
   }
 
   getSessions(): Session[] {
@@ -33,10 +35,18 @@ export class SessionManager {
    * Diffs against current state and emits incremental updates.
    */
   applyState(newSessions: Session[]): void {
-    // TODO: Diff newSessions against this.sessions
-    // Emit state.update with changes via this.onUpdate
-    // Update this.sessions
+    const nextHash = JSON.stringify(newSessions);
+    if (nextHash === this.snapshotHash) {
+      return;
+    }
+
     this.sessions = newSessions;
+    this.snapshotHash = nextHash;
+
+    this.onUpdate?.({
+      type: 'state.sync',
+      sessions: newSessions,
+    });
   }
 
   /**

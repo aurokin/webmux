@@ -43,6 +43,9 @@ Single WebSocket connection per client. Carries JSON messages for session manage
 // Full state snapshot (sent on connect and on major changes)
 { type: 'state.sync', sessions: Session[] }
 
+// Heartbeat response
+{ type: 'pong', t: number }
+
 // Incremental state update
 { type: 'state.update', changes: StateChange[] }
 
@@ -83,11 +86,21 @@ The control channel handshake includes a version field:
 // First message from client after connect
 { type: 'hello', protocolVersion: 1, clientId: string, clientType: 'web' | 'electron' | 'mobile' | 'cli' }
 
+// Heartbeat
+{ type: 'ping', t: number }
+
 // Bridge responds
-{ type: 'welcome', protocolVersion: 1, bridgeVersion: string, sessionOwnerId: string | null }
+{ type: 'welcome', protocolVersion: 1, bridgeVersion: string, ownership: SessionOwnership[] }
+
+// Heartbeat response
+{ type: 'pong', t: number }
 ```
 
 If the client's protocol version is not supported by the bridge, the bridge sends an error and closes the connection. The bridge may support multiple protocol versions simultaneously during migration periods.
+
+## Current synchronization strategy
+
+The protocol shape supports incremental `state.update` messages, but the current bridge implementation rebroadcasts full `state.sync` snapshots when polled tmux state changes. This keeps the control path coherent while incremental diffing is still under construction.
 
 ## Type definitions
 

@@ -61,7 +61,13 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
     this.controlConnection.onMessage = (data) => {
       if (typeof data === 'string') {
-        this.handleControlMessage(JSON.parse(data) as BridgeMessage);
+        const message = JSON.parse(data) as BridgeMessage;
+        if (message.type === 'pong') {
+          this.controlConnection.handlePong(message.t);
+          return;
+        }
+
+        this.handleControlMessage(message);
       }
     };
 

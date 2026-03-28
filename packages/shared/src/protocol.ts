@@ -8,6 +8,7 @@ export const PROTOCOL_VERSION = 1;
 
 export type ClientMessage =
   | { type: 'hello'; protocolVersion: number; clientId: string; clientType: ClientType }
+  | { type: 'ping'; t: number }
   | { type: 'session.list' }
   | { type: 'window.select'; sessionId: string; windowIndex: number }
   | { type: 'window.create'; sessionId: string }
@@ -22,6 +23,7 @@ export type ClientMessage =
 
 export type BridgeMessage =
   | { type: 'welcome'; protocolVersion: number; bridgeVersion: string; ownership: SessionOwnership[] }
+  | { type: 'pong'; t: number }
   | { type: 'state.sync'; sessions: Session[] }
   | { type: 'state.update'; changes: StateChange[] }
   | { type: 'pane.added'; pane: Pane }

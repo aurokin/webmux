@@ -40,4 +40,16 @@ When the control channel reconnects, all data channels are closed. The consumer 
 
 ## Heartbeat
 
-The control channel sends a WebSocket ping every 30 seconds. If no pong is received within 10 seconds, the connection is considered dead and reconnection begins. This catches silent disconnects (network change, laptop sleep, etc.).
+The control channel sends a JSON heartbeat message every 30 seconds:
+
+```typescript
+{ type: 'ping', t: Date.now() }
+```
+
+The bridge responds with:
+
+```typescript
+{ type: 'pong', t: sameTimestamp }
+```
+
+If no pong is received within 10 seconds, the connection is considered dead and reconnection begins. This catches silent disconnects (network change, laptop sleep, etc.).

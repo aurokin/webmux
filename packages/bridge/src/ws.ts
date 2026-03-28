@@ -186,11 +186,28 @@ export function createWebSocketServer(options: ServerOptions) {
   ): void {
     switch (msg.type) {
       case 'hello':
+        if (msg.protocolVersion !== PROTOCOL_VERSION) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'PROTOCOL_MISMATCH',
+            message: `Unsupported protocol version: ${msg.protocolVersion}`,
+          } satisfies BridgeMessage));
+          ws.close(WS_CLOSE.PROTOCOL_ERROR, 'PROTOCOL_MISMATCH');
+          break;
+        }
+
         ws.data.clientId = msg.clientId;
         // Send full state sync
         ws.send(JSON.stringify({
           type: 'state.sync',
           sessions: sessionManager.getSessions(),
+        } satisfies BridgeMessage));
+        break;
+
+      case 'ping':
+        ws.send(JSON.stringify({
+          type: 'pong',
+          t: msg.t,
         } satisfies BridgeMessage));
         break;
 

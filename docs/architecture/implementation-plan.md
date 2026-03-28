@@ -91,6 +91,11 @@ Done when:
 
 Goal: control messages and connection lifecycle match the documented protocol.
 
+Status:
+- Initial control-channel cleanup landed on 2026-03-28.
+- The control socket now supports JSON ping/pong heartbeats and rejects mismatched protocol versions.
+- Session polling now rebroadcasts full `state.sync` snapshots when the bridge state changes. Incremental `state.update` handling is still future work.
+
 Tasks:
 - Add explicit ping/pong handling to the control channel
 - Decide whether `state.update` ships in v0 or whether v0 should use repeated `state.sync`
