@@ -109,6 +109,7 @@ export class PtyManager {
     paneId: string,
     ttyPath: string,
     onData: (data: Buffer) => void,
+    onClose?: () => void,
   ): void {
     // Close existing stream if any
     this.closePane(paneId);
@@ -118,6 +119,7 @@ export class PtyManager {
 
     stream.open(ttyPath, onData, () => {
       this.streams.delete(paneId);
+      onClose?.();
     });
   }
 

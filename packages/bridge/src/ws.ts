@@ -113,12 +113,27 @@ export function createWebSocketServer(options: ServerOptions) {
         if (ws.data.type === 'data') {
           // Start forwarding PTY output to this WebSocket
           const paneId = ws.data.paneId;
+          const ttyPath = sessionManager.getPaneTtyPath(paneId);
 
-          // TODO: Look up pane TTY path from session manager
-          // TODO: Open PTY stream if not already open
-          // ptyManager.openPane(paneId, ttyPath, (data) => {
-          //   ws.send(data);  // binary frame
-          // });
+          if (!ttyPath) {
+            ws.close(WS_CLOSE.PANE_DESTROYED, 'PANE_NOT_FOUND');
+            return;
+          }
+
+          ptyManager.openPane(
+            paneId,
+            ttyPath,
+            (data) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(data);
+              }
+            },
+            () => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.close(WS_CLOSE.PANE_DESTROYED, 'PANE_CLOSED');
+              }
+            },
+          );
         }
       },
 
@@ -157,7 +172,10 @@ export function createWebSocketServer(options: ServerOptions) {
         if (ws.data.type === 'control') {
           controlClients.delete(ws as ServerWebSocket<ControlSocketData>);
         }
-        // Data channels: PTY stream continues (read & discard)
+
+        if (ws.data.type === 'data') {
+          ptyManager.closePane(ws.data.paneId);
+        }
       },
     },
   });

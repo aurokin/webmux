@@ -71,6 +71,11 @@ Done when:
 
 Goal: pane output and input actually flow through the bridge.
 
+Status:
+- Initial PTY stream hookup landed on 2026-03-28.
+- Pane data sockets now resolve tty paths, open PTY streams on connect, forward PTY bytes to the socket, write input bytes back to the PTY, and clean up on socket close.
+- This phase is still incomplete for broader lifecycle behavior such as passive read/discard with no subscriber and multi-client fan-out.
+
 Tasks:
 - Resolve pane id to tty path through `SessionManager`
 - Open pane PTYs on demand in `PtyManager`

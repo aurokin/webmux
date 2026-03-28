@@ -44,7 +44,9 @@ stream.on('data', (chunk: Buffer) => {
 
 ### What if no client is connected?
 
-If no client is connected for a pane's data channel, the bridge should still read from the PTY fd to prevent the PTY buffer from filling up (which would block the application writing to it). Read and discard.
+Target behavior: if no client is connected for a pane's data channel, the bridge should still read from the PTY fd to prevent the PTY buffer from filling up (which would block the application writing to it). Read and discard.
+
+Current implementation: the bridge opens a PTY stream when a pane data socket connects and closes it when that socket disconnects. Read-and-discard behavior with no subscriber has not been implemented yet.
 
 ## Write path (input)
 
@@ -60,10 +62,10 @@ This is the most latency-sensitive line in the entire codebase. See `docs/archit
 
 ## Pane lifecycle
 
-1. **Pane discovered:** Bridge finds a new pane in poll results. Opens PTY fd. Starts read loop. Registers data channel endpoint.
-2. **Client connects:** Client opens WebSocket to `/pane/:paneId`. Bridge starts forwarding read loop output to this connection.
-3. **Client disconnects:** Bridge continues read loop (discard output). Data channel endpoint remains registered for reconnection.
-4. **Pane destroyed:** Bridge detects pane removal in poll results. Closes PTY fd. Stops read loop. Closes any connected data channel WebSocket. Removes data channel endpoint.
+1. **Pane discovered:** Bridge finds a new pane in poll results and records its tty path and metadata.
+2. **Client connects:** Client opens WebSocket to `/pane/:paneId`. Bridge opens the PTY fd and starts forwarding output to that socket.
+3. **Client disconnects:** Current implementation closes the PTY fd and stops the read loop for that pane connection.
+4. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
 
 ## Resize
 
