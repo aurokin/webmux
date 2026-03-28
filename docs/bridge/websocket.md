@@ -69,11 +69,21 @@ interface SessionOwnership {
 6. Bridge updates ownership to Client B.
 7. Bridge sends `{ type: 'session.controlChanged', sessionId: '...', ownerId: 'B' }` to ALL connected clients.
 8. Client A receives this and enters passive mode (UI shows "Session moved to [B's device]").
-9. Bridge reattaches tmux at Client B's dimensions: `tmux attach -t $SESSION -x $COLS -y $ROWS`.
+9. Bridge resizes the owned tmux session to Client B's stored dimensions using `tmux resize-window -t $SESSION: -x $COLS -y $ROWS`.
 
 ### Passive mode
 
 Passive clients still receive output on their data channels. They can watch but not type. Their data channel WebSocket `message` events (input) are silently dropped by the bridge based on the `clientId` attached to that pane socket.
+
+### Client dimensions
+
+Clients report their current terminal geometry over the control channel:
+
+```typescript
+{ type: 'client.dimensions', cols: number, rows: number }
+```
+
+The bridge stores the latest dimensions per `clientId`. If that client owns a session, the bridge applies the new size immediately. If the client later takes control of another session, the stored dimensions are used for the ownership transfer resize.
 
 ### Release
 

@@ -37,6 +37,8 @@ Single WebSocket connection per client. Carries JSON messages for session manage
 { type: 'client.dimensions', cols: number, rows: number }
 ```
 
+Current implementation: the bridge stores the latest dimensions per client and applies them to any session currently owned by that client.
+
 ### Bridge → Client messages
 
 ```typescript

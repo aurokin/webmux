@@ -255,6 +255,10 @@ export class TmuxClient {
     await this.exec(['resize-pane', '-t', paneId, '-x', String(cols), '-y', String(rows)]);
   }
 
+  async resizeSession(sessionId: string, cols: number, rows: number): Promise<void> {
+    await this.exec(['resize-window', '-t', `${sessionId}:`, '-x', String(cols), '-y', String(rows)]);
+  }
+
   /**
    * Start polling tmux state for changes.
    * Diffs against SessionManager's current state and pushes updates.

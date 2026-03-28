@@ -5,6 +5,7 @@ import {
   WS_CLOSE,
   type ClientMessage,
   type BridgeMessage,
+  type ClientType,
 } from '@webmux/shared';
 import type { TmuxClient } from './tmux';
 import type { SessionManager } from './session';
@@ -16,6 +17,7 @@ import { PtyManager } from './pty';
 interface ControlSocketData {
   type: 'control';
   clientId: string | null;
+  clientType: ClientType | null;
   authenticated: boolean;
 }
 
@@ -75,7 +77,7 @@ export function createWebSocketServer(options: ServerOptions) {
       // Route: /control
       if (url.pathname === '/control') {
         const upgraded = server.upgrade(req, {
-          data: { type: 'control', clientId: null, authenticated: true },
+          data: { type: 'control', clientId: null, clientType: null, authenticated: true },
         });
         return upgraded ? undefined : new Response('Upgrade failed', { status: 500 });
       }
@@ -174,6 +176,9 @@ export function createWebSocketServer(options: ServerOptions) {
       close(ws, code, reason) {
         if (ws.data.type === 'control') {
           controlClients.delete(ws as ServerWebSocket<ControlSocketData>);
+          if (ws.data.clientId) {
+            sessionManager.removeClient(ws.data.clientId);
+          }
         }
 
         if (ws.data.type === 'data') {
@@ -200,6 +205,7 @@ export function createWebSocketServer(options: ServerOptions) {
         }
 
         ws.data.clientId = msg.clientId;
+        ws.data.clientType = msg.clientType;
         // Send full state sync
         ws.send(JSON.stringify({
           type: 'state.sync',
@@ -242,7 +248,8 @@ export function createWebSocketServer(options: ServerOptions) {
         break;
 
       case 'session.takeControl':
-        sessionManager.takeControl(msg.sessionId, ws.data.clientId!);
+        sessionManager.takeControl(msg.sessionId, ws.data.clientId!, ws.data.clientType ?? undefined);
+        resizeOwnedSessions(ws.data.clientId!, [msg.sessionId]);
         break;
 
       case 'session.release':
@@ -250,8 +257,29 @@ export function createWebSocketServer(options: ServerOptions) {
         break;
 
       case 'client.dimensions':
-        // TODO: Store client dimensions for tmux resize on handoff
+        if (!ws.data.clientId || !ws.data.clientType) {
+          break;
+        }
+
+        sessionManager.setClientInfo({
+          clientId: ws.data.clientId,
+          clientType: ws.data.clientType,
+          cols: msg.cols,
+          rows: msg.rows,
+        });
+        resizeOwnedSessions(ws.data.clientId, sessionManager.getOwnedSessionIds(ws.data.clientId));
         break;
+    }
+  }
+
+  function resizeOwnedSessions(clientId: string, sessionIds: string[]): void {
+    const client = sessionManager.getClientInfo(clientId);
+    if (!client) return;
+
+    for (const sessionId of sessionIds) {
+      void tmux.resizeSession(sessionId, client.cols, client.rows).catch((error) => {
+        console.error(`[tmux resize] failed for ${sessionId}:`, error);
+      });
     }
   }
 

@@ -98,6 +98,7 @@ Status:
 - The control socket now supports JSON ping/pong heartbeats and rejects mismatched protocol versions.
 - Session polling now rebroadcasts full `state.sync` snapshots when the bridge state changes. Incremental `state.update` handling is still future work.
 - Pane data sockets now carry `clientId`, so ownership checks use real client identity instead of a placeholder.
+- The bridge now stores per-client dimensions and applies `resize-window` on ownership transfer and owner dimension updates.
 
 Tasks:
 - Add explicit ping/pong handling to the control channel

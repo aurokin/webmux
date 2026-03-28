@@ -1,4 +1,11 @@
-import type { Session, SessionOwnership, ClientType, BridgeMessage, Pane } from '@webmux/shared';
+import type {
+  Session,
+  SessionOwnership,
+  ClientType,
+  BridgeMessage,
+  Pane,
+  ClientInfo,
+} from '@webmux/shared';
 
 /**
  * Manages session state and client ownership.
@@ -13,6 +20,7 @@ export class SessionManager {
   private sessions: Session[];
   private snapshotHash: string;
   private ownership = new Map<string, SessionOwnership>();
+  private clients = new Map<string, ClientInfo>();
 
   /** Set by the WebSocket server to broadcast state changes. */
   onUpdate: ((message: BridgeMessage) => void) | null = null;
@@ -28,6 +36,24 @@ export class SessionManager {
 
   getOwnership(): SessionOwnership[] {
     return Array.from(this.ownership.values());
+  }
+
+  setClientInfo(client: ClientInfo): void {
+    this.clients.set(client.clientId, client);
+  }
+
+  removeClient(clientId: string): void {
+    this.clients.delete(clientId);
+  }
+
+  getClientInfo(clientId: string): ClientInfo | null {
+    return this.clients.get(clientId) ?? null;
+  }
+
+  getOwnedSessionIds(clientId: string): string[] {
+    return Array.from(this.ownership.values())
+      .filter((ownership) => ownership.ownerId === clientId)
+      .map((ownership) => ownership.sessionId);
   }
 
   /**
