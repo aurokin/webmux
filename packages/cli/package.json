@@ -1,0 +1,21 @@
+{
+  "name": "@webmux/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "webmux": "src/index.ts"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/webmux --target bun --compile",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@webmux/shared": "workspace:*",
+    "@webmux/bridge": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/bun": "latest"
+  }
+}

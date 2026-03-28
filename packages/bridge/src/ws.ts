@@ -1,0 +1,221 @@
+import type { ServerWebSocket } from 'bun';
+import {
+  PROTOCOL_VERSION,
+  BRIDGE_VERSION,
+  WS_CLOSE,
+  type ClientMessage,
+  type BridgeMessage,
+} from '@webmux/shared';
+import type { TmuxClient } from './tmux';
+import type { SessionManager } from './session';
+import { PtyManager } from './pty';
+
+/**
+ * Client connection metadata, attached to each WebSocket via ws.data.
+ */
+interface ControlSocketData {
+  type: 'control';
+  clientId: string | null;
+  authenticated: boolean;
+}
+
+interface DataSocketData {
+  type: 'data';
+  paneId: string;
+  authenticated: boolean;
+}
+
+type SocketData = ControlSocketData | DataSocketData;
+
+interface ServerOptions {
+  port: number;
+  host: string;
+  token: string;
+  tmux: TmuxClient;
+  sessionManager: SessionManager;
+}
+
+export function createWebSocketServer(options: ServerOptions) {
+  const { port, host, token, tmux, sessionManager } = options;
+  const ptyManager = new PtyManager();
+
+  // Track connected control clients for broadcasting
+  const controlClients = new Set<ServerWebSocket<ControlSocketData>>();
+
+  /**
+   * Broadcast a message to all authenticated control clients.
+   */
+  function broadcast(message: BridgeMessage): void {
+    const json = JSON.stringify(message);
+    for (const ws of controlClients) {
+      if (ws.data.authenticated) {
+        ws.send(json);
+      }
+    }
+  }
+
+  // Wire up session manager to broadcast state changes
+  sessionManager.onUpdate = (message: BridgeMessage) => broadcast(message);
+
+  const server = Bun.serve<SocketData>({
+    port,
+    hostname: host,
+
+    fetch(req, server) {
+      const url = new URL(req.url);
+      const reqToken = url.searchParams.get('token');
+
+      // Validate auth token
+      if (reqToken !== token) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      // Route: /control
+      if (url.pathname === '/control') {
+        const upgraded = server.upgrade(req, {
+          data: { type: 'control', clientId: null, authenticated: true },
+        });
+        return upgraded ? undefined : new Response('Upgrade failed', { status: 500 });
+      }
+
+      // Route: /pane/:paneId
+      const paneMatch = url.pathname.match(/^\/pane\/(.+)$/);
+      if (paneMatch) {
+        const paneId = paneMatch[1];
+        const upgraded = server.upgrade(req, {
+          data: { type: 'data', paneId, authenticated: true },
+        });
+        return upgraded ? undefined : new Response('Upgrade failed', { status: 500 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    },
+
+    websocket: {
+      perMessageDeflate: false, // CRITICAL: no compression — see docs/architecture/latency.md
+      maxPayloadLength: 64 * 1024,
+      idleTimeout: 0,
+
+      open(ws) {
+        if (ws.data.type === 'control') {
+          controlClients.add(ws as ServerWebSocket<ControlSocketData>);
+
+          // Send welcome
+          const welcome: BridgeMessage = {
+            type: 'welcome',
+            protocolVersion: PROTOCOL_VERSION,
+            bridgeVersion: BRIDGE_VERSION,
+            ownership: sessionManager.getOwnership(),
+          };
+          ws.send(JSON.stringify(welcome));
+        }
+
+        if (ws.data.type === 'data') {
+          // Start forwarding PTY output to this WebSocket
+          const paneId = ws.data.paneId;
+
+          // TODO: Look up pane TTY path from session manager
+          // TODO: Open PTY stream if not already open
+          // ptyManager.openPane(paneId, ttyPath, (data) => {
+          //   ws.send(data);  // binary frame
+          // });
+        }
+      },
+
+      message(ws, message) {
+        if (ws.data.type === 'control') {
+          // Control channel: JSON messages
+          try {
+            const msg = JSON.parse(String(message)) as ClientMessage;
+            handleControlMessage(ws as ServerWebSocket<ControlSocketData>, msg);
+          } catch {
+            ws.send(JSON.stringify({
+              type: 'error',
+              code: 'INVALID_MESSAGE',
+              message: 'Failed to parse control message',
+            } satisfies BridgeMessage));
+          }
+          return;
+        }
+
+        if (ws.data.type === 'data') {
+          // Data channel: raw binary input → write to PTY
+          const paneId = ws.data.paneId;
+
+          // Check ownership before allowing input
+          if (!sessionManager.canSendInput(paneId, /* clientId */ '')) {
+            return; // silently drop — client is not the owner
+          }
+
+          if (message instanceof Buffer || message instanceof Uint8Array) {
+            ptyManager.writeInput(paneId, message as Buffer);
+          }
+        }
+      },
+
+      close(ws, code, reason) {
+        if (ws.data.type === 'control') {
+          controlClients.delete(ws as ServerWebSocket<ControlSocketData>);
+        }
+        // Data channels: PTY stream continues (read & discard)
+      },
+    },
+  });
+
+  function handleControlMessage(
+    ws: ServerWebSocket<ControlSocketData>,
+    msg: ClientMessage,
+  ): void {
+    switch (msg.type) {
+      case 'hello':
+        ws.data.clientId = msg.clientId;
+        // Send full state sync
+        ws.send(JSON.stringify({
+          type: 'state.sync',
+          sessions: sessionManager.getSessions(),
+        } satisfies BridgeMessage));
+        break;
+
+      case 'session.list':
+        ws.send(JSON.stringify({
+          type: 'state.sync',
+          sessions: sessionManager.getSessions(),
+        } satisfies BridgeMessage));
+        break;
+
+      case 'window.select':
+        tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex);
+        break;
+
+      case 'window.create':
+        tmux.createWindow(msg.sessionId);
+        break;
+
+      case 'pane.split':
+        tmux.splitPane(msg.paneId, msg.direction);
+        break;
+
+      case 'pane.resize':
+        tmux.resizePane(msg.paneId, msg.cols, msg.rows);
+        break;
+
+      case 'pane.close':
+        tmux.closePane(msg.paneId);
+        break;
+
+      case 'session.takeControl':
+        sessionManager.takeControl(msg.sessionId, ws.data.clientId!);
+        break;
+
+      case 'session.release':
+        sessionManager.releaseControl(msg.sessionId, ws.data.clientId!);
+        break;
+
+      case 'client.dimensions':
+        // TODO: Store client dimensions for tmux resize on handoff
+        break;
+    }
+  }
+
+  return server;
+}

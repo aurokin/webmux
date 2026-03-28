@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@webmux/shared": ["packages/shared/src/index.ts"],
+      "@webmux/bridge": ["packages/bridge/src/index.ts"],
+      "@webmux/client": ["packages/client/src/index.ts"],
+      "@webmux/cli": ["packages/cli/src/index.ts"],
+      "@webmux/web": ["packages/web/src/main.tsx"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
+  }
+}

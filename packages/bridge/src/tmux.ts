@@ -1,0 +1,112 @@
+import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared';
+import type { Session, Window, Pane } from '@webmux/shared';
+import type { SessionManager } from './session';
+
+/**
+ * Wraps tmux CLI commands. Parses output into @webmux/shared types.
+ *
+ * All tmux interaction goes through this class. If we ever switch
+ * to tmux -CC control mode, this is the only file that changes.
+ */
+export class TmuxClient {
+  private pollInterval: number = DEFAULT_POLL_INTERVAL_MS;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private socketPath: string | null = null;
+
+  constructor(options?: { socketPath?: string; pollInterval?: number }) {
+    this.socketPath = options?.socketPath ?? null;
+    this.pollInterval = options?.pollInterval ?? DEFAULT_POLL_INTERVAL_MS;
+  }
+
+  /**
+   * Run a tmux command and return stdout.
+   * Throws on non-zero exit code.
+   */
+  private async exec(args: string[]): Promise<string> {
+    const cmd = ['tmux'];
+    if (this.socketPath) cmd.push('-S', this.socketPath);
+    cmd.push(...args);
+
+    const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
+    const stdout = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+
+    if (exitCode !== 0) {
+      const stderr = await new Response(proc.stderr).text();
+      throw new Error(`tmux ${args[0]} failed (${exitCode}): ${stderr.trim()}`);
+    }
+
+    return stdout.trim();
+  }
+
+  /**
+   * Discover all sessions with their windows and panes.
+   */
+  async listSessions(): Promise<Session[]> {
+    // TODO: Implement tmux list-sessions parsing
+    // See docs/bridge/tmux.md for format strings
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * List windows for a session.
+   */
+  async listWindows(sessionId: string): Promise<Window[]> {
+    // TODO: Implement tmux list-windows parsing
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * List panes for a window.
+   */
+  async listPanes(windowId: string): Promise<Pane[]> {
+    // TODO: Implement tmux list-panes parsing
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Execute a tmux structural command (split, create window, etc.)
+   */
+  async splitPane(paneId: string, direction: 'horizontal' | 'vertical'): Promise<void> {
+    const flag = direction === 'horizontal' ? '-h' : '-v';
+    await this.exec(['split-window', '-t', paneId, flag]);
+  }
+
+  async createWindow(sessionId: string): Promise<void> {
+    await this.exec(['new-window', '-t', sessionId]);
+  }
+
+  async selectWindow(windowId: string): Promise<void> {
+    await this.exec(['select-window', '-t', windowId]);
+  }
+
+  async closePane(paneId: string): Promise<void> {
+    await this.exec(['kill-pane', '-t', paneId]);
+  }
+
+  async resizePane(paneId: string, cols: number, rows: number): Promise<void> {
+    await this.exec(['resize-pane', '-t', paneId, '-x', String(cols), '-y', String(rows)]);
+  }
+
+  /**
+   * Start polling tmux state for changes.
+   * Diffs against SessionManager's current state and pushes updates.
+   */
+  startPolling(sessionManager: SessionManager): void {
+    this.pollTimer = setInterval(async () => {
+      try {
+        const sessions = await this.listSessions();
+        sessionManager.applyState(sessions);
+      } catch (err) {
+        console.error('[tmux poll]', err);
+      }
+    }, this.pollInterval);
+  }
+
+  stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "webmux",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter '@webmux/*' dev",
+    "build": "bun run --filter '@webmux/*' build",
+    "typecheck": "bun run --filter '@webmux/*' typecheck",
+    "clean": "bun run --filter '@webmux/*' clean"
+  }
+}
