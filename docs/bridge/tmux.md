@@ -4,10 +4,12 @@ The bridge talks to tmux via its CLI. It does not use the tmux C API, does not l
 
 ## Discovery
 
+The bridge uses a non-printing internal field separator when parsing tmux output. The examples below show field order, not the literal delimiter bytes.
+
 On startup, the bridge checks for a running tmux server by running:
 
 ```bash
-tmux list-sessions -F '#{session_id}:#{session_name}:#{session_windows}:#{session_attached}'
+tmux list-sessions -F '#{session_id}<sep>#{session_name}<sep>#{session_windows}<sep>#{session_attached}'
 ```
 
 This returns one line per session. The bridge parses each line into a `Session` type from `@webmux/shared`.
@@ -15,16 +17,18 @@ This returns one line per session. The bridge parses each line into a `Session` 
 For each session, it discovers windows:
 
 ```bash
-tmux list-windows -t '$SESSION_ID' -F '#{window_id}:#{window_index}:#{window_name}:#{window_active}:#{window_panes}'
+tmux list-windows -t '$SESSION_ID' -F '#{window_id}<sep>#{window_index}<sep>#{window_name}<sep>#{window_active}<sep>#{window_panes}<sep>#{window_layout}'
 ```
 
 And for each window, panes:
 
 ```bash
-tmux list-panes -t '$WINDOW_ID' -F '#{pane_id}:#{pane_index}:#{pane_width}:#{pane_height}:#{pane_current_command}:#{pane_pid}:#{pane_tty}'
+tmux list-panes -t '$WINDOW_ID' -F '#{pane_id}<sep>#{pane_index}<sep>#{pane_width}<sep>#{pane_height}<sep>#{pane_current_command}<sep>#{pane_pid}<sep>#{pane_tty}<sep>#{window_zoomed_flag}'
 ```
 
 The `pane_tty` field gives us the PTY device path (e.g., `/dev/pts/4`). This is how we connect to the pane's data stream without going through tmux's rendering.
+
+The bridge stores pane metadata on each discovered window in addition to the parsed layout tree. That keeps tty lookup, pane labels, and future ownership checks tied to the same snapshot.
 
 ## State polling
 

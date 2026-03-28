@@ -52,6 +52,11 @@ Done when:
 
 Goal: the bridge can produce a real `Session[]` snapshot from a running tmux server.
 
+Status:
+- Core discovery parsing landed on 2026-03-28.
+- Bridge-side layout parsing now exists and windows carry pane metadata in the shared snapshot model.
+- Live tmux validation is still pending before this phase should be treated as complete.
+
 Tasks:
 - Implement `listSessions()`, `listWindows()`, and `listPanes()` in `packages/bridge/src/tmux.ts`
 - Parse tmux layout and pane metadata into `@webmux/shared` types

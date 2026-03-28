@@ -14,6 +14,7 @@ export interface Window {
   name: string;
   active: boolean;
   paneCount: number;
+  panes: Pane[];
   layout: LayoutNode;
 }
 

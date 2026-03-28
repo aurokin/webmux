@@ -1,6 +1,45 @@
 import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared';
 import type { Session, Window, Pane } from '@webmux/shared';
 import type { SessionManager } from './session';
+import { buildFallbackLayout, parseTmuxLayout } from './layout';
+
+const FIELD_SEPARATOR = '\x1f';
+
+function splitFields(line: string, expectedFields: number): string[] {
+  const fields = line.split(FIELD_SEPARATOR);
+  if (fields.length < expectedFields) {
+    throw new Error(`Expected ${expectedFields} fields, received ${fields.length}`);
+  }
+
+  if (fields.length === expectedFields) {
+    return fields;
+  }
+
+  return [
+    ...fields.slice(0, expectedFields - 1),
+    fields.slice(expectedFields - 1).join(FIELD_SEPARATOR),
+  ];
+}
+
+function parseBoolean(value: string): boolean {
+  return value === '1';
+}
+
+function parseInteger(value: string, field: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid ${field}: ${value}`);
+  }
+  return parsed;
+}
+
+function isNoTmuxServerError(error: unknown): boolean {
+  return error instanceof Error && (
+    error.message.includes('no server running') ||
+    error.message.includes('failed to connect to server') ||
+    error.message.includes('No such file or directory')
+  );
+}
 
 /**
  * Wraps tmux CLI commands. Parses output into @webmux/shared types.
@@ -43,25 +82,153 @@ export class TmuxClient {
    * Discover all sessions with their windows and panes.
    */
   async listSessions(): Promise<Session[]> {
-    // TODO: Implement tmux list-sessions parsing
-    // See docs/bridge/tmux.md for format strings
-    throw new Error('Not implemented');
+    let output = '';
+    try {
+      output = await this.exec([
+        'list-sessions',
+        '-F',
+        [
+          '#{session_id}',
+          '#{session_name}',
+          '#{session_windows}',
+          '#{session_attached}',
+        ].join(FIELD_SEPARATOR),
+      ]);
+    } catch (error) {
+      if (isNoTmuxServerError(error)) {
+        return [];
+      }
+      throw error;
+    }
+
+    if (!output) {
+      return [];
+    }
+
+    const sessions: Session[] = [];
+    for (const line of output.split('\n')) {
+      if (!line.trim()) continue;
+
+      const [id, name] = splitFields(line, 4);
+      const windows = await this.listWindows(id);
+
+      sessions.push({
+        id,
+        name,
+        windowCount: windows.length,
+        attached: line.endsWith(`${FIELD_SEPARATOR}1`),
+        windows,
+      });
+    }
+
+    return sessions;
   }
 
   /**
    * List windows for a session.
    */
   async listWindows(sessionId: string): Promise<Window[]> {
-    // TODO: Implement tmux list-windows parsing
-    throw new Error('Not implemented');
+    const output = await this.exec([
+      'list-windows',
+      '-t',
+      sessionId,
+      '-F',
+      [
+        '#{window_id}',
+        '#{window_index}',
+        '#{window_name}',
+        '#{window_active}',
+        '#{window_panes}',
+        '#{window_layout}',
+      ].join(FIELD_SEPARATOR),
+    ]);
+
+    if (!output) {
+      return [];
+    }
+
+    const windows: Window[] = [];
+    for (const line of output.split('\n')) {
+      if (!line.trim()) continue;
+
+      const [id, indexValue, name, activeValue, _paneCountValue, layoutValue] = splitFields(line, 6);
+      const panes = await this.listPanes(id);
+
+      let layout;
+      try {
+        layout = parseTmuxLayout(layoutValue);
+      } catch (error) {
+        console.warn(`[tmux] failed to parse layout for ${id}:`, error);
+        layout = buildFallbackLayout(panes);
+      }
+
+      windows.push({
+        id,
+        index: parseInteger(indexValue, 'window index'),
+        name,
+        active: parseBoolean(activeValue),
+        paneCount: panes.length,
+        panes,
+        layout,
+      });
+    }
+
+    return windows;
   }
 
   /**
    * List panes for a window.
    */
   async listPanes(windowId: string): Promise<Pane[]> {
-    // TODO: Implement tmux list-panes parsing
-    throw new Error('Not implemented');
+    const output = await this.exec([
+      'list-panes',
+      '-t',
+      windowId,
+      '-F',
+      [
+        '#{pane_id}',
+        '#{pane_index}',
+        '#{pane_width}',
+        '#{pane_height}',
+        '#{pane_current_command}',
+        '#{pane_pid}',
+        '#{pane_tty}',
+        '#{window_zoomed_flag}',
+      ].join(FIELD_SEPARATOR),
+    ]);
+
+    if (!output) {
+      return [];
+    }
+
+    const panes: Pane[] = [];
+    for (const line of output.split('\n')) {
+      if (!line.trim()) continue;
+
+      const [
+        id,
+        indexValue,
+        colsValue,
+        rowsValue,
+        currentCommand,
+        pidValue,
+        ttyPath,
+        zoomedValue,
+      ] = splitFields(line, 8);
+
+      panes.push({
+        id,
+        index: parseInteger(indexValue, 'pane index'),
+        cols: parseInteger(colsValue, 'pane cols'),
+        rows: parseInteger(rowsValue, 'pane rows'),
+        currentCommand,
+        pid: parseInteger(pidValue, 'pane pid'),
+        ttyPath,
+        zoomed: parseBoolean(zoomedValue),
+      });
+    }
+
+    return panes;
   }
 
   /**

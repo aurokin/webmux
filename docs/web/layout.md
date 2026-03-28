@@ -8,16 +8,16 @@ tmux describes window layouts as a string:
 
 ```
 # Horizontal split: two panes side by side
-a]80x40,0,0,1,80x40,81,0,2
+160x40,0,0[80x40,0,0,1,79x40,81,0,2]
 
 # Vertical split: two panes stacked
-{80x20,0,0,1,80x19,0,21,2}
+80x40,0,0{80x20,0,0,1,80x19,0,21,2}
 
 # Nested: left pane, right column with two stacked panes
-[160x40,0,0{80x40,0,0,1,[80x40,81,0{80x20,81,0,2,80x19,81,21,3}]}]
+160x40,0,0{80x40,0,0,1,80x40,81,0[80x20,81,0,2,80x19,81,21,3]}
 ```
 
-The bridge parses this into a tree structure and sends it as part of the pane data.
+The bridge parses this into a tree structure and sends it as part of the window state snapshot.
 
 ## Layout tree type
 

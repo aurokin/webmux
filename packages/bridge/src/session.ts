@@ -1,4 +1,4 @@
-import type { Session, SessionOwnership, ClientType, BridgeMessage } from '@webmux/shared';
+import type { Session, SessionOwnership, ClientType, BridgeMessage, Pane } from '@webmux/shared';
 
 /**
  * Manages session state and client ownership.
@@ -85,9 +85,14 @@ export class SessionManager {
    * Returns true if the client owns the session that contains the pane.
    */
   canSendInput(paneId: string, clientId: string): boolean {
-    // TODO: Look up which session contains this pane
-    // Check if clientId is the owner of that session
-    return true; // permissive for now
+    if (!clientId) return true;
+
+    const session = this.findSessionByPaneId(paneId);
+    if (!session) return false;
+
+    const ownership = this.ownership.get(session.id);
+    if (!ownership?.ownerId) return true;
+    return ownership.ownerId === clientId;
   }
 
   /**
@@ -96,10 +101,36 @@ export class SessionManager {
   getPaneTtyPath(paneId: string): string | null {
     for (const session of this.sessions) {
       for (const window of session.windows) {
-        // TODO: Walk layout tree to find pane by ID
-        // Return pane.ttyPath
+        const pane = window.panes.find((candidate) => candidate.id === paneId);
+        if (pane) {
+          return pane.ttyPath;
+        }
       }
     }
+    return null;
+  }
+
+  getPane(paneId: string): Pane | null {
+    for (const session of this.sessions) {
+      for (const window of session.windows) {
+        const pane = window.panes.find((candidate) => candidate.id === paneId);
+        if (pane) {
+          return pane;
+        }
+      }
+    }
+    return null;
+  }
+
+  private findSessionByPaneId(paneId: string): Session | null {
+    for (const session of this.sessions) {
+      for (const window of session.windows) {
+        if (window.panes.some((pane) => pane.id === paneId)) {
+          return session;
+        }
+      }
+    }
+
     return null;
   }
 }
