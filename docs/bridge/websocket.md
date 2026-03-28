@@ -16,16 +16,16 @@ Lifecycle:
 5. Bridge sends full `state.sync` snapshot.
 6. Ongoing: bridge pushes `state.update` on poll changes. Client sends commands.
 
-### Data channels: `ws://host:port/pane/:paneId?token=xxx`
+### Data channels: `ws://host:port/pane/:paneId?token=xxx&clientId=...`
 
 One per pane per client. Carries raw binary PTY data in both directions.
 
 Lifecycle:
-1. Client connects with auth token and pane ID.
+1. Client connects with auth token, pane ID, and client ID.
 2. Bridge validates token and pane existence.
 3. Bridge starts forwarding PTY read loop output to this connection.
-4. Client sends binary frames (keystrokes) → bridge writes to PTY fd.
-5. On disconnect, bridge continues reading PTY (discard output) until pane is destroyed or client reconnects.
+4. Client sends binary frames (keystrokes) → bridge checks ownership for that `clientId` and writes allowed input to the PTY fd.
+5. On disconnect, the current implementation closes that pane's PTY stream and cleans up the socket-specific bridge state.
 
 ## Server configuration
 
@@ -73,7 +73,7 @@ interface SessionOwnership {
 
 ### Passive mode
 
-Passive clients still receive output on their data channels. They can watch but not type. Their data channel WebSocket `message` events (input) are silently dropped by the bridge.
+Passive clients still receive output on their data channels. They can watch but not type. Their data channel WebSocket `message` events (input) are silently dropped by the bridge based on the `clientId` attached to that pane socket.
 
 ### Release
 

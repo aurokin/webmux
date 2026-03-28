@@ -62,7 +62,7 @@ Single WebSocket connection per client. Carries JSON messages for session manage
 
 ## Data channels
 
-One WebSocket connection per pane. Carries raw binary PTY data (output) and raw binary input (keystrokes). Connected at `ws://host:port/pane/:paneId`.
+One WebSocket connection per pane. Carries raw binary PTY data (output) and raw binary input (keystrokes). Connected at `ws://host:port/pane/:paneId?token=...&clientId=...`.
 
 - **Bridge → Client:** binary frames containing raw PTY output bytes. No framing protocol — just the bytes as read from the PTY fd. Fed directly into xterm.js `Terminal.write()`.
 - **Client → Bridge:** binary frames containing raw input bytes. Single keystrokes or short sequences. Written directly to the PTY fd. No batching.

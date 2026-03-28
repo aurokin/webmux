@@ -22,6 +22,7 @@ interface ControlSocketData {
 interface DataSocketData {
   type: 'data';
   paneId: string;
+  clientId: string | null;
   authenticated: boolean;
 }
 
@@ -64,6 +65,7 @@ export function createWebSocketServer(options: ServerOptions) {
     fetch(req, server) {
       const url = new URL(req.url);
       const reqToken = url.searchParams.get('token');
+      const clientId = url.searchParams.get('clientId');
 
       // Validate auth token
       if (reqToken !== token) {
@@ -83,7 +85,7 @@ export function createWebSocketServer(options: ServerOptions) {
       if (paneMatch) {
         const paneId = paneMatch[1];
         const upgraded = server.upgrade(req, {
-          data: { type: 'data', paneId, authenticated: true },
+          data: { type: 'data', paneId, clientId, authenticated: true },
         });
         return upgraded ? undefined : new Response('Upgrade failed', { status: 500 });
       }
@@ -156,9 +158,10 @@ export function createWebSocketServer(options: ServerOptions) {
         if (ws.data.type === 'data') {
           // Data channel: raw binary input → write to PTY
           const paneId = ws.data.paneId;
+          const clientId = ws.data.clientId;
 
           // Check ownership before allowing input
-          if (!sessionManager.canSendInput(paneId, /* clientId */ '')) {
+          if (!sessionManager.canSendInput(paneId, clientId ?? '')) {
             return; // silently drop — client is not the owner
           }
 

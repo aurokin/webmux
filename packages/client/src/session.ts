@@ -161,7 +161,11 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   connectPane(paneId: string): void {
     if (this.paneConnections.has(paneId)) return;
 
-    const url = `${this.options.url}/pane/${paneId}?token=${this.options.token}`;
+    const params = new URLSearchParams({
+      token: this.options.token,
+      clientId: this.options.clientId,
+    });
+    const url = `${this.options.url}/pane/${paneId}?${params.toString()}`;
     const conn = new Connection(url);
 
     conn.onMessage = (data) => {
