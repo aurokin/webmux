@@ -30,6 +30,8 @@ The `pane_tty` field gives us the PTY device path (e.g., `/dev/pts/4`). This is 
 
 The bridge stores pane metadata on each discovered window in addition to the parsed layout tree. That keeps tty lookup, pane labels, and future ownership checks tied to the same snapshot.
 
+tmux layout leaf ids do not always use the exact same string format as `#{pane_id}`. The bridge normalizes parsed layout leaf identifiers against the discovered pane list before exposing layout data to consumers.
+
 ## State polling
 
 v0 uses polling to detect state changes. The bridge runs the discovery commands on an interval (default: 500ms) and diffs the result against its internal state. When differences are found, it emits `state.update` messages on the control channel.

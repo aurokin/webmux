@@ -17,7 +17,7 @@ tmux describes window layouts as a string:
 160x40,0,0{80x40,0,0,1,80x40,81,0[80x20,81,0,2,80x19,81,21,3]}
 ```
 
-The bridge parses this into a tree structure and sends it as part of the window state snapshot.
+The bridge parses this into a tree structure, normalizes leaf identifiers against discovered panes, and sends it as part of the window state snapshot.
 
 ## Layout tree type
 

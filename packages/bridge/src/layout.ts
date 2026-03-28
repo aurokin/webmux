@@ -157,6 +157,42 @@ export function parseTmuxLayout(layout: string): LayoutNode {
   return new LayoutParser(layout).parse();
 }
 
+export function bindLayoutToPanes(layout: LayoutNode, panes: Pane[]): LayoutNode {
+  if (layout.type === 'pane') {
+    const directMatch = panes.find((pane) => pane.id === layout.paneId);
+    if (directMatch) {
+      return layout;
+    }
+
+    const paneByIdSuffix = panes.find((pane) => pane.id.replace(/^%/, '') === layout.paneId);
+    if (paneByIdSuffix) {
+      return {
+        ...layout,
+        paneId: paneByIdSuffix.id,
+      };
+    }
+
+    const index = Number.parseInt(layout.paneId, 10);
+    const paneByIndex = Number.isNaN(index)
+      ? null
+      : panes.find((pane) => pane.index === index);
+
+    if (!paneByIndex) {
+      return layout;
+    }
+
+    return {
+      ...layout,
+      paneId: paneByIndex.id,
+    };
+  }
+
+  return {
+    ...layout,
+    children: layout.children.map((child) => bindLayoutToPanes(child, panes)),
+  };
+}
+
 export function buildFallbackLayout(panes: Pane[]): LayoutNode {
   if (panes.length === 0) {
     throw new Error('Cannot build layout without panes');

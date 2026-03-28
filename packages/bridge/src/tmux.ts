@@ -1,7 +1,7 @@
 import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared';
 import type { Session, Window, Pane } from '@webmux/shared';
 import type { SessionManager } from './session';
-import { buildFallbackLayout, parseTmuxLayout } from './layout';
+import { bindLayoutToPanes, buildFallbackLayout, parseTmuxLayout } from './layout';
 
 const FIELD_SEPARATOR = '\x1f';
 
@@ -156,7 +156,7 @@ export class TmuxClient {
 
       let layout;
       try {
-        layout = parseTmuxLayout(layoutValue);
+        layout = bindLayoutToPanes(parseTmuxLayout(layoutValue), panes);
       } catch (error) {
         console.warn(`[tmux] failed to parse layout for ${id}:`, error);
         layout = buildFallbackLayout(panes);
