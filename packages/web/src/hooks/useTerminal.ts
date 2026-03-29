@@ -71,6 +71,12 @@ export function useTerminal(
     // Connect pane data channel
     client.connectPane(paneId)
 
+    const unsubConnection = client.on('connection:status', (status) => {
+      if (status === 'connected') {
+        client.connectPane(paneId)
+      }
+    })
+
     // Output: bridge → xterm.js
     const unsubOutput = client.on('pane:output', (id, data) => {
       if (id === paneId) {
@@ -103,6 +109,7 @@ export function useTerminal(
       resizeObserver.disconnect()
       inputDisposable.dispose()
       unsubOutput()
+      unsubConnection()
       client.disconnectPane(paneId)
       terminal.dispose()
       terminalRef.current = null

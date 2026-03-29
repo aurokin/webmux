@@ -65,6 +65,9 @@ bun install
 # Start the bridge daemon (connects to your local tmux server)
 bun run --filter @webmux/bridge dev
 
+# Or target an isolated tmux socket explicitly
+WEBMUX_TMUX_SOCKET=/tmp/webmux-test.sock bun run --filter @webmux/bridge dev
+
 # In another terminal, start the web client
 bun run --filter @webmux/web dev
 
@@ -91,11 +94,17 @@ bun run test:unit
 # tmux-backed integration tests
 bun run test:integration
 
-# Everything together
+# Browser-backed end-to-end validation against an isolated tmux socket
+bun run test:e2e
+
+# Core checks together
 bun run check
+
+# Core checks plus browser E2E
+bun run check:full
 ```
 
-The current automated coverage is focused on the core backend path that is already implemented: layout parsing, session ownership, tmux discovery, session resize, and pane input/output fan-out.
+The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, and pane/control reconnection after a bridge restart.
 
 ## Requirements
 

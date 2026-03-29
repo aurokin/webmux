@@ -5,13 +5,20 @@ import { SessionManager } from './session'
 
 const port = parseInt(process.env.WEBMUX_PORT ?? '') || DEFAULT_PORT
 const host = process.env.WEBMUX_HOST ?? DEFAULT_HOST
+const pollInterval = parseInt(process.env.WEBMUX_POLL_INTERVAL ?? '')
+const tmuxSocketPath = process.env.WEBMUX_TMUX_SOCKET
+const tokenOverride = process.env.WEBMUX_AUTH_TOKEN
 
 // Generate auth token
 const tokenBytes = crypto.getRandomValues(new Uint8Array(AUTH_TOKEN_BYTES))
-const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('')
+const token =
+  tokenOverride || Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('')
 
 // Initialize tmux client
-const tmux = new TmuxClient()
+const tmux = new TmuxClient({
+  socketPath: tmuxSocketPath || undefined,
+  pollInterval: Number.isFinite(pollInterval) && pollInterval > 0 ? pollInterval : undefined,
+})
 const initialSessions = await tmux.listSessions()
 
 if (initialSessions.length === 0) {

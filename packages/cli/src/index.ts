@@ -42,6 +42,7 @@ Usage:
 Options for 'serve':
   --port, -p <port>       WebSocket port (default: 7400)
   --host, -h <host>       Bind address (default: 127.0.0.1)
+  --socket, -s <path>     tmux server socket path
   --poll-interval <ms>    tmux polling interval (default: 500)
 
 Examples:

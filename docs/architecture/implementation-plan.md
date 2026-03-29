@@ -130,6 +130,12 @@ Done when:
 
 Goal: the web app is only good enough to validate the daemon, bridge, and protocol layers against a real browser client.
 
+Status:
+
+- Browser-backed end-to-end validation now exists against an isolated tmux socket.
+- The current web app can render one live pane, forward browser input into tmux, and recover pane/control channels after a bridge restart.
+- Phase 4 is still incomplete because selection, empty/auth/offline states, and more intentional active-pane behavior are still thin.
+
 Tasks:
 
 - Render real sessions, windows, and panes from live state

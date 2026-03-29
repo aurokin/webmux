@@ -17,5 +17,6 @@ function getArg(flags: string[]): string | undefined {
 process.env.WEBMUX_PORT = getArg(['--port', '-p']) ?? String(DEFAULT_PORT)
 process.env.WEBMUX_HOST = getArg(['--host', '-h']) ?? DEFAULT_HOST
 process.env.WEBMUX_POLL_INTERVAL = getArg(['--poll-interval']) ?? String(DEFAULT_POLL_INTERVAL_MS)
+process.env.WEBMUX_TMUX_SOCKET = getArg(['--socket', '-s']) ?? ''
 
 await import('@webmux/bridge')

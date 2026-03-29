@@ -3,3 +3,5 @@ dist
 coverage
 *.tsbuildinfo
 bun.lock
+test-results
+playwright-report
