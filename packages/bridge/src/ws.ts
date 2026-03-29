@@ -105,8 +105,7 @@ export function createWebSocketServer(options: ServerOptions) {
 
       open(ws) {
         if (ws.data.type === 'control') {
-          if (!ws.data.authenticated) {
-            ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
+          if (closeIfUnauthenticated(ws)) {
             return
           }
 
@@ -123,8 +122,7 @@ export function createWebSocketServer(options: ServerOptions) {
         }
 
         if (ws.data.type === 'data') {
-          if (!ws.data.authenticated) {
-            ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
+          if (closeIfUnauthenticated(ws)) {
             return
           }
 
@@ -160,7 +158,14 @@ export function createWebSocketServer(options: ServerOptions) {
           // Control channel: JSON messages
           try {
             const msg = JSON.parse(String(message)) as ClientMessage
-            handleControlMessage(ws as ServerWebSocket<ControlSocketData>, msg)
+            handleControlMessage({
+              ws: ws as ServerWebSocket<ControlSocketData>,
+              msg,
+              tmux,
+              sessionManager,
+              resizeOwnedSessions: (clientId, sessionIds) =>
+                resizeOwnedSessions(tmux, sessionManager, clientId, sessionIds),
+            })
           } catch {
             ws.send(
               JSON.stringify({
@@ -177,6 +182,10 @@ export function createWebSocketServer(options: ServerOptions) {
           // Data channel: raw binary input → write to PTY
           const paneId = ws.data.paneId
           const clientId = ws.data.clientId
+
+          claimOwnershipForInput(sessionManager, paneId, clientId, (ownerClientId, sessionIds) =>
+            resizeOwnedSessions(tmux, sessionManager, ownerClientId, sessionIds),
+          )
 
           // Check ownership before allowing input
           if (!sessionManager.canSendInput(paneId, clientId ?? '')) {
@@ -204,109 +213,177 @@ export function createWebSocketServer(options: ServerOptions) {
     },
   })
 
-  function handleControlMessage(ws: ServerWebSocket<ControlSocketData>, msg: ClientMessage): void {
-    switch (msg.type) {
-      case 'hello':
-        if (msg.protocolVersion !== PROTOCOL_VERSION) {
-          ws.send(
-            JSON.stringify({
-              type: 'error',
-              code: 'PROTOCOL_MISMATCH',
-              message: `Unsupported protocol version: ${msg.protocolVersion}`,
-            } satisfies BridgeMessage),
-          )
-          ws.close(WS_CLOSE.PROTOCOL_ERROR, 'PROTOCOL_MISMATCH')
-          break
-        }
-
-        ws.data.clientId = msg.clientId
-        ws.data.clientType = msg.clientType
-        // Send full state sync
-        ws.send(
-          JSON.stringify({
-            type: 'state.sync',
-            sessions: sessionManager.getSessions(),
-          } satisfies BridgeMessage),
-        )
-        break
-
-      case 'ping':
-        ws.send(
-          JSON.stringify({
-            type: 'pong',
-            t: msg.t,
-          } satisfies BridgeMessage),
-        )
-        break
-
-      case 'session.list':
-        ws.send(
-          JSON.stringify({
-            type: 'state.sync',
-            sessions: sessionManager.getSessions(),
-          } satisfies BridgeMessage),
-        )
-        break
-
-      case 'window.select':
-        tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex)
-        break
-
-      case 'window.create':
-        tmux.createWindow(msg.sessionId)
-        break
-
-      case 'pane.split':
-        tmux.splitPane(msg.paneId, msg.direction)
-        break
-
-      case 'pane.resize':
-        tmux.resizePane(msg.paneId, msg.cols, msg.rows)
-        break
-
-      case 'pane.close':
-        tmux.closePane(msg.paneId)
-        break
-
-      case 'session.takeControl':
-        sessionManager.takeControl(
-          msg.sessionId,
-          ws.data.clientId!,
-          ws.data.clientType ?? undefined,
-        )
-        resizeOwnedSessions(ws.data.clientId!, [msg.sessionId])
-        break
-
-      case 'session.release':
-        sessionManager.releaseControl(msg.sessionId, ws.data.clientId!)
-        break
-
-      case 'client.dimensions':
-        if (!ws.data.clientId || !ws.data.clientType) {
-          break
-        }
-
-        sessionManager.setClientInfo({
-          clientId: ws.data.clientId,
-          clientType: ws.data.clientType,
-          cols: msg.cols,
-          rows: msg.rows,
-        })
-        resizeOwnedSessions(ws.data.clientId, sessionManager.getOwnedSessionIds(ws.data.clientId))
-        break
-    }
-  }
-
-  function resizeOwnedSessions(clientId: string, sessionIds: string[]): void {
-    const client = sessionManager.getClientInfo(clientId)
-    if (!client) return
-
-    for (const sessionId of sessionIds) {
-      void tmux.resizeSession(sessionId, client.cols, client.rows).catch((error) => {
-        console.error(`[tmux resize] failed for ${sessionId}:`, error)
-      })
-    }
-  }
-
   return server
+}
+
+interface ControlMessageContext {
+  ws: ServerWebSocket<ControlSocketData>
+  msg: ClientMessage
+  tmux: TmuxClient
+  sessionManager: SessionManager
+  resizeOwnedSessions: (clientId: string, sessionIds: string[]) => void
+}
+
+function handleControlMessage({
+  ws,
+  msg,
+  tmux,
+  sessionManager,
+  resizeOwnedSessions,
+}: ControlMessageContext): void {
+  switch (msg.type) {
+    case 'hello':
+      handleHelloMessage(ws, msg, sessionManager)
+      break
+
+    case 'ping':
+      ws.send(
+        JSON.stringify({
+          type: 'pong',
+          t: msg.t,
+        } satisfies BridgeMessage),
+      )
+      break
+
+    case 'session.list':
+      ws.send(
+        JSON.stringify({
+          type: 'state.sync',
+          sessions: sessionManager.getSessions(),
+        } satisfies BridgeMessage),
+      )
+      break
+
+    case 'window.select':
+      tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex)
+      break
+
+    case 'window.create':
+      tmux.createWindow(msg.sessionId)
+      break
+
+    case 'pane.split':
+      tmux.splitPane(msg.paneId, msg.direction)
+      break
+
+    case 'pane.resize':
+      tmux.resizePane(msg.paneId, msg.cols, msg.rows)
+      break
+
+    case 'pane.close':
+      tmux.closePane(msg.paneId)
+      break
+
+    case 'session.takeControl':
+      sessionManager.takeControl(msg.sessionId, ws.data.clientId!, ws.data.clientType ?? undefined)
+      resizeOwnedSessions(ws.data.clientId!, [msg.sessionId])
+      break
+
+    case 'session.release':
+      sessionManager.releaseControl(msg.sessionId, ws.data.clientId!)
+      break
+
+    case 'client.dimensions':
+      handleClientDimensions(ws, msg, sessionManager, resizeOwnedSessions)
+      break
+  }
+}
+
+function handleHelloMessage(
+  ws: ServerWebSocket<ControlSocketData>,
+  msg: Extract<ClientMessage, { type: 'hello' }>,
+  sessionManager: SessionManager,
+): void {
+  if (msg.protocolVersion !== PROTOCOL_VERSION) {
+    ws.send(
+      JSON.stringify({
+        type: 'error',
+        code: 'PROTOCOL_MISMATCH',
+        message: `Unsupported protocol version: ${msg.protocolVersion}`,
+      } satisfies BridgeMessage),
+    )
+    ws.close(WS_CLOSE.PROTOCOL_ERROR, 'PROTOCOL_MISMATCH')
+    return
+  }
+
+  ws.data.clientId = msg.clientId
+  ws.data.clientType = msg.clientType
+
+  const existingClient = sessionManager.getClientInfo(msg.clientId)
+  sessionManager.setClientInfo({
+    clientId: msg.clientId,
+    clientType: msg.clientType,
+    cols: existingClient?.cols ?? 0,
+    rows: existingClient?.rows ?? 0,
+  })
+  ws.send(
+    JSON.stringify({
+      type: 'state.sync',
+      sessions: sessionManager.getSessions(),
+    } satisfies BridgeMessage),
+  )
+}
+
+function handleClientDimensions(
+  ws: ServerWebSocket<ControlSocketData>,
+  msg: Extract<ClientMessage, { type: 'client.dimensions' }>,
+  sessionManager: SessionManager,
+  resizeOwnedSessions: (clientId: string, sessionIds: string[]) => void,
+): void {
+  if (!ws.data.clientId || !ws.data.clientType) {
+    return
+  }
+
+  sessionManager.setClientInfo({
+    clientId: ws.data.clientId,
+    clientType: ws.data.clientType,
+    cols: msg.cols,
+    rows: msg.rows,
+  })
+  resizeOwnedSessions(ws.data.clientId, sessionManager.getOwnedSessionIds(ws.data.clientId))
+}
+
+function resizeOwnedSessions(
+  tmux: TmuxClient,
+  sessionManager: SessionManager,
+  clientId: string,
+  sessionIds: string[],
+): void {
+  const client = sessionManager.getClientInfo(clientId)
+  if (!client || client.cols <= 0 || client.rows <= 0) return
+
+  for (const sessionId of sessionIds) {
+    void tmux.resizeSession(sessionId, client.cols, client.rows).catch((error) => {
+      console.error(`[tmux resize] failed for ${sessionId}:`, error)
+    })
+  }
+}
+
+function claimOwnershipForInput(
+  sessionManager: SessionManager,
+  paneId: string,
+  clientId: string | null,
+  resizeOwnedSessions: (clientId: string, sessionIds: string[]) => void,
+): void {
+  if (!clientId) {
+    return
+  }
+
+  const sessionId = sessionManager.getSessionIdByPaneId(paneId)
+  const ownership = sessionId ? sessionManager.getSessionOwnership(sessionId) : null
+  const clientInfo = sessionManager.getClientInfo(clientId)
+
+  if (sessionId && clientInfo && !ownership?.ownerId) {
+    sessionManager.takeControl(sessionId, clientId, clientInfo.clientType)
+    resizeOwnedSessions(clientId, [sessionId])
+  }
+}
+
+function closeIfUnauthenticated(ws: ServerWebSocket<SocketData>): boolean {
+  if (ws.data.authenticated) {
+    return false
+  }
+
+  ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
+  return true
 }

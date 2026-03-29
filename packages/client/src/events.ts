@@ -1,4 +1,5 @@
 import type { Session, Pane, ClientType, ConnectionStatus } from '@webmux/shared'
+import type { SessionOwnership } from '@webmux/shared'
 
 /**
  * Event map for the WebmuxClient.
@@ -10,6 +11,7 @@ export interface WebmuxEventMap {
   'pane:added': (pane: Pane) => void
   'pane:removed': (paneId: string) => void
   'pane:stubUpgrade': (paneId: string, stubType: string, url: string) => void
+  'ownership:sync': (ownership: SessionOwnership[]) => void
   'control:changed': (
     sessionId: string,
     ownerId: string | null,

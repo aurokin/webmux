@@ -27,6 +27,7 @@ export class SessionManager {
 
   constructor(initialSessions: Session[]) {
     this.sessions = initialSessions
+    this.syncOwnershipRecords(initialSessions)
     this.snapshotHash = JSON.stringify(initialSessions)
   }
 
@@ -36,6 +37,10 @@ export class SessionManager {
 
   getOwnership(): SessionOwnership[] {
     return Array.from(this.ownership.values())
+  }
+
+  getSessionOwnership(sessionId: string): SessionOwnership | null {
+    return this.ownership.get(sessionId) ?? null
   }
 
   setClientInfo(client: ClientInfo): void {
@@ -70,13 +75,7 @@ export class SessionManager {
       return
     }
 
-    const activeSessionIds = new Set(newSessions.map((session) => session.id))
-    for (const sessionId of this.ownership.keys()) {
-      if (!activeSessionIds.has(sessionId)) {
-        this.ownership.delete(sessionId)
-      }
-    }
-
+    this.syncOwnershipRecords(newSessions)
     this.sessions = newSessions
     this.snapshotHash = nextHash
 
@@ -157,6 +156,10 @@ export class SessionManager {
     return null
   }
 
+  getSessionIdByPaneId(paneId: string): string | null {
+    return this.findSessionByPaneId(paneId)?.id ?? null
+  }
+
   private findSessionByPaneId(paneId: string): Session | null {
     for (const session of this.sessions) {
       for (const window of session.windows) {
@@ -183,5 +186,26 @@ export class SessionManager {
       ownerId: null,
       ownerType: null,
     })
+  }
+
+  private syncOwnershipRecords(sessions: Session[]): void {
+    const activeSessionIds = new Set(sessions.map((session) => session.id))
+
+    for (const sessionId of this.ownership.keys()) {
+      if (!activeSessionIds.has(sessionId)) {
+        this.ownership.delete(sessionId)
+      }
+    }
+
+    for (const session of sessions) {
+      if (!this.ownership.has(session.id)) {
+        this.ownership.set(session.id, {
+          sessionId: session.id,
+          ownerId: null,
+          ownerType: null,
+          acquiredAt: Date.now(),
+        })
+      }
+    }
   }
 }

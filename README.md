@@ -104,7 +104,7 @@ bun run check
 bun run check:full
 ```
 
-The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, live session switching, explicit auth-failure handling, and pane/control reconnection after a bridge restart.
+The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, live session switching, explicit auth-failure handling, two-browser handoff and release, and pane/control reconnection after a bridge restart.
 
 ## Requirements
 

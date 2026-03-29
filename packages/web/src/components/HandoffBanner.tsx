@@ -1,35 +1,19 @@
-import { useState, useEffect } from 'react'
 import type { WebmuxClient } from '@webmux/client'
 import type { Session } from '@webmux/shared'
+import type { OwnershipState } from '../hooks/useOwnership'
 
 interface HandoffBannerProps {
   client: WebmuxClient
   activeSession: Session | null
+  ownership: OwnershipState
 }
 
-export function HandoffBanner({ client, activeSession }: HandoffBannerProps) {
-  const [visible, setVisible] = useState(false)
-  const [ownerType, setOwnerType] = useState<string | null>(null)
-
-  useEffect(() => {
-    const unsub = client.on('control:changed', (sessionId, ownerId, type) => {
-      if (!activeSession || sessionId !== activeSession.id) return
-
-      if (ownerId && !client.isOwner(sessionId)) {
-        setOwnerType(type ?? 'unknown')
-        setVisible(true)
-      } else {
-        setVisible(false)
-      }
-    })
-
-    return unsub
-  }, [client, activeSession])
-
-  if (!visible || !activeSession) return null
+export function HandoffBanner({ client, activeSession, ownership }: HandoffBannerProps) {
+  if (!activeSession || ownership.mode !== 'passive') return null
 
   return (
     <div
+      data-testid="handoff-banner"
       style={{
         position: 'absolute',
         top: 8,
@@ -54,16 +38,16 @@ export function HandoffBanner({ client, activeSession }: HandoffBannerProps) {
       <span style={{ fontSize: 14 }}>📱</span>
       <span>Session active on</span>
       <span style={{ color: '#e8c660', fontWeight: 500 }}>
-        {ownerType === 'mobile'
+        {ownership.ownerType === 'mobile'
           ? 'mobile device'
-          : ownerType === 'electron'
+          : ownership.ownerType === 'electron'
             ? 'desktop app'
             : 'another client'}
       </span>
       <button
+        data-testid="take-control-button"
         onClick={() => {
           client.takeControl(activeSession.id)
-          setVisible(false)
         }}
         style={{
           padding: '4px 12px',

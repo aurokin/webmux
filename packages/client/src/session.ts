@@ -140,6 +140,10 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     return ownership?.ownerId === this.options.clientId
   }
 
+  getOwnership(sessionId: string): SessionOwnership | null {
+    return this._ownership.get(sessionId) ?? null
+  }
+
   // ── Session commands ──
 
   selectWindow(sessionId: string, windowIndex: number): void {
@@ -213,6 +217,14 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   }
 
   sendInput(paneId: string, data: string | Uint8Array): void {
+    const session = this.findSessionByPaneId(paneId)
+    if (session) {
+      const ownership = this._ownership.get(session.id)
+      if (ownership?.ownerId && ownership.ownerId !== this.options.clientId) {
+        return
+      }
+    }
+
     this.paneInputs.get(paneId)?.write(data)
   }
 
@@ -264,13 +276,16 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private handleControlMessage(msg: BridgeMessage): void {
     switch (msg.type) {
       case 'welcome':
+        this._ownership.clear()
         for (const o of msg.ownership) {
           this._ownership.set(o.sessionId, o)
         }
+        this.emit('ownership:sync', Array.from(this._ownership.values()))
         break
 
       case 'state.sync':
         this._sessions = msg.sessions
+        this.pruneOwnership(this._sessions)
         this.emit('state:sync', msg.sessions)
         break
 
@@ -295,6 +310,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
           ownerType: msg.ownerType,
           acquiredAt: Date.now(),
         })
+        this.emit('ownership:sync', Array.from(this._ownership.values()))
         this.emit('control:changed', msg.sessionId, msg.ownerId, msg.ownerType)
         break
 
@@ -302,5 +318,26 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         console.error(`[webmux] bridge error: ${msg.code} — ${msg.message}`)
         break
     }
+  }
+
+  private pruneOwnership(sessions: Session[]): void {
+    const activeSessionIds = new Set(sessions.map((session) => session.id))
+    for (const sessionId of this._ownership.keys()) {
+      if (!activeSessionIds.has(sessionId)) {
+        this._ownership.delete(sessionId)
+      }
+    }
+  }
+
+  private findSessionByPaneId(paneId: string): Session | null {
+    for (const session of this._sessions) {
+      for (const window of session.windows) {
+        if (window.panes.some((pane) => pane.id === paneId)) {
+          return session
+        }
+      }
+    }
+
+    return null
   }
 }

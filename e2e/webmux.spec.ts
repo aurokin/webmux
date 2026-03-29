@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { WebmuxE2EStack } from './support/stack'
 
 test.describe.serial('webmux browser validation', () => {
@@ -63,10 +63,72 @@ test.describe.serial('webmux browser validation', () => {
     await expect(page.locator('body')).toContainText('Authentication failed')
     await expect(page.locator('body')).toContainText('valid token')
   })
+
+  test('transfers control and release between two browser clients', async ({ browser }) => {
+    const ownerPage = await browser.newPage()
+    const observerPage = await browser.newPage()
+
+    await ownerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await observerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await ownerPage.waitForSelector('.xterm')
+    await observerPage.waitForSelector('.xterm')
+
+    await selectSession(ownerPage, stack.sessionName)
+    await selectSession(observerPage, stack.sessionName)
+
+    await ownerPage.locator('.xterm').first().click()
+    await ownerPage.keyboard.type('owner-a')
+    await ownerPage.keyboard.press('Enter')
+    await ownerPage.waitForTimeout(800)
+
+    await expect(ownerPage.getByTestId('ownership-mode')).toContainText('active')
+    await expect(observerPage.getByTestId('ownership-mode')).toContainText('passive')
+    expect(stack.capturePane(stack.sessionName)).toContain('owner-a')
+
+    await observerPage.locator('.xterm').first().click()
+    await observerPage.keyboard.type('blocked-b')
+    await observerPage.keyboard.press('Enter')
+    await observerPage.waitForTimeout(800)
+
+    expect(stack.capturePane(stack.sessionName)).not.toContain('blocked-b')
+
+    await observerPage.getByTestId('take-control-button').click()
+    await expect(observerPage.getByTestId('ownership-mode')).toContainText('active')
+    await expect(ownerPage.getByTestId('ownership-mode')).toContainText('passive')
+
+    await observerPage.locator('.xterm').first().click()
+    await observerPage.keyboard.type('owner-b')
+    await observerPage.keyboard.press('Enter')
+    await observerPage.waitForTimeout(800)
+
+    expect(stack.capturePane(stack.sessionName)).toContain('owner-b')
+
+    await observerPage.getByTestId('release-control-button').click()
+    await expect(observerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
+    await expect(ownerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
+
+    await ownerPage.locator('.xterm').first().click()
+    await ownerPage.keyboard.type('after-release')
+    await ownerPage.keyboard.press('Enter')
+    await ownerPage.waitForTimeout(800)
+
+    await expect(ownerPage.getByTestId('ownership-mode')).toContainText('active')
+    expect(stack.capturePane(stack.sessionName)).toContain('after-release')
+
+    await ownerPage.close()
+    await observerPage.close()
+  })
 })
 
 function captureEither(stack: WebmuxE2EStack, text: string): boolean {
   return [stack.sessionName, stack.secondarySessionName].some((sessionName) =>
     stack.capturePane(sessionName).includes(text),
   )
+}
+
+async function selectSession(page: Page, sessionName: string): Promise<void> {
+  await page.getByTestId('session-switcher-button').click()
+  await page.getByPlaceholder('Filter sessions...').fill(sessionName)
+  await page.getByTestId(`session-option-${sessionName}`).click()
+  await expect(page.locator('body')).toContainText(sessionName)
 }

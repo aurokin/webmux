@@ -16,10 +16,10 @@ App
 │   │   └── Pane
 │   ├── ResizeHandle         # Vertical resize between columns
 │   └── PaneColumn
-├── StatusBar                # Bottom bar: session name, window tabs, clock
+├── StatusBar                # Bottom bar: session name, window tabs, ownership, clock
 │   ├── SessionIndicator     # Green dot + session name, opens SessionSwitcher
 │   ├── WindowTabs           # List of windows with active indicator
-│   └── StatusRight          # Clock, latency, keybind hints
+│   └── StatusRight          # Ownership mode, release button, latency, keybind hints
 └── HandoffBanner            # Top banner when another client owns the session
 ```
 
@@ -37,7 +37,7 @@ const sessions = useSyncExternalStore(client.subscribe, () => client.sessions)
 
 ### What lives in React state
 
-- **UI state:** which pane is focused, whether the session switcher is open, whether the handoff banner is visible.
+- **UI state:** which pane is focused and whether the session switcher is open.
 - **Layout state:** pane flex ratios after drag-resizing. These are local to the web app — tmux doesn't know about CSS flex. When the user drags a resize handle, we update flex ratios locally AND send a `pane.resize` to the bridge so tmux updates the pane dimensions.
 - **Input mode:** direct vs buffered, per pane.
 
@@ -45,7 +45,7 @@ const sessions = useSyncExternalStore(client.subscribe, () => client.sessions)
 
 - Window tab active state: derived from `client.activeWindow`.
 - Pane count in status bar: derived from `client.panes.length`.
-- Owner status: derived from `client.isOwner()`.
+- Owner status: derived from `client.isOwner()` and `client.getOwnership()`.
 
 ## Key components
 
@@ -74,8 +74,8 @@ Keyboard-navigable: arrow keys to move, Enter to select, Escape to close. Must c
 
 ### StatusBar
 
-Static layout, minimal logic. Reads from client SDK state. The window tabs are clickable — each calls `client.selectWindow()`. The session indicator opens the `SessionSwitcher`.
+Static layout with a small amount of ownership behavior. Reads from client SDK state. The window tabs are clickable — each calls `client.selectWindow()`. The session indicator opens the `SessionSwitcher`. The right side shows whether the selected session is `active`, `passive`, or `unclaimed`, and exposes a release button when the current client owns the session.
 
 ### HandoffBanner
 
-Shown when `client.isOwner()` is false. Displays which client/device currently owns the session. "Take Control" button calls `client.takeControl()`.
+Shown when the selected session is in passive mode. Displays which client/device currently owns the session. "Take Control" button calls `client.takeControl()`.

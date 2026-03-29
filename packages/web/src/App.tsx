@@ -6,6 +6,7 @@ import { StatusBar } from './components/StatusBar'
 import { SessionSwitcher } from './components/SessionSwitcher'
 import { HandoffBanner } from './components/HandoffBanner'
 import { useConnectionStatus, useLatency, useSessions } from './hooks/useSession'
+import { useSessionOwnership } from './hooks/useOwnership'
 
 /**
  * Read bridge URL and token from URL params or defaults.
@@ -86,6 +87,7 @@ export function App() {
 
   const activeSession = getActiveSession(sessions, selectedSessionId)
   const activeWindow = getActiveWindow(activeSession)
+  const ownership = useSessionOwnership(client, activeSession?.id ?? null)
   const paneCommands = getPaneCommands(activeWindow)
 
   useEffect(() => {
@@ -117,7 +119,7 @@ export function App() {
         fontFamily: "'Commit Mono', 'JetBrains Mono', monospace",
       }}
     >
-      <HandoffBanner client={client} activeSession={activeSession} />
+      <HandoffBanner client={client} activeSession={activeSession} ownership={ownership} />
 
       <Workspace
         client={client}
@@ -131,6 +133,7 @@ export function App() {
       <StatusBar
         client={client}
         activeSession={activeSession}
+        ownership={ownership}
         connectionStatus={connectionStatus}
         latency={latency}
         onOpenSwitcher={() => setSwitcherOpen(true)}

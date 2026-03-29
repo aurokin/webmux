@@ -1,9 +1,11 @@
 import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
+import type { OwnershipState } from '../hooks/useOwnership'
 
 interface StatusBarProps {
   client: WebmuxClient
   activeSession: Session | null
+  ownership: OwnershipState
   connectionStatus: ConnectionStatus
   latency: number
   onOpenSwitcher: () => void
@@ -12,6 +14,7 @@ interface StatusBarProps {
 export function StatusBar({
   client,
   activeSession,
+  ownership,
   connectionStatus,
   latency,
   onOpenSwitcher,
@@ -105,6 +108,48 @@ export function StatusBar({
           fontSize: 11,
         }}
       >
+        <div
+          data-testid="ownership-mode"
+          style={{
+            padding: '0 12px',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
+          }}
+        >
+          <span
+            style={{
+              color:
+                ownership.mode === 'active'
+                  ? '#56d4a0'
+                  : ownership.mode === 'passive'
+                    ? '#e8c660'
+                    : '#7a8698',
+            }}
+          >
+            {ownership.mode}
+          </span>
+          {ownership.mode === 'active' && activeSession ? (
+            <button
+              data-testid="release-control-button"
+              onClick={() => client.releaseControl(activeSession.id)}
+              style={{
+                padding: '2px 8px',
+                borderRadius: 4,
+                border: '1px solid rgba(100, 140, 200, 0.10)',
+                background: 'transparent',
+                color: '#c8d0e0',
+                cursor: 'pointer',
+                fontFamily: "'Commit Mono', monospace",
+                fontSize: 10,
+              }}
+            >
+              release
+            </button>
+          ) : null}
+        </div>
         <div
           style={{
             padding: '0 12px',

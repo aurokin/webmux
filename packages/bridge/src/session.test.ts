@@ -57,6 +57,22 @@ describe('SessionManager', () => {
     manager = new SessionManager(structuredClone(sessionsFixture))
   })
 
+  test('initializes unclaimed ownership records for discovered sessions', () => {
+    expect(manager.getOwnership()).toEqual([
+      {
+        sessionId: '$0',
+        ownerId: null,
+        ownerType: null,
+        acquiredAt: expect.any(Number),
+      },
+    ])
+    expect(manager.getSessionOwnership('$0')).toMatchObject({
+      sessionId: '$0',
+      ownerId: null,
+      ownerType: null,
+    })
+  })
+
   test('emits state.sync only when the snapshot changes', () => {
     const onUpdate = mock()
     manager.onUpdate = onUpdate
@@ -160,11 +176,13 @@ describe('SessionManager', () => {
 
   test('looks up pane metadata from the current snapshot', () => {
     expect(manager.getPaneTtyPath('%1')).toBe('/dev/pts/2')
+    expect(manager.getSessionIdByPaneId('%1')).toBe('$0')
     expect(manager.getPane('%1')).toMatchObject({
       id: '%1',
       currentCommand: 'vim',
     })
     expect(manager.getPaneTtyPath('%9')).toBeNull()
+    expect(manager.getSessionIdByPaneId('%9')).toBeNull()
     expect(manager.getPane('%9')).toBeNull()
   })
 })

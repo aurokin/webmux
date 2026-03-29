@@ -26,8 +26,9 @@ Lifecycle:
 1. Client connects with auth token, pane ID, and client ID.
 2. Bridge validates token and pane existence. Invalid tokens are closed with `4001` / `AUTH_FAILED`.
 3. Bridge subscribes this socket to the pane's shared stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
-4. Client sends binary frames (keystrokes) → bridge checks ownership for that `clientId` and writes allowed input to the pane TTY fd.
-5. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge detaches the tmux output pipe and closes the pane stream.
+4. Client sends binary frames (keystrokes). If the session is currently unclaimed, the bridge assigns ownership to that `clientId` on first input before continuing.
+5. Bridge checks ownership for that `clientId` and writes allowed input to the pane TTY fd.
+6. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge detaches the tmux output pipe and closes the pane stream.
 
 ## Server configuration
 
@@ -76,6 +77,8 @@ interface SessionOwnership {
 ### Passive mode
 
 Passive clients still receive output on their data channels. They can watch but not type. Their data channel WebSocket `message` events (input) are silently dropped by the bridge based on the `clientId` attached to that pane socket.
+
+If no client owns a session yet, the first client to send input becomes the owner. That keeps the default "open the web app and start typing" path simple while preserving a single active writer once a session has been claimed.
 
 ### Client dimensions
 
