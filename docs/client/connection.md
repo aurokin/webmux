@@ -23,7 +23,7 @@ When the control channel drops:
 2. Close all data channel WebSockets.
 3. Wait `backoff` ms, then attempt reconnection.
 4. Backoff schedule: 100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms, cap at 5000ms.
-5. On successful reconnect: reset backoff, send `hello`, receive fresh `state.sync`, emit `connection:status` → `'connected'`. Consumers should re-open data channels for visible panes.
+5. On successful reconnect: reset backoff, send `hello`, receive fresh `state.sync`, emit `connection:status` → `'connected'`. Consumers should re-open data channels for visible panes and explicitly retake session ownership if needed.
 6. On max retries (30 attempts): emit `connection:status` → `'disconnected'`. Stop retrying. Consumer should show an error UI.
 
 ## Data channel lifecycle

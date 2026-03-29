@@ -114,9 +114,11 @@ This is sufficient for localhost use. For remote access, future versions should 
 
 ## Reconnection
 
-The bridge is stateless with respect to client connections. If a client disconnects and reconnects:
+The bridge is stateless with respect to data sockets, but session ownership is connection-scoped in v0. If a control client disconnects, any sessions it owns are released immediately so stale owners do not block input.
+
+If a client disconnects and reconnects:
 
 1. Control channel: client sends `hello`, bridge sends fresh `state.sync`. Client rebuilds its state from scratch.
 2. Data channels: client reconnects per-pane WebSockets. Bridge starts forwarding output again. Any output generated during the disconnect is lost (this is the same behavior as detaching and reattaching in tmux).
 
-The client SDK (`@webmux/client`) handles reconnection logic with exponential backoff. The bridge doesn't need to track reconnection state.
+The client SDK (`@webmux/client`) handles reconnection logic with exponential backoff. The bridge doesn't need to preserve connection state between reconnects.

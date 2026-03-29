@@ -30,7 +30,6 @@ export type BridgeMessage =
     }
   | { type: 'pong'; t: number }
   | { type: 'state.sync'; sessions: Session[] }
-  | { type: 'state.update'; changes: StateChange[] }
   | { type: 'pane.added'; pane: Pane }
   | { type: 'pane.removed'; paneId: string }
   | { type: 'pane.stubUpgrade'; paneId: string; stubType: 'webview'; url: string }
@@ -41,21 +40,6 @@ export type BridgeMessage =
       ownerType: ClientType | null
     }
   | { type: 'error'; code: ErrorCode; message: string }
-
-// ── State changes (incremental updates) ──
-
-export type StateChange =
-  | { kind: 'session.added'; session: Session }
-  | { kind: 'session.removed'; sessionId: string }
-  | { kind: 'session.renamed'; sessionId: string; name: string }
-  | { kind: 'window.added'; sessionId: string; window: import('./types').Window }
-  | { kind: 'window.removed'; sessionId: string; windowId: string }
-  | { kind: 'window.activated'; sessionId: string; windowId: string }
-  | { kind: 'window.renamed'; sessionId: string; windowId: string; name: string }
-  | { kind: 'pane.added'; windowId: string; pane: Pane }
-  | { kind: 'pane.removed'; windowId: string; paneId: string }
-  | { kind: 'pane.resized'; paneId: string; cols: number; rows: number }
-  | { kind: 'pane.commandChanged'; paneId: string; currentCommand: string }
 
 // ── Error codes ──
 

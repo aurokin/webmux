@@ -1,4 +1,4 @@
-import type { Session, Pane, ClientType, ConnectionStatus, StateChange } from '@webmux/shared'
+import type { Session, Pane, ClientType, ConnectionStatus } from '@webmux/shared'
 
 /**
  * Event map for the WebmuxClient.
@@ -6,7 +6,6 @@ import type { Session, Pane, ClientType, ConnectionStatus, StateChange } from '@
  */
 export interface WebmuxEventMap {
   'state:sync': (sessions: Session[]) => void
-  'state:update': (changes: StateChange[]) => void
   'pane:output': (paneId: string, data: Uint8Array) => void
   'pane:added': (pane: Pane) => void
   'pane:removed': (paneId: string) => void

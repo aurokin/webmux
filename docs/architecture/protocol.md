@@ -48,9 +48,6 @@ Current implementation: the bridge stores the latest dimensions per client and a
 // Heartbeat response
 { type: 'pong', t: number }
 
-// Incremental state update
-{ type: 'state.update', changes: StateChange[] }
-
 // Pane added/removed
 { type: 'pane.added', pane: Pane }
 { type: 'pane.removed', paneId: string }
@@ -103,7 +100,7 @@ If the client's protocol version is not supported by the bridge, the bridge send
 
 ## Current synchronization strategy
 
-The protocol shape supports incremental `state.update` messages, but the current bridge implementation rebroadcasts full `state.sync` snapshots when polled tmux state changes. This keeps the control path coherent while incremental diffing is still under construction.
+For v0, the bridge rebroadcasts full `state.sync` snapshots when polled tmux state changes. Incremental `state.update` messages are not part of the active protocol surface.
 
 ## Type definitions
 

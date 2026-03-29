@@ -121,6 +121,43 @@ describe('SessionManager', () => {
     })
   })
 
+  test('releases owned sessions when the client disconnects', () => {
+    const onUpdate = mock()
+    manager.onUpdate = onUpdate
+
+    manager.takeControl('$0', 'owner', 'web')
+    manager.setClientInfo({
+      clientId: 'owner',
+      clientType: 'web',
+      cols: 120,
+      rows: 40,
+    })
+
+    manager.removeClient('owner')
+
+    expect(manager.getClientInfo('owner')).toBeNull()
+    expect(manager.getOwnership()[0]).toEqual({
+      sessionId: '$0',
+      ownerId: null,
+      ownerType: null,
+      acquiredAt: expect.any(Number),
+    })
+    expect(onUpdate).toHaveBeenLastCalledWith({
+      type: 'session.controlChanged',
+      sessionId: '$0',
+      ownerId: null,
+      ownerType: null,
+    })
+  })
+
+  test('drops ownership records for sessions removed from the snapshot', () => {
+    manager.takeControl('$0', 'owner', 'web')
+    manager.applyState([])
+
+    expect(manager.getSessions()).toEqual([])
+    expect(manager.getOwnership()).toEqual([])
+  })
+
   test('looks up pane metadata from the current snapshot', () => {
     expect(manager.getPaneTtyPath('%1')).toBe('/dev/pts/2')
     expect(manager.getPane('%1')).toMatchObject({

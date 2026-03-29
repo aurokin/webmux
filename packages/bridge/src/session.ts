@@ -44,6 +44,10 @@ export class SessionManager {
 
   removeClient(clientId: string): void {
     this.clients.delete(clientId)
+
+    for (const sessionId of this.getOwnedSessionIds(clientId)) {
+      this.clearOwnership(sessionId)
+    }
   }
 
   getClientInfo(clientId: string): ClientInfo | null {
@@ -58,12 +62,19 @@ export class SessionManager {
 
   /**
    * Apply a new state snapshot from tmux polling.
-   * Diffs against current state and emits incremental updates.
+   * Emits a full sync when the snapshot changes.
    */
   applyState(newSessions: Session[]): void {
     const nextHash = JSON.stringify(newSessions)
     if (nextHash === this.snapshotHash) {
       return
+    }
+
+    const activeSessionIds = new Set(newSessions.map((session) => session.id))
+    for (const sessionId of this.ownership.keys()) {
+      if (!activeSessionIds.has(sessionId)) {
+        this.ownership.delete(sessionId)
+      }
     }
 
     this.sessions = newSessions
@@ -101,19 +112,7 @@ export class SessionManager {
     const current = this.ownership.get(sessionId)
     if (current?.ownerId !== clientId) return // not the owner
 
-    this.ownership.set(sessionId, {
-      sessionId,
-      ownerId: null,
-      ownerType: null,
-      acquiredAt: Date.now(),
-    })
-
-    this.onUpdate?.({
-      type: 'session.controlChanged',
-      sessionId,
-      ownerId: null,
-      ownerType: null,
-    })
+    this.clearOwnership(sessionId)
   }
 
   /**
@@ -168,5 +167,21 @@ export class SessionManager {
     }
 
     return null
+  }
+
+  private clearOwnership(sessionId: string): void {
+    this.ownership.set(sessionId, {
+      sessionId,
+      ownerId: null,
+      ownerType: null,
+      acquiredAt: Date.now(),
+    })
+
+    this.onUpdate?.({
+      type: 'session.controlChanged',
+      sessionId,
+      ownerId: null,
+      ownerType: null,
+    })
   }
 }

@@ -4,7 +4,6 @@ import type {
   ConnectionStatus,
   BridgeMessage,
   ClientMessage,
-  StateChange,
   SessionOwnership,
 } from '@webmux/shared'
 import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS } from '@webmux/shared'
@@ -215,7 +214,6 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   subscribe = (callback: () => void): (() => void) => {
     const unsubs = [
       this.on('state:sync', callback),
-      this.on('state:update', callback),
       this.on('control:changed', callback),
       this.on('connection:status', callback),
     ]
@@ -243,11 +241,6 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       case 'state.sync':
         this._sessions = msg.sessions
         this.emit('state:sync', msg.sessions)
-        break
-
-      case 'state.update':
-        this.applyChanges(msg.changes)
-        this.emit('state:update', msg.changes)
         break
 
       case 'pane.added':
@@ -278,10 +271,5 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         console.error(`[webmux] bridge error: ${msg.code} — ${msg.message}`)
         break
     }
-  }
-
-  private applyChanges(_changes: StateChange[]): void {
-    // TODO: Apply incremental changes to this._sessions
-    // For v0, a full re-sync on each update is acceptable
   }
 }

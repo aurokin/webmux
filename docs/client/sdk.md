@@ -27,7 +27,6 @@ client.panes;             // Pane[] (of active window)
 
 // Events
 client.on('state:sync', (sessions: Session[]) => { ... });
-client.on('state:update', (changes: StateChange[]) => { ... });
 client.on('pane:output', (paneId: string, data: Uint8Array) => { ... });
 client.on('pane:added', (pane: Pane) => { ... });
 client.on('pane:removed', (paneId: string) => { ... });

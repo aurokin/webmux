@@ -34,7 +34,7 @@ tmux layout leaf ids do not always use the exact same string format as `#{pane_i
 
 ## State polling
 
-v0 uses polling to detect state changes. The bridge runs the discovery commands on an interval (default: 500ms) and diffs the result against its internal state. When differences are found, it emits `state.update` messages on the control channel.
+v0 uses polling to detect state changes. The bridge runs the discovery commands on an interval (default: 500ms) and rebroadcasts a fresh `state.sync` snapshot when the discovered state changes.
 
 Polling interval is configurable. 500ms is a reasonable default — it catches window/pane creation and destruction quickly enough to feel responsive without hammering tmux.
 

@@ -90,7 +90,7 @@ const rows = Math.floor(panePixelHeight / cellHeight)
 
 ## Layout sync
 
-The layout comes from tmux (via the bridge) and can change externally (if the user splits/closes panes in their regular terminal). When a `state.update` arrives with new layout data, the web app must re-render the layout tree.
+The layout comes from tmux (via the bridge) and can change externally (if the user splits/closes panes in their regular terminal). When a fresh `state.sync` arrives with new layout data, the web app must re-render the layout tree.
 
 Local flex ratios from drag-resizing are overwritten when a new layout arrives from the bridge. This is correct behavior — the bridge's layout is the source of truth.
 

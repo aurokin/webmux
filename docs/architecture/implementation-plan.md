@@ -110,16 +110,14 @@ Status:
 
 - Initial control-channel cleanup landed on 2026-03-28.
 - The control socket now supports JSON ping/pong heartbeats and rejects mismatched protocol versions.
-- Session polling now rebroadcasts full `state.sync` snapshots when the bridge state changes. Incremental `state.update` handling is still future work.
+- v0 now treats repeated `state.sync` snapshots as the only active state-sync path.
 - Pane data sockets now carry `clientId`, so ownership checks use real client identity instead of a placeholder.
 - The bridge now stores per-client dimensions and applies `resize-window` on ownership transfer and owner dimension updates.
+- Disconnecting a control client now releases any sessions it owns, so stale owners do not block input.
 
 Tasks:
 
 - Add explicit ping/pong handling to the control channel
-- Decide whether `state.update` ships in v0 or whether v0 should use repeated `state.sync`
-- If keeping `state.update`, implement snapshot diffing in `SessionManager`
-- If keeping incremental updates, implement `applyChanges()` in `@webmux/client`
 - Enforce session ownership on the bridge using real client identity
 - Store client dimensions and resize tmux correctly on handoff
 
