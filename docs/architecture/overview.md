@@ -25,10 +25,13 @@ Shell / application (zsh, vim, Claude Code, etc.)
 ## Package responsibilities
 
 ### @webmux/shared
+
 Defines the protocol contract. Message types, session/window/pane data structures, constants. This package is the source of truth for what the bridge sends and what clients expect. It has zero dependencies and is imported by every other package.
 
 ### @webmux/bridge
+
 A Bun server daemon. It does three things:
+
 1. **Discovers tmux state** by running `tmux list-sessions`, `tmux list-windows`, `tmux list-panes` and parsing the output into `@webmux/shared` types.
 2. **Streams pane output** by attaching `tmux pipe-pane -O` to each active pane stream and forwarding bytes over per-pane WebSocket connections.
 3. **Accepts input** by receiving keystrokes from clients over WebSocket and writing them to the correct pane's PTY fd.
@@ -36,17 +39,21 @@ A Bun server daemon. It does three things:
 The bridge also manages the **client handoff mutex** — tracking which connected client currently "owns" the session for input purposes.
 
 ### @webmux/client
+
 A framework-agnostic SDK for connecting to the bridge. It handles WebSocket connection lifecycle (connect, reconnect, auth), maintains a reactive model of session state, and emits typed events when things change. Any JavaScript consumer (React web app, Electron app, React Native app) imports this package to talk to the bridge.
 
 ### @webmux/cli
+
 Command-line interface. `webmux serve` starts the bridge daemon. `webmux open` is the stub CLI for rich content. `webmux status` shows running sessions.
 
 ### @webmux/web
+
 A React application that imports `@webmux/client` and renders tmux panes using xterm.js. This is one consumer of the client SDK — not the only possible one.
 
 ## Data flow
 
 ### Input (keystroke → PTY)
+
 ```
 Keypress in browser
   → React event handler
@@ -55,9 +62,11 @@ Keypress in browser
   → immediate write() to pane PTY fd (no await, no queue)
   → application in tmux pane receives keystroke
 ```
+
 This path must have zero buffering. See docs/architecture/latency.md.
 
 ### Output (pane → screen)
+
 ```
 Application writes to stdout
   → tmux receives pane output on the PTY master it owns
@@ -68,9 +77,11 @@ Application writes to stdout
   → xterm.js Terminal.write(data)
   → character appears on screen
 ```
+
 Output may be coalesced within a single event loop tick under heavy load, but is never artificially delayed.
 
 ### Control (session state changes)
+
 ```
 tmux state changes (new pane, window switch, resize, etc.)
   → @webmux/bridge detects via polling tmux CLI (v0) or control mode events (future)

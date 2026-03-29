@@ -25,18 +25,22 @@ Implementation priority is intentionally core-first:
 - A coherent heartbeat / ping-pong protocol
 - Reliable incremental state updates
 - Correct TypeScript project wiring
-- Tests that prove end-to-end behavior
+- Broad end-to-end browser validation
 
 ## Phase 0: Make the scaffold honest and buildable
 
 Goal: the repo should clearly communicate "scaffold" while supporting incremental implementation.
 
 Status:
+
 - Completed on 2026-03-28.
 - Workspace typechecking is green across `@webmux/*`.
 - Cross-package source imports now resolve directly during typecheck, so implementation work can proceed without waiting on declaration builds.
+- Root quality scripts now include `lint`, `format:check`, `test:unit`, `test:integration`, and `check`.
+- The repo now has a real automated baseline: bridge unit tests for layout/session logic and tmux-backed integration tests for discovery, resize, and pane data flow.
 
 Tasks:
+
 - Keep docs explicit that current code is illustrative until implemented
 - Fix TypeScript config so workspaces typecheck in the environments they target
 - Decide whether project references require declaration builds or direct source consumption
@@ -44,6 +48,7 @@ Tasks:
 - Add a minimal test strategy before deeper implementation work
 
 Done when:
+
 - `bun install` succeeds
 - `bun run typecheck` is either green or failing only on clearly identified implementation gaps
 - Contributors can tell the difference between target design and current behavior
@@ -53,6 +58,7 @@ Done when:
 Goal: the bridge can produce a real `Session[]` snapshot from a running tmux server.
 
 Status:
+
 - Core discovery parsing landed on 2026-03-28.
 - Bridge-side layout parsing now exists and windows carry pane metadata in the shared snapshot model.
 - Live validation passed on 2026-03-28 against an isolated tmux socket.
@@ -60,12 +66,14 @@ Status:
 - Phase 1 is complete.
 
 Tasks:
+
 - Implement `listSessions()`, `listWindows()`, and `listPanes()` in `packages/bridge/src/tmux.ts`
 - Parse tmux layout and pane metadata into `@webmux/shared` types
 - Validate behavior against multiple session/window/pane shapes
 - Handle empty state, malformed output, and tmux command failures without crashing the process
 
 Done when:
+
 - Starting the bridge against a live tmux server produces a valid initial snapshot
 - The web client can at least receive and render structural state, even if pane output is still stubbed
 
@@ -74,6 +82,7 @@ Done when:
 Goal: pane output and input actually flow through the bridge.
 
 Status:
+
 - Initial PTY stream hookup landed on 2026-03-28.
 - Multi-subscriber pane stream fan-out landed on 2026-03-28.
 - The bridge now writes input directly to pane TTY fds, mirrors pane output through `tmux pipe-pane -O` into per-pane FIFOs, and fans one pane stream out to multiple pane WebSocket subscribers.
@@ -81,6 +90,7 @@ Status:
 - Phase 2 is complete.
 
 Tasks:
+
 - Resolve pane id to tty path through `SessionManager`
 - Open pane PTYs on demand in `PtyManager`
 - Stream pane output bytes to pane WebSocket clients
@@ -88,6 +98,7 @@ Tasks:
 - Handle pane closure, PTY disappearance, and reconnect cleanup safely
 
 Done when:
+
 - Typing in the browser reaches a real tmux pane
 - Output from that pane renders in the browser with no synthetic buffering layer
 
@@ -96,6 +107,7 @@ Done when:
 Goal: control messages and connection lifecycle match the documented protocol.
 
 Status:
+
 - Initial control-channel cleanup landed on 2026-03-28.
 - The control socket now supports JSON ping/pong heartbeats and rejects mismatched protocol versions.
 - Session polling now rebroadcasts full `state.sync` snapshots when the bridge state changes. Incremental `state.update` handling is still future work.
@@ -103,6 +115,7 @@ Status:
 - The bridge now stores per-client dimensions and applies `resize-window` on ownership transfer and owner dimension updates.
 
 Tasks:
+
 - Add explicit ping/pong handling to the control channel
 - Decide whether `state.update` ships in v0 or whether v0 should use repeated `state.sync`
 - If keeping `state.update`, implement snapshot diffing in `SessionManager`
@@ -111,6 +124,7 @@ Tasks:
 - Store client dimensions and resize tmux correctly on handoff
 
 Done when:
+
 - Reconnection, latency measurement, and ownership behavior are consistent across bridge and client
 - Passive clients cannot inject input
 
@@ -119,6 +133,7 @@ Done when:
 Goal: the web app is only good enough to validate the daemon, bridge, and protocol layers against a real browser client.
 
 Tasks:
+
 - Render real sessions, windows, and panes from live state
 - Connect pane terminals only for panes on screen
 - Make focus handling and active pane behavior reliable
@@ -127,6 +142,7 @@ Tasks:
 - Avoid non-essential design work, advanced layout polish, and UI abstraction churn
 
 Done when:
+
 - A user can open the web app and validate one real tmux session end-to-end
 
 ## Phase 5: Add handoff and multi-device semantics
@@ -134,6 +150,7 @@ Done when:
 Goal: the "single owner, passive observers" model becomes real.
 
 Tasks:
+
 - Persist and broadcast ownership changes
 - Show passive/active state clearly in the web UI
 - Implement "Take Control" and release flows
@@ -141,6 +158,7 @@ Tasks:
 - Decide whether idle-release belongs in v0.x or later
 
 Done when:
+
 - Two browser clients can attach to the same tmux-backed session and transfer control intentionally
 
 ## Phase 6: Add rich-pane primitives
@@ -148,6 +166,7 @@ Done when:
 Goal: the project-specific differentiator exists after the core tmux client is solid.
 
 Tasks:
+
 - Finalize the `webmux;` stub namespace and `WEBMUX_RICH_CLIENT`
 - Detect stub escape sequences in the PTY read path
 - Upgrade pane rendering from terminal to rich view when appropriate
@@ -155,6 +174,7 @@ Tasks:
 - Add guardrails for untrusted URLs
 
 Done when:
+
 - `webmux open <resource>` produces useful behavior both inside and outside the web client
 
 ## Phase 7: Production hardening
@@ -162,6 +182,7 @@ Done when:
 Goal: move from working prototype to dependable tool.
 
 Tasks:
+
 - Add end-to-end tests around bridge, client, and web behavior
 - Test against tmux version variance and pane lifecycle edge cases
 - Add passive read-and-discard behavior for panes with no active subscribers if output backpressure requires it
@@ -170,6 +191,7 @@ Tasks:
 - Decide packaging and distribution strategy for the CLI and bridge
 
 Done when:
+
 - The system survives normal failure modes without surprising data loss or stuck sessions
 
 ## Phase 8: UI refinement and design work
@@ -177,6 +199,7 @@ Done when:
 Goal: improve usability and visual quality only after the core system is dependable.
 
 Tasks:
+
 - Revisit layout ergonomics, spacing, and visual hierarchy
 - Improve session switcher UX beyond minimum functionality
 - Refine pane chrome, status bar, and passive/active indicators
@@ -184,6 +207,7 @@ Tasks:
 - Remove scaffold-era shortcuts and replace them with intentional UI behavior
 
 Done when:
+
 - UI work is improving a stable product rather than compensating for core instability
 
 ## Implementation order to follow now

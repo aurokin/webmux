@@ -10,14 +10,14 @@ Terminal application keybinds (Ctrl+C, Ctrl+D, Ctrl+Z, Ctrl+A, Ctrl+E, Ctrl+L, C
 
 ## Known conflicts
 
-| Shortcut | Browser action | Terminal use | Impact |
-|----------|---------------|-------------|--------|
-| Ctrl+W | Close tab | Vim window prefix | High for vim users, irrelevant for Claude Code / shell |
-| Ctrl+S | Save page | Some editors use for save | Low — most terminal apps don't use it |
-| Ctrl+T | New tab | Rarely used in terminal apps | Low |
-| Ctrl+N | New window | Rarely used in terminal apps | Low |
-| Ctrl+Tab | Switch tabs | tmux doesn't use this | None |
-| Ctrl+Q | Quit browser (Linux) | Rarely used | Low |
+| Shortcut | Browser action       | Terminal use                 | Impact                                                 |
+| -------- | -------------------- | ---------------------------- | ------------------------------------------------------ |
+| Ctrl+W   | Close tab            | Vim window prefix            | High for vim users, irrelevant for Claude Code / shell |
+| Ctrl+S   | Save page            | Some editors use for save    | Low — most terminal apps don't use it                  |
+| Ctrl+T   | New tab              | Rarely used in terminal apps | Low                                                    |
+| Ctrl+N   | New window           | Rarely used in terminal apps | Low                                                    |
+| Ctrl+Tab | Switch tabs          | tmux doesn't use this        | None                                                   |
+| Ctrl+Q   | Quit browser (Linux) | Rarely used                  | Low                                                    |
 
 In practice, **Ctrl+W is the only shortcut that matters**, and only for users running vim inside webmux panes. For Claude Code, shell usage, and most terminal workflows, there are zero conflicts.
 
@@ -36,6 +36,7 @@ The extension cannot programmatically assign these shortcuts. It can open the sh
 Firefox's `commands` API does not reliably override hard-reserved shortcuts like Ctrl+W. The standard WebExtension approach doesn't work here.
 
 Possible paths:
+
 - **Zen-specific:** Zen has customizable keyboard shortcuts. A "terminal mode" or per-site keyboard override could be proposed to the Zen team. This aligns with Zen's philosophy of browsers as app platforms.
 - **Firefox per-site permission:** Firefox has a per-site "Override Keyboard Shortcuts" permission (Page Info → Permissions). This handles some but not all reserved keys.
 - **Accept the limitation:** For Zen/Firefox users, Ctrl+W in vim doesn't work. Everything else works fine. This is a documented, known limitation.
@@ -53,15 +54,15 @@ The web app intercepts Ctrl+B before xterm.js processes it using `terminal.attac
 ```typescript
 terminal.attachCustomKeyEventHandler((event) => {
   if (event.ctrlKey && event.key === 'b' && event.type === 'keydown') {
-    enterPrefixMode();
-    return false; // prevent xterm.js from processing
+    enterPrefixMode()
+    return false // prevent xterm.js from processing
   }
   if (inPrefixMode) {
-    handlePrefixKey(event.key);
-    return false;
+    handlePrefixKey(event.key)
+    return false
   }
-  return true; // pass through to xterm.js
-});
+  return true // pass through to xterm.js
+})
 ```
 
 This works identically on all browsers because Ctrl+B is not a reserved browser shortcut.

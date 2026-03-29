@@ -74,6 +74,7 @@ Data channels carry no JSON. They are pure byte streams.
 ## Authentication
 
 v0 uses a simple token scheme:
+
 1. Bridge generates a random token on startup and prints it to stdout.
 2. Clients include the token as a query parameter: `ws://host:port/control?token=xxx`.
 3. Bridge validates the token on WebSocket upgrade. Invalid tokens get a 401 and connection close.

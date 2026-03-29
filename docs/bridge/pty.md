@@ -11,7 +11,7 @@ When discovering panes via `tmux list-panes`, the `#{pane_tty}` format variable 
 The bridge opens the pane TTY device for writing input. On Linux:
 
 ```typescript
-const fd = fs.openSync(pane.ttyPath, fs.constants.O_RDWR | fs.constants.O_NOCTTY);
+const fd = fs.openSync(pane.ttyPath, fs.constants.O_RDWR | fs.constants.O_NOCTTY)
 ```
 
 `O_NOCTTY` prevents the bridge from becoming the controlling terminal for the pane's process group.
@@ -46,10 +46,10 @@ The read loop must be event-driven. Use Bun's async file I/O or `readable`/`data
 
 ```typescript
 // Pseudocode — actual implementation may use Bun.file() or node:fs streams
-const stream = fs.createReadStream('', { fd, highWaterMark: 4096 });
+const stream = fs.createReadStream('', { fd, highWaterMark: 4096 })
 stream.on('data', (chunk: Buffer) => {
-  paneWebSocket.send(chunk);  // binary frame, no batching
-});
+  paneWebSocket.send(chunk) // binary frame, no batching
+})
 ```
 
 ### High water mark
@@ -68,8 +68,8 @@ When the bridge receives a binary frame on a pane's data WebSocket:
 
 ```typescript
 paneDataWebSocket.on('message', (data: Buffer) => {
-  fs.writeSync(fd, data);  // synchronous, immediate, no await
-});
+  fs.writeSync(fd, data) // synchronous, immediate, no await
+})
 ```
 
 This is the most latency-sensitive line in the entire codebase. See `docs/architecture/latency.md` for why this must never be async.
@@ -88,7 +88,7 @@ When a client sends a `pane.resize` message on the control channel, the bridge n
 
 ```typescript
 // Via tmux (preferred for v0 — lets tmux handle the geometry)
-exec(`tmux resize-pane -t '${paneId}' -x ${cols} -y ${rows}`);
+exec(`tmux resize-pane -t '${paneId}' -x ${cols} -y ${rows}`)
 ```
 
 This triggers `SIGWINCH` in the application running in the pane, causing it to re-render at the new dimensions.

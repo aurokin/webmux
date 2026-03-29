@@ -31,11 +31,8 @@ All session/window/pane data flows from the client SDK. The web app does NOT mai
 
 ```typescript
 // In a React context provider
-const client = useMuxClient();
-const sessions = useSyncExternalStore(
-  client.subscribe,
-  () => client.sessions
-);
+const client = useMuxClient()
+const sessions = useSyncExternalStore(client.subscribe, () => client.sessions)
 ```
 
 ### What lives in React state
@@ -57,6 +54,7 @@ const sessions = useSyncExternalStore(
 The most complex component. It takes the pane tree from the client SDK and converts it to nested flex containers. See `docs/web/layout.md` for the conversion algorithm.
 
 Responsibilities:
+
 - Render pane columns and rows based on tmux layout.
 - Place resize handles between panes.
 - Track flex ratios for drag resize.

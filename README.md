@@ -36,11 +36,11 @@ This repository is currently a scaffold and design reference.
 │              └─────┬──────┘                          │
 └────────────────────┼────────────────────────────────┘
                ┌─────┴──────┐
-               │ @webmux/bridge│  Bun daemon              
+               │ @webmux/bridge│  Bun daemon
                └─────┬──────┘
                      │ WebSocket
                ┌─────┴──────┐
-               │    tmux     │  Your sessions           
+               │    tmux     │  Your sessions
                └─────────────┘
 ```
 
@@ -48,13 +48,13 @@ The web app is the primary product. The architecture supports future consumers (
 
 ## Packages
 
-| Package | Path | Purpose |
-|---------|------|---------|
+| Package          | Path              | Purpose                                                                                            |
+| ---------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
 | `@webmux/shared` | `packages/shared` | Protocol message schemas, TypeScript types, constants. The contract between bridge and any client. |
-| `@webmux/bridge` | `packages/bridge` | Bun server daemon. Talks to tmux, manages PTY streams, serves WebSocket API. |
-| `@webmux/client` | `packages/client` | Client SDK. Connection lifecycle, session state, event model. Framework-agnostic. |
-| `@webmux/cli` | `packages/cli` | CLI entry points: `webmux serve`, `webmux open`, `webmux status`. |
-| `@webmux/web` | `packages/web` | React + xterm.js web application. One consumer of `@webmux/client`. |
+| `@webmux/bridge` | `packages/bridge` | Bun server daemon. Talks to tmux, manages PTY streams, serves WebSocket API.                       |
+| `@webmux/client` | `packages/client` | Client SDK. Connection lifecycle, session state, event model. Framework-agnostic.                  |
+| `@webmux/cli`    | `packages/cli`    | CLI entry points: `webmux serve`, `webmux open`, `webmux status`.                                  |
+| `@webmux/web`    | `packages/web`    | React + xterm.js web application. One consumer of `@webmux/client`.                                |
 
 ## Scaffold commands
 
@@ -72,6 +72,30 @@ bun run --filter @webmux/web dev
 ```
 
 These commands are useful for exploring the scaffold, but they do not imply feature completeness.
+
+## Quality checks
+
+```bash
+# TypeScript across all workspaces
+bun run typecheck
+
+# ESLint, including complexity limits on core packages
+bun run lint
+
+# Prettier formatting check
+bun run format:check
+
+# Unit tests
+bun run test:unit
+
+# tmux-backed integration tests
+bun run test:integration
+
+# Everything together
+bun run check
+```
+
+The current automated coverage is focused on the core backend path that is already implemented: layout parsing, session ownership, tmux discovery, session resize, and pane input/output fan-out.
 
 ## Requirements
 

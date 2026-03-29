@@ -4,11 +4,11 @@ The only latency that matters for a terminal is keystroke-to-screen time. Output
 
 ## Target latency budget
 
-| Scenario | Network RTT | Keystroke-to-screen | Experience |
-|----------|-------------|---------------------|------------|
-| LAN | ~1ms | 2-4ms | Indistinguishable from native terminal |
-| Same city, 5G | 10-25ms | 20-30ms | Slight softness, fully usable |
-| Cross-continent | 80-200ms | 160-400ms | Noticeable, use buffered input mode |
+| Scenario        | Network RTT | Keystroke-to-screen | Experience                             |
+| --------------- | ----------- | ------------------- | -------------------------------------- |
+| LAN             | ~1ms        | 2-4ms               | Indistinguishable from native terminal |
+| Same city, 5G   | 10-25ms     | 20-30ms             | Slight softness, fully usable          |
+| Cross-continent | 80-200ms    | 160-400ms           | Noticeable, use buffered input mode    |
 
 ## Rules for the input path
 

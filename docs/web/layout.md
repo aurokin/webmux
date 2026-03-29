@@ -23,14 +23,14 @@ The bridge parses this into a tree structure, normalizes leaf identifiers agains
 
 ```typescript
 interface LayoutNode {
-  type: 'pane' | 'horizontal' | 'vertical';
+  type: 'pane' | 'horizontal' | 'vertical'
   // For pane nodes:
-  paneId?: string;
-  cols?: number;
-  rows?: number;
+  paneId?: string
+  cols?: number
+  rows?: number
   // For container nodes:
-  children?: LayoutNode[];
-  ratios?: number[];  // flex ratios, one per child
+  children?: LayoutNode[]
+  ratios?: number[] // flex ratios, one per child
 }
 ```
 
@@ -82,10 +82,10 @@ Resize handles are thin (2px) dividers between panes that become visible (highli
 xterm.js exposes `Terminal.options.fontSize` and the renderer exposes actual cell dimensions. To convert pixel-based flex ratios to cols/rows:
 
 ```typescript
-const cellWidth = terminal._core._renderService.dimensions.css.cell.width;
-const cellHeight = terminal._core._renderService.dimensions.css.cell.height;
-const cols = Math.floor(panePixelWidth / cellWidth);
-const rows = Math.floor(panePixelHeight / cellHeight);
+const cellWidth = terminal._core._renderService.dimensions.css.cell.width
+const cellHeight = terminal._core._renderService.dimensions.css.cell.height
+const cols = Math.floor(panePixelWidth / cellWidth)
+const rows = Math.floor(panePixelHeight / cellHeight)
 ```
 
 ## Layout sync

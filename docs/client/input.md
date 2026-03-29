@@ -9,8 +9,8 @@ Every keystroke is sent immediately as a binary WebSocket frame on the pane's da
 ```typescript
 // In the consumer (e.g., web app)
 terminal.onData((data: string) => {
-  client.sendInput(paneId, data);
-});
+  client.sendInput(paneId, data)
+})
 ```
 
 xterm.js's `onData` fires for every keystroke. The consumer passes it straight to the client SDK. The SDK sends it as a binary frame. The bridge writes it to the PTY fd.
@@ -39,7 +39,7 @@ The client SDK tracks round-trip time by measuring the delay between WebSocket p
 ```typescript
 client.on('latency:high', (rtt: number) => {
   // Consumer can show a "Switch to buffered input?" prompt
-});
+})
 ```
 
 Default threshold: 80ms. Configurable via `WebmuxClient` options.

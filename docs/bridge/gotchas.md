@@ -6,10 +6,10 @@ Things you will get wrong the first time. Read before making your first bridge c
 
 ```typescript
 // WRONG — adds latency to every keystroke
-await fs.promises.write(fd, data);
+await fs.promises.write(fd, data)
 
 // RIGHT — synchronous, immediate
-fs.writeSync(fd, data);
+fs.writeSync(fd, data)
 ```
 
 The PTY buffer is managed by the OS. If it's full (which essentially never happens in practice), `writeSync` will block briefly. That's fine — it means the application isn't reading its input, and adding async won't help.
@@ -18,18 +18,18 @@ The PTY buffer is managed by the OS. If it's full (which essentially never happe
 
 ```typescript
 // WRONG — buffering output to send larger frames
-let buffer = [];
+let buffer = []
 setInterval(() => {
   if (buffer.length) {
-    ws.send(Buffer.concat(buffer));
-    buffer = [];
+    ws.send(Buffer.concat(buffer))
+    buffer = []
   }
-}, 16);
+}, 16)
 
 // RIGHT — send immediately on read
 stream.on('data', (chunk) => {
-  ws.send(chunk);
-});
+  ws.send(chunk)
+})
 ```
 
 Artificial batching adds up to one batch interval of latency to every output frame. Let the OS and network stack do their own buffering.
@@ -51,11 +51,11 @@ If tmux kills a pane while the bridge has its PTY fd open, the next read/write w
 ```typescript
 stream.on('error', (err) => {
   if (err.code === 'EIO' || err.code === 'ENOENT') {
-    cleanupPane(paneId);
-    return;
+    cleanupPane(paneId)
+    return
   }
-  throw err;
-});
+  throw err
+})
 ```
 
 ## Don't read from PTY if the fd is not open
@@ -65,6 +65,7 @@ Check that the PTY fd was successfully opened before starting the read loop. `tm
 ## Token goes to stdout, not stderr
 
 The auth token must be printed to stdout so other tools can capture it:
+
 ```
 webmux bridge listening on ws://localhost:7400?token=abc123...
 ```
@@ -74,6 +75,7 @@ Logs, warnings, and errors go to stderr. The token line on stdout is the only st
 ## WebSocket close codes matter
 
 When cleaning up a pane's data channel:
+
 - Normal shutdown: code 1000
 - Pane destroyed: code 1001 (going away)
 - Auth failure: code 4001

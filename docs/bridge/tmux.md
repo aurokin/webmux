@@ -39,6 +39,7 @@ v0 uses polling to detect state changes. The bridge runs the discovery commands 
 Polling interval is configurable. 500ms is a reasonable default — it catches window/pane creation and destruction quickly enough to feel responsive without hammering tmux.
 
 ### What polling catches
+
 - New sessions, windows, panes created (by the user in their terminal or by tmux commands)
 - Destroyed sessions, windows, panes
 - Window renames
@@ -46,6 +47,7 @@ Polling interval is configurable. 500ms is a reasonable default — it catches w
 - Pane current command changes
 
 ### What polling does NOT catch
+
 - Pane content changes (handled by tmux output pipes, not polling)
 - Keystroke input (handled by direct PTY writing, not tmux)
 - Sub-second state changes (they'll be caught on the next poll)

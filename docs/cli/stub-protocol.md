@@ -20,6 +20,7 @@ The stub protocol allows CLI tools to signal that rich content is available for 
 ```
 
 This uses OSC (Operating System Command) escape sequence format:
+
 - `\033]` — OSC start
 - `webmux;` — namespace prefix so other tools don't conflict
 - `type=webview` — the upgrade type (currently only `webview`)
@@ -27,6 +28,7 @@ This uses OSC (Operating System Command) escape sequence format:
 - `\007` — ST (String Terminator)
 
 Regular terminals either:
+
 - Ignore unrecognized OSC sequences silently (most modern terminals).
 - Display a small amount of garbage (rare, and the text fallback clears it).
 
@@ -75,6 +77,7 @@ printf '\033]webmux;type=webview;url=https://my-dashboard.com\007'
 ```
 
 Future stub types beyond `webview` could include:
+
 - `type=markdown` — render a markdown document
 - `type=image` — display an image
 - `type=diff` — rich diff viewer
@@ -87,7 +90,7 @@ The webview iframe must be sandboxed:
 
 ```html
 <iframe
-  src={url}
+  src="{url}"
   sandbox="allow-scripts allow-same-origin allow-popups"
   referrerpolicy="no-referrer"
 />

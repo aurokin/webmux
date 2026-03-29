@@ -9,6 +9,7 @@ The bridge runs a single HTTP/WebSocket server (default port 7400). It serves tw
 One per client. Carries JSON messages for session/window/pane management. See `docs/architecture/protocol.md` for message schemas.
 
 Lifecycle:
+
 1. Client connects with auth token.
 2. Bridge validates token. Rejects with 401 if invalid.
 3. Bridge sends `welcome` message with protocol version and current owner info.
@@ -21,6 +22,7 @@ Lifecycle:
 One per pane per client. Carries raw binary PTY data in both directions.
 
 Lifecycle:
+
 1. Client connects with auth token, pane ID, and client ID.
 2. Bridge validates token and pane existence.
 3. Bridge subscribes this socket to the pane's shared stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
@@ -33,15 +35,15 @@ Lifecycle:
 Bun.serve({
   port: 7400,
   websocket: {
-    perMessageDeflate: false,  // CRITICAL: no compression on data channels
+    perMessageDeflate: false, // CRITICAL: no compression on data channels
     maxPayloadLength: 64 * 1024,
-    idleTimeout: 0,  // no timeout — terminals are long-lived
+    idleTimeout: 0, // no timeout — terminals are long-lived
   },
   fetch(req, server) {
-    const url = new URL(req.url);
+    const url = new URL(req.url)
     // Route to control or data channel based on path
-  }
-});
+  },
+})
 ```
 
 `perMessageDeflate: false` is critical. Compression adds latency for every frame. Terminal data is small and doesn't compress well anyway (escape sequences, short text).
@@ -52,10 +54,10 @@ Only one client can send input to a session at a time. The bridge maintains an o
 
 ```typescript
 interface SessionOwnership {
-  sessionId: string;
-  ownerId: string | null;      // client ID of current owner
-  ownerType: string | null;    // 'web', 'electron', 'mobile'
-  acquiredAt: number;          // timestamp
+  sessionId: string
+  ownerId: string | null // client ID of current owner
+  ownerType: string | null // 'web', 'electron', 'mobile'
+  acquiredAt: number // timestamp
 }
 ```
 
@@ -88,9 +90,11 @@ The bridge stores the latest dimensions per `clientId`. If that client owns a se
 ### Release
 
 A client can voluntarily release ownership:
+
 ```
 { type: 'session.release', sessionId: '...' }
 ```
+
 Ownership becomes `null`. The next client to request control gets it immediately.
 
 ### Idle release (optional, post-v0)

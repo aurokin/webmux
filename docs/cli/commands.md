@@ -15,6 +15,7 @@ webmux serve [options]
 ```
 
 Output:
+
 - Prints auth token to stdout: `webmux bridge listening on ws://127.0.0.1:7400?token=xxx`
 - Logs to stderr.
 
@@ -43,6 +44,7 @@ webmux status
 ```
 
 Output:
+
 ```
 Sessions:
   clip_remote_sync  3 windows  attached (web: browser-1)
@@ -59,12 +61,19 @@ The CLI is a Bun script with subcommand routing. It does not use a CLI framework
 
 ```typescript
 // packages/cli/src/index.ts
-const command = process.argv[2];
+const command = process.argv[2]
 switch (command) {
-  case 'serve': await import('./commands/serve'); break;
-  case 'open':  await import('./commands/open'); break;
-  case 'status': await import('./commands/status'); break;
-  default: printUsage();
+  case 'serve':
+    await import('./commands/serve')
+    break
+  case 'open':
+    await import('./commands/open')
+    break
+  case 'status':
+    await import('./commands/status')
+    break
+  default:
+    printUsage()
 }
 ```
 
