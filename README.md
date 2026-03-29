@@ -12,6 +12,7 @@ This repository is still a scaffold-first codebase, but it now includes a workin
 - Some files under `packages/` are still illustrative snippets rather than finished production implementation.
 - The docs describe the target system unless they explicitly say otherwise, and the implementation plan tracks what is actually done.
 - The current build order lives in `docs/architecture/implementation-plan.md`.
+- The current identity model is LAN-oriented: the bridge token is the trust boundary, and `clientId` is still a cooperative client identifier rather than a hardened remote-user identity.
 
 ## Intended product
 
@@ -104,7 +105,7 @@ bun run check
 bun run check:full
 ```
 
-The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, live session switching, explicit auth-failure handling, two-browser handoff and release, and pane/control reconnection after a bridge restart.
+The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, serialized polling, session resize, pane input/output fan-out, live pane rendering in the web app, explicit take-control flows, passive mutation blocking, explicit auth-failure handling, two-browser handoff and release, and pane/control reconnection after a bridge restart.
 
 ## Requirements
 

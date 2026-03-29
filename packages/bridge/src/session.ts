@@ -65,6 +65,15 @@ export class SessionManager {
       .map((ownership) => ownership.sessionId)
   }
 
+  canMutateSession(sessionId: string, clientId: string): boolean {
+    if (!clientId) return false
+    if (!this.findSessionById(sessionId)) return false
+
+    const ownership = this.ownership.get(sessionId)
+    if (!ownership?.ownerId) return false
+    return ownership.ownerId === clientId
+  }
+
   /**
    * Apply a new state snapshot from tmux polling.
    * Emits a full sync when the snapshot changes.
@@ -119,14 +128,12 @@ export class SessionManager {
    * Returns true if the client owns the session that contains the pane.
    */
   canSendInput(paneId: string, clientId: string): boolean {
-    if (!clientId) return true
+    if (!clientId) return false
 
     const session = this.findSessionByPaneId(paneId)
     if (!session) return false
 
-    const ownership = this.ownership.get(session.id)
-    if (!ownership?.ownerId) return true
-    return ownership.ownerId === clientId
+    return this.canMutateSession(session.id, clientId)
   }
 
   /**
@@ -170,6 +177,10 @@ export class SessionManager {
     }
 
     return null
+  }
+
+  private findSessionById(sessionId: string): Session | null {
+    return this.sessions.find((session) => session.id === sessionId) ?? null
   }
 
   private clearOwnership(sessionId: string): void {

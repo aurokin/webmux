@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   BRIDGE_VERSION,
   WS_CLOSE,
+  type ErrorCode,
   type ClientMessage,
   type BridgeMessage,
   type ClientType,
@@ -83,6 +84,10 @@ export function createWebSocketServer(options: ServerOptions) {
       const paneMatch = url.pathname.match(/^\/pane\/(.+)$/)
       if (paneMatch) {
         const paneId = paneMatch[1]
+        if (!clientId) {
+          return new Response('Missing clientId', { status: 400 })
+        }
+
         const upgraded = server.upgrade(req, {
           data: {
             type: 'data',
@@ -158,21 +163,23 @@ export function createWebSocketServer(options: ServerOptions) {
           // Control channel: JSON messages
           try {
             const msg = JSON.parse(String(message)) as ClientMessage
-            handleControlMessage({
+            void handleControlMessage({
               ws: ws as ServerWebSocket<ControlSocketData>,
               msg,
               tmux,
               sessionManager,
-              resizeOwnedSessions: (clientId, sessionIds) =>
-                resizeOwnedSessions(tmux, sessionManager, clientId, sessionIds),
+            }).catch((error) => {
+              sendBridgeError(
+                ws as ServerWebSocket<ControlSocketData>,
+                'TMUX_ERROR',
+                error instanceof Error ? error.message : 'Unexpected bridge error',
+              )
             })
           } catch {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                code: 'INVALID_MESSAGE',
-                message: 'Failed to parse control message',
-              } satisfies BridgeMessage),
+            sendBridgeError(
+              ws as ServerWebSocket<ControlSocketData>,
+              'INVALID_MESSAGE',
+              'Failed to parse control message',
             )
           }
           return
@@ -182,10 +189,6 @@ export function createWebSocketServer(options: ServerOptions) {
           // Data channel: raw binary input → write to PTY
           const paneId = ws.data.paneId
           const clientId = ws.data.clientId
-
-          claimOwnershipForInput(sessionManager, paneId, clientId, (ownerClientId, sessionIds) =>
-            resizeOwnedSessions(tmux, sessionManager, ownerClientId, sessionIds),
-          )
 
           // Check ownership before allowing input
           if (!sessionManager.canSendInput(paneId, clientId ?? '')) {
@@ -221,16 +224,14 @@ interface ControlMessageContext {
   msg: ClientMessage
   tmux: TmuxClient
   sessionManager: SessionManager
-  resizeOwnedSessions: (clientId: string, sessionIds: string[]) => void
 }
 
-function handleControlMessage({
+async function handleControlMessage({
   ws,
   msg,
   tmux,
   sessionManager,
-  resizeOwnedSessions,
-}: ControlMessageContext): void {
+}: ControlMessageContext): Promise<void> {
   switch (msg.type) {
     case 'hello':
       handleHelloMessage(ws, msg, sessionManager)
@@ -255,36 +256,88 @@ function handleControlMessage({
       break
 
     case 'window.select':
-      tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex)
+      await runOwnedTmuxMutation({
+        ws,
+        sessionManager,
+        sessionId: msg.sessionId,
+        action: () => tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex),
+      })
       break
 
     case 'window.create':
-      tmux.createWindow(msg.sessionId)
+      await runOwnedTmuxMutation({
+        ws,
+        sessionManager,
+        sessionId: msg.sessionId,
+        action: () => tmux.createWindow(msg.sessionId),
+      })
       break
 
     case 'pane.split':
-      tmux.splitPane(msg.paneId, msg.direction)
+      await runOwnedPaneMutation({
+        ws,
+        paneId: msg.paneId,
+        sessionManager,
+        action: () => tmux.splitPane(msg.paneId, msg.direction),
+      })
       break
 
     case 'pane.resize':
-      tmux.resizePane(msg.paneId, msg.cols, msg.rows)
+      await runOwnedPaneMutation({
+        ws,
+        paneId: msg.paneId,
+        sessionManager,
+        action: () => tmux.resizePane(msg.paneId, msg.cols, msg.rows),
+      })
       break
 
     case 'pane.close':
-      tmux.closePane(msg.paneId)
+      await runOwnedPaneMutation({
+        ws,
+        paneId: msg.paneId,
+        sessionManager,
+        action: () => tmux.closePane(msg.paneId),
+      })
       break
 
     case 'session.takeControl':
-      sessionManager.takeControl(msg.sessionId, ws.data.clientId!, ws.data.clientType ?? undefined)
-      resizeOwnedSessions(ws.data.clientId!, [msg.sessionId])
+      if (!ws.data.clientId) {
+        sendBridgeError(ws, 'INVALID_MESSAGE', 'Client identity is not established')
+        break
+      }
+
+      if (!sessionManager.getSessionOwnership(msg.sessionId)) {
+        sendBridgeError(ws, 'SESSION_NOT_FOUND', `Session not found: ${msg.sessionId}`)
+        break
+      }
+
+      sessionManager.takeControl(msg.sessionId, ws.data.clientId, ws.data.clientType ?? undefined)
+      resizeOwnedSessions(tmux, sessionManager, ws.data.clientId, [msg.sessionId])
       break
 
     case 'session.release':
-      sessionManager.releaseControl(msg.sessionId, ws.data.clientId!)
+      if (!ws.data.clientId) {
+        sendBridgeError(ws, 'INVALID_MESSAGE', 'Client identity is not established')
+        break
+      }
+
+      if (!sessionManager.getSessionOwnership(msg.sessionId)) {
+        sendBridgeError(ws, 'SESSION_NOT_FOUND', `Session not found: ${msg.sessionId}`)
+        break
+      }
+
+      if (!sessionManager.canMutateSession(msg.sessionId, ws.data.clientId)) {
+        sendBridgeError(ws, 'NOT_OWNER', 'Take control before releasing this session')
+        break
+      }
+
+      sessionManager.releaseControl(msg.sessionId, ws.data.clientId)
       break
 
     case 'client.dimensions':
-      handleClientDimensions(ws, msg, sessionManager, resizeOwnedSessions)
+      handleClientDimensions(ws, msg, sessionManager, (clientId, sessionIds) =>
+        resizeOwnedSessions(tmux, sessionManager, clientId, sessionIds),
+      )
       break
   }
 }
@@ -295,14 +348,14 @@ function handleHelloMessage(
   sessionManager: SessionManager,
 ): void {
   if (msg.protocolVersion !== PROTOCOL_VERSION) {
-    ws.send(
-      JSON.stringify({
-        type: 'error',
-        code: 'PROTOCOL_MISMATCH',
-        message: `Unsupported protocol version: ${msg.protocolVersion}`,
-      } satisfies BridgeMessage),
-    )
+    sendBridgeError(ws, 'PROTOCOL_MISMATCH', `Unsupported protocol version: ${msg.protocolVersion}`)
     ws.close(WS_CLOSE.PROTOCOL_ERROR, 'PROTOCOL_MISMATCH')
+    return
+  }
+
+  if (!msg.clientId.trim()) {
+    sendBridgeError(ws, 'INVALID_MESSAGE', 'Client id is required')
+    ws.close(WS_CLOSE.PROTOCOL_ERROR, 'CLIENT_ID_REQUIRED')
     return
   }
 
@@ -343,6 +396,64 @@ function handleClientDimensions(
   resizeOwnedSessions(ws.data.clientId, sessionManager.getOwnedSessionIds(ws.data.clientId))
 }
 
+async function runOwnedPaneMutation({
+  ws,
+  paneId,
+  sessionManager,
+  action,
+}: {
+  ws: ServerWebSocket<ControlSocketData>
+  paneId: string
+  sessionManager: SessionManager
+  action: () => Promise<void>
+}): Promise<void> {
+  const sessionId = sessionManager.getSessionIdByPaneId(paneId)
+  if (!sessionId) {
+    sendBridgeError(ws, 'PANE_NOT_FOUND', `Pane not found: ${paneId}`)
+    return
+  }
+
+  await runOwnedTmuxMutation({ ws, sessionManager, sessionId, action })
+}
+
+async function runOwnedTmuxMutation({
+  ws,
+  sessionManager,
+  sessionId,
+  action,
+}: {
+  ws: ServerWebSocket<ControlSocketData>
+  sessionManager: SessionManager
+  sessionId: string
+  action: () => Promise<void>
+}): Promise<void> {
+  const clientId = ws.data.clientId
+  if (!clientId) {
+    sendBridgeError(ws, 'INVALID_MESSAGE', 'Client identity is not established')
+    return
+  }
+
+  if (!sessionManager.getSessionOwnership(sessionId)) {
+    sendBridgeError(ws, 'SESSION_NOT_FOUND', `Session not found: ${sessionId}`)
+    return
+  }
+
+  if (!sessionManager.canMutateSession(sessionId, clientId)) {
+    sendBridgeError(ws, 'NOT_OWNER', 'Take control before mutating this session')
+    return
+  }
+
+  try {
+    await action()
+  } catch (error) {
+    sendBridgeError(
+      ws,
+      mapTmuxErrorCode(error),
+      error instanceof Error ? error.message : 'tmux command failed',
+    )
+  }
+}
+
 function resizeOwnedSessions(
   tmux: TmuxClient,
   sessionManager: SessionManager,
@@ -359,26 +470,6 @@ function resizeOwnedSessions(
   }
 }
 
-function claimOwnershipForInput(
-  sessionManager: SessionManager,
-  paneId: string,
-  clientId: string | null,
-  resizeOwnedSessions: (clientId: string, sessionIds: string[]) => void,
-): void {
-  if (!clientId) {
-    return
-  }
-
-  const sessionId = sessionManager.getSessionIdByPaneId(paneId)
-  const ownership = sessionId ? sessionManager.getSessionOwnership(sessionId) : null
-  const clientInfo = sessionManager.getClientInfo(clientId)
-
-  if (sessionId && clientInfo && !ownership?.ownerId) {
-    sessionManager.takeControl(sessionId, clientId, clientInfo.clientType)
-    resizeOwnedSessions(clientId, [sessionId])
-  }
-}
-
 function closeIfUnauthenticated(ws: ServerWebSocket<SocketData>): boolean {
   if (ws.data.authenticated) {
     return false
@@ -386,4 +477,37 @@ function closeIfUnauthenticated(ws: ServerWebSocket<SocketData>): boolean {
 
   ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
   return true
+}
+
+function sendBridgeError(
+  ws: ServerWebSocket<ControlSocketData>,
+  code: ErrorCode,
+  message: string,
+): void {
+  ws.send(
+    JSON.stringify({
+      type: 'error',
+      code,
+      message,
+    } satisfies BridgeMessage),
+  )
+}
+
+function mapTmuxErrorCode(error: unknown): ErrorCode {
+  if (!(error instanceof Error)) {
+    return 'TMUX_ERROR'
+  }
+
+  if (error.message.includes('can not find pane')) {
+    return 'PANE_NOT_FOUND'
+  }
+
+  if (
+    error.message.includes('can not find session') ||
+    error.message.includes('can not find window')
+  ) {
+    return 'SESSION_NOT_FOUND'
+  }
+
+  return 'TMUX_ERROR'
 }

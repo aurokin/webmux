@@ -22,6 +22,7 @@ export function useTerminal(
 ) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -98,14 +99,33 @@ export function useTerminal(
     })
 
     // Resize: container changes → fit → notify bridge
+    let lastCols = terminal.cols
+    let lastRows = terminal.rows
+
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
-      client.resizePane(paneId, terminal.cols, terminal.rows)
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current)
+      }
+
+      resizeTimerRef.current = setTimeout(() => {
+        fitAddon.fit()
+        if (terminal.cols === lastCols && terminal.rows === lastRows) {
+          return
+        }
+
+        lastCols = terminal.cols
+        lastRows = terminal.rows
+        client.resizePane(paneId, terminal.cols, terminal.rows)
+      }, 50)
     })
     resizeObserver.observe(container)
 
     // Cleanup
     return () => {
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current)
+        resizeTimerRef.current = null
+      }
       resizeObserver.disconnect()
       inputDisposable.dispose()
       unsubOutput()

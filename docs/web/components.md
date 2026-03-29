@@ -74,7 +74,7 @@ Keyboard-navigable: arrow keys to move, Enter to select, Escape to close. Must c
 
 ### StatusBar
 
-Static layout with a small amount of ownership behavior. Reads from client SDK state. The window tabs are clickable — each calls `client.selectWindow()`. The session indicator opens the `SessionSwitcher`. The right side shows whether the selected session is `active`, `passive`, or `unclaimed`, and exposes a release button when the current client owns the session.
+Static layout with a small amount of ownership behavior. Reads from client SDK state. The window tabs are only interactive when the current client owns the selected session. The session indicator opens the `SessionSwitcher`. The right side shows whether the selected session is `active`, `passive`, or `unclaimed`, exposes a take-control button when the session is unclaimed, and exposes a release button when the current client owns the session.
 
 ### HandoffBanner
 

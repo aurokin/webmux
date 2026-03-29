@@ -115,12 +115,24 @@ describe('SessionManager', () => {
   })
 
   test('allows input when there is no owner and blocks passive clients after handoff', () => {
-    expect(manager.canSendInput('%0', 'observer')).toBe(true)
+    expect(manager.canSendInput('%0', '')).toBe(false)
+    expect(manager.canSendInput('%0', 'observer')).toBe(false)
 
     manager.takeControl('$0', 'owner', 'web')
 
     expect(manager.canSendInput('%0', 'owner')).toBe(true)
     expect(manager.canSendInput('%0', 'observer')).toBe(false)
+  })
+
+  test('requires ownership for session mutations once a session is claimed', () => {
+    expect(manager.canMutateSession('$0', 'observer')).toBe(false)
+    expect(manager.canMutateSession('$0', '')).toBe(false)
+
+    manager.takeControl('$0', 'owner', 'web')
+
+    expect(manager.canMutateSession('$0', 'owner')).toBe(true)
+    expect(manager.canMutateSession('$0', 'observer')).toBe(false)
+    expect(manager.canMutateSession('$9', 'owner')).toBe(false)
   })
 
   test('releases control only for the owning client', () => {

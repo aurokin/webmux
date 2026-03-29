@@ -15,6 +15,7 @@ test.describe.serial('webmux browser validation', () => {
   test('renders a live tmux pane and forwards browser input to tmux', async ({ page }) => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
+    await takeControl(page)
 
     await page.locator('.xterm').first().click()
     await page.keyboard.type('webmux-e2e')
@@ -31,6 +32,7 @@ test.describe.serial('webmux browser validation', () => {
     await page.getByTestId('session-switcher-button').click()
     await page.getByPlaceholder('Filter sessions...').fill(stack.secondarySessionName)
     await page.getByTestId(`session-option-${stack.secondarySessionName}`).click()
+    await takeControl(page)
 
     await expect(page.locator('body')).toContainText(stack.secondarySessionName)
 
@@ -45,9 +47,11 @@ test.describe.serial('webmux browser validation', () => {
   test('reconnects control and pane channels after the bridge restarts', async ({ page }) => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
+    await takeControl(page)
 
     await stack.restartBridge()
     await page.waitForTimeout(2500)
+    await takeControl(page)
 
     await page.locator('.xterm').first().click()
     await page.keyboard.type('bridge-restarted')
@@ -75,6 +79,7 @@ test.describe.serial('webmux browser validation', () => {
 
     await selectSession(ownerPage, stack.sessionName)
     await selectSession(observerPage, stack.sessionName)
+    await takeControl(ownerPage)
 
     await ownerPage.locator('.xterm').first().click()
     await ownerPage.keyboard.type('owner-a')
@@ -84,6 +89,12 @@ test.describe.serial('webmux browser validation', () => {
     await expect(ownerPage.getByTestId('ownership-mode')).toContainText('active')
     await expect(observerPage.getByTestId('ownership-mode')).toContainText('passive')
     expect(stack.capturePane(stack.sessionName)).toContain('owner-a')
+    expect(stack.activeWindowName(stack.sessionName)).toBe('cat')
+
+    await observerPage.getByText('logs').click()
+    await observerPage.waitForTimeout(500)
+
+    expect(stack.activeWindowName(stack.sessionName)).toBe('cat')
 
     await observerPage.locator('.xterm').first().click()
     await observerPage.keyboard.type('blocked-b')
@@ -107,6 +118,7 @@ test.describe.serial('webmux browser validation', () => {
     await expect(observerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
     await expect(ownerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
 
+    await takeControl(ownerPage)
     await ownerPage.locator('.xterm').first().click()
     await ownerPage.keyboard.type('after-release')
     await ownerPage.keyboard.press('Enter')
@@ -131,4 +143,12 @@ async function selectSession(page: Page, sessionName: string): Promise<void> {
   await page.getByPlaceholder('Filter sessions...').fill(sessionName)
   await page.getByTestId(`session-option-${sessionName}`).click()
   await expect(page.locator('body')).toContainText(sessionName)
+}
+
+async function takeControl(page: Page): Promise<void> {
+  const claimButton = page.getByTestId('claim-control-button')
+  if (await claimButton.isVisible().catch(() => false)) {
+    await claimButton.click()
+    await expect(page.getByTestId('ownership-mode')).toContainText('active')
+  }
 }

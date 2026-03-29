@@ -220,7 +220,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     const session = this.findSessionByPaneId(paneId)
     if (session) {
       const ownership = this._ownership.get(session.id)
-      if (ownership?.ownerId && ownership.ownerId !== this.options.clientId) {
+      if (ownership?.ownerId !== this.options.clientId) {
         return
       }
     }

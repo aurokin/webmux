@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 import type { OwnershipState } from '../hooks/useOwnership'
@@ -19,6 +20,7 @@ export function StatusBar({
   latency,
   onOpenSwitcher,
 }: StatusBarProps) {
+  const canMutate = ownership.mode === 'active'
   const statusColor =
     connectionStatus === 'connected'
       ? '#56d4a0'
@@ -76,7 +78,11 @@ export function StatusBar({
         {activeSession?.windows.map((win) => (
           <div
             key={win.id}
-            onClick={() => client.selectWindow(activeSession.id, win.index)}
+            onClick={() => {
+              if (canMutate) {
+                client.selectWindow(activeSession.id, win.index)
+              }
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -85,7 +91,8 @@ export function StatusBar({
               height: '100%',
               color: win.active ? '#c8d0e0' : '#4a5568',
               background: win.active ? 'rgba(26, 34, 52, 0.95)' : 'transparent',
-              cursor: 'pointer',
+              cursor: canMutate ? 'pointer' : 'default',
+              opacity: canMutate || win.active ? 1 : 0.7,
               borderRight: '1px solid rgba(100, 140, 200, 0.06)',
               transition: 'color 0.12s, background 0.12s',
             }}
@@ -131,20 +138,20 @@ export function StatusBar({
           >
             {ownership.mode}
           </span>
+          {ownership.mode === 'unclaimed' && activeSession ? (
+            <button
+              data-testid="claim-control-button"
+              onClick={() => client.takeControl(activeSession.id)}
+              style={controlButtonStyle}
+            >
+              take control
+            </button>
+          ) : null}
           {ownership.mode === 'active' && activeSession ? (
             <button
               data-testid="release-control-button"
               onClick={() => client.releaseControl(activeSession.id)}
-              style={{
-                padding: '2px 8px',
-                borderRadius: 4,
-                border: '1px solid rgba(100, 140, 200, 0.10)',
-                background: 'transparent',
-                color: '#c8d0e0',
-                cursor: 'pointer',
-                fontFamily: "'Commit Mono', monospace",
-                fontSize: 10,
-              }}
+              style={controlButtonStyle}
             >
               release
             </button>
@@ -208,6 +215,17 @@ export function StatusBar({
     </div>
   )
 }
+
+const controlButtonStyle = {
+  padding: '2px 8px',
+  borderRadius: 4,
+  border: '1px solid rgba(100, 140, 200, 0.10)',
+  background: 'transparent',
+  color: '#c8d0e0',
+  cursor: 'pointer',
+  fontFamily: "'Commit Mono', monospace",
+  fontSize: 10,
+} satisfies CSSProperties
 
 function Clock() {
   // Simple clock - update every minute

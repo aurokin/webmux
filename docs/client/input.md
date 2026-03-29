@@ -46,11 +46,11 @@ Default threshold: 80ms. Configurable via `WebmuxClient` options.
 
 ## Input routing
 
-Only the session owner can send input once a session has been claimed. If a session is still unclaimed, the first client to send input becomes the owner.
+Only the session owner can send input. If a session is still unclaimed, input is dropped until the user explicitly takes control.
 
 If a client is not the current owner:
 
 - In direct mode: the SDK silently drops input (does not send to bridge). The consumer should disable the terminal's input handling or show a visual indicator.
 - In buffered mode: same behavior — the send button should be disabled.
 
-The client SDK exposes `client.isOwner(sessionId): boolean`, `client.getOwnership(sessionId)`, and emits ownership events so consumers can update their UI.
+The client SDK exposes `client.isOwner(sessionId): boolean`, `client.getOwnership(sessionId)`, and emits ownership events so consumers can update their UI and route the user through an explicit take-control flow.

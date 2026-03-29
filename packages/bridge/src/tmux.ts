@@ -51,7 +51,8 @@ function isNoTmuxServerError(error: unknown): boolean {
  */
 export class TmuxClient {
   private pollInterval: number = DEFAULT_POLL_INTERVAL_MS
-  private pollTimer: ReturnType<typeof setInterval> | null = null
+  private pollTimer: ReturnType<typeof setTimeout> | null = null
+  private polling = false
   private socketPath: string | null = null
 
   constructor(options?: { socketPath?: string; pollInterval?: number }) {
@@ -294,19 +295,34 @@ export class TmuxClient {
    * Diffs against SessionManager's current state and pushes updates.
    */
   startPolling(sessionManager: SessionManager): void {
-    this.pollTimer = setInterval(async () => {
+    if (this.polling) {
+      return
+    }
+
+    this.polling = true
+
+    const poll = async () => {
       try {
         const sessions = await this.listSessions()
         sessionManager.applyState(sessions)
       } catch (err) {
         console.error('[tmux poll]', err)
+      } finally {
+        if (this.polling) {
+          this.pollTimer = setTimeout(() => {
+            void poll()
+          }, this.pollInterval)
+        }
       }
-    }, this.pollInterval)
+    }
+
+    void poll()
   }
 
   stopPolling(): void {
+    this.polling = false
     if (this.pollTimer) {
-      clearInterval(this.pollTimer)
+      clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
   }

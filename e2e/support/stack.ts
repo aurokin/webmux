@@ -108,6 +108,7 @@ export class WebmuxE2EStack {
   async start(): Promise<void> {
     mkdirSync(this.runtimeDir, { recursive: true })
     runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', this.sessionName, 'cat'])
+    runTmux(this.tmuxSocketPath, ['new-window', '-d', '-t', this.sessionName, '-n', 'logs', 'cat'])
     runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', this.secondarySessionName, 'cat'])
 
     this.bridgePort = await getFreePort()
@@ -200,5 +201,24 @@ export class WebmuxE2EStack {
 
   capturePane(sessionName = this.sessionName): string {
     return runTmux(this.tmuxSocketPath, ['capture-pane', '-p', '-t', `${sessionName}:1`])
+  }
+
+  activeWindowName(sessionName = this.sessionName): string {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-windows',
+      '-t',
+      sessionName,
+      '-F',
+      '#{window_name}\t#{window_active}',
+    ])
+
+    for (const line of output.split('\n')) {
+      const [name, active] = line.split('\t')
+      if (active === '1') {
+        return name
+      }
+    }
+
+    throw new Error(`No active window found for session ${sessionName}`)
   }
 }

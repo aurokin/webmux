@@ -157,9 +157,9 @@ Goal: the "single owner, passive observers" model becomes real.
 Status:
 
 - Ownership state now exists for every discovered session, including explicit unclaimed sessions.
-- The bridge now claims an unowned session for the first client that sends pane input, and still blocks passive observers from injecting input afterward.
+- Session mutation is now gated by explicit ownership: passive and unclaimed clients are read-only until they take control.
 - The web client now shows active, passive, and unclaimed ownership state, exposes take-control and release flows, and updates from current ownership instead of only later handoff events.
-- Browser-backed validation now covers two-browser handoff, passive input blocking, and voluntary release against an isolated tmux socket.
+- Browser-backed validation now covers two-browser handoff, passive input blocking, passive control-mutation blocking, and voluntary release against an isolated tmux socket.
 - Phase 5 completed on 2026-03-29.
 
 Tasks:

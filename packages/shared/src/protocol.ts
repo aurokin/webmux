@@ -46,6 +46,7 @@ export type BridgeMessage =
 export type ErrorCode =
   | 'AUTH_FAILED'
   | 'INVALID_MESSAGE'
+  | 'NOT_OWNER'
   | 'SESSION_NOT_FOUND'
   | 'PANE_NOT_FOUND'
   | 'PROTOCOL_MISMATCH'
