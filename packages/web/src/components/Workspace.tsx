@@ -1,12 +1,12 @@
-import type { WebmuxClient } from '@webmux/client';
-import type { LayoutNode } from '@webmux/shared';
-import { Pane } from './Pane';
+import type { WebmuxClient } from '@webmux/client'
+import type { LayoutNode } from '@webmux/shared'
+import { Pane } from './Pane'
 
 interface WorkspaceProps {
-  client: WebmuxClient;
-  layout: LayoutNode | null;
-  focusedPaneId: string | null;
-  onFocusPane: (paneId: string) => void;
+  client: WebmuxClient
+  layout: LayoutNode | null
+  focusedPaneId: string | null
+  onFocusPane: (paneId: string) => void
 }
 
 /**
@@ -16,18 +16,20 @@ interface WorkspaceProps {
 export function Workspace({ client, layout, focusedPaneId, onFocusPane }: WorkspaceProps) {
   if (!layout) {
     return (
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#4a5568',
-        fontSize: 14,
-        fontFamily: "'IBM Plex Sans', sans-serif",
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#4a5568',
+          fontSize: 14,
+          fontFamily: "'IBM Plex Sans', sans-serif",
+        }}
+      >
         No active window. Connect to a tmux session.
       </div>
-    );
+    )
   }
 
   return (
@@ -39,14 +41,14 @@ export function Workspace({ client, layout, focusedPaneId, onFocusPane }: Worksp
         onFocusPane={onFocusPane}
       />
     </div>
-  );
+  )
 }
 
 interface LayoutRendererProps {
-  node: LayoutNode;
-  client: WebmuxClient;
-  focusedPaneId: string | null;
-  onFocusPane: (paneId: string) => void;
+  node: LayoutNode
+  client: WebmuxClient
+  focusedPaneId: string | null
+  onFocusPane: (paneId: string) => void
 }
 
 function LayoutRenderer({ node, client, focusedPaneId, onFocusPane }: LayoutRendererProps) {
@@ -59,20 +61,22 @@ function LayoutRenderer({ node, client, focusedPaneId, onFocusPane }: LayoutRend
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
       />
-    );
+    )
   }
 
-  const direction = node.type === 'horizontal' ? 'row' : 'column';
+  const direction = node.type === 'horizontal' ? 'row' : 'column'
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: direction,
-      flex: 1,
-      gap: 1,
-      minHeight: 0,
-      minWidth: 0,
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: direction,
+        flex: 1,
+        gap: 1,
+        minHeight: 0,
+        minWidth: 0,
+      }}
+    >
       {node.children.map((child, i) => (
         <div
           key={i}
@@ -92,5 +96,5 @@ function LayoutRenderer({ node, client, focusedPaneId, onFocusPane }: LayoutRend
         </div>
       ))}
     </div>
-  );
+  )
 }

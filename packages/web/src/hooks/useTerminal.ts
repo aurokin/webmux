@@ -1,8 +1,8 @@
-import { useEffect, useRef, useCallback, type RefObject } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import type { WebmuxClient } from '@webmux/client';
+import { useEffect, useRef, useCallback, type RefObject } from 'react'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import type { WebmuxClient } from '@webmux/client'
 
 /**
  * Manages an xterm.js Terminal instance lifecycle.
@@ -20,12 +20,12 @@ export function useTerminal(
   paneId: string,
   containerRef: RefObject<HTMLDivElement | null>,
 ) {
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const terminalRef = useRef<Terminal | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const container = containerRef.current
+    if (!container) return
 
     // Create terminal
     const terminal = new Terminal({
@@ -57,66 +57,66 @@ export function useTerminal(
         brightCyan: '#66d8e0',
         brightWhite: '#e8ecf0',
       },
-    });
+    })
 
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(new WebLinksAddon());
-    terminal.open(container);
-    fitAddon.fit();
+    const fitAddon = new FitAddon()
+    terminal.loadAddon(fitAddon)
+    terminal.loadAddon(new WebLinksAddon())
+    terminal.open(container)
+    fitAddon.fit()
 
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
+    terminalRef.current = terminal
+    fitAddonRef.current = fitAddon
 
     // Connect pane data channel
-    client.connectPane(paneId);
+    client.connectPane(paneId)
 
     // Output: bridge → xterm.js
     const unsubOutput = client.on('pane:output', (id, data) => {
       if (id === paneId) {
-        terminal.write(data);
+        terminal.write(data)
       }
-    });
+    })
 
     // Input: xterm.js → bridge
     const inputDisposable = terminal.onData((data) => {
-      client.sendInput(paneId, data);
-    });
+      client.sendInput(paneId, data)
+    })
 
     // Prefix key interception
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.ctrlKey && event.key === 'b' && event.type === 'keydown') {
-        return false; // let App handle it
+        return false // let App handle it
       }
-      return true;
-    });
+      return true
+    })
 
     // Resize: container changes → fit → notify bridge
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
-      client.resizePane(paneId, terminal.cols, terminal.rows);
-    });
-    resizeObserver.observe(container);
+      fitAddon.fit()
+      client.resizePane(paneId, terminal.cols, terminal.rows)
+    })
+    resizeObserver.observe(container)
 
     // Cleanup
     return () => {
-      resizeObserver.disconnect();
-      inputDisposable.dispose();
-      unsubOutput();
-      client.disconnectPane(paneId);
-      terminal.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
-    };
-  }, [client, paneId, containerRef]);
+      resizeObserver.disconnect()
+      inputDisposable.dispose()
+      unsubOutput()
+      client.disconnectPane(paneId)
+      terminal.dispose()
+      terminalRef.current = null
+      fitAddonRef.current = null
+    }
+  }, [client, paneId, containerRef])
 
   const focus = useCallback(() => {
-    terminalRef.current?.focus();
-  }, []);
+    terminalRef.current?.focus()
+  }, [])
 
   const blur = useCallback(() => {
-    terminalRef.current?.blur();
-  }, []);
+    terminalRef.current?.blur()
+  }, [])
 
-  return { focus, blur, terminalRef };
+  return { focus, blur, terminalRef }
 }

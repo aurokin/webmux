@@ -1,57 +1,55 @@
-import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import type { WebmuxClient } from '@webmux/client';
-import type { Session } from '@webmux/shared';
+import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import type { Session } from '@webmux/shared'
 
 interface SessionSwitcherProps {
-  client: WebmuxClient;
-  sessions: Session[];
-  onClose: () => void;
+  sessions: Session[]
+  onClose: () => void
 }
 
-export function SessionSwitcher({ client, sessions, onClose }: SessionSwitcherProps) {
-  const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+export function SessionSwitcher({ sessions, onClose }: SessionSwitcherProps) {
+  const [query, setQuery] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const filtered = sessions.filter((s) =>
-    s.name.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = sessions.filter((s) => s.name.toLowerCase().includes(query.toLowerCase()))
 
   // Focus input on mount
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    inputRef.current?.focus()
+  }, [])
 
   // Reset selection when filter changes
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
+    setSelectedIndex(0)
+  }, [query])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
       case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex((i) => (i + 1) % filtered.length);
-        break;
+        e.preventDefault()
+        setSelectedIndex((i) => (i + 1) % filtered.length)
+        break
       case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length);
-        break;
+        e.preventDefault()
+        setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length)
+        break
       case 'Enter':
         if (filtered[selectedIndex]) {
           // TODO: client.selectSession(filtered[selectedIndex].id)
-          onClose();
+          onClose()
         }
-        break;
+        break
       case 'Escape':
-        onClose();
-        break;
+        onClose()
+        break
     }
-  };
+  }
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -64,23 +62,27 @@ export function SessionSwitcher({ client, sessions, onClose }: SessionSwitcherPr
         zIndex: 500,
       }}
     >
-      <div style={{
-        width: 520,
-        background: 'rgba(26, 34, 52, 0.95)',
-        border: '1px solid rgba(100, 140, 200, 0.10)',
-        borderRadius: 10,
-        boxShadow: '0 32px 100px rgba(0, 0, 0, 0.6)',
-        overflow: 'hidden',
-        backdropFilter: 'blur(24px)',
-      }}>
+      <div
+        style={{
+          width: 520,
+          background: 'rgba(26, 34, 52, 0.95)',
+          border: '1px solid rgba(100, 140, 200, 0.10)',
+          borderRadius: 10,
+          boxShadow: '0 32px 100px rgba(0, 0, 0, 0.6)',
+          overflow: 'hidden',
+          backdropFilter: 'blur(24px)',
+        }}
+      >
         {/* Search */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 16px',
-          borderBottom: '1px solid rgba(100, 140, 200, 0.06)',
-          gap: 10,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            borderBottom: '1px solid rgba(100, 140, 200, 0.06)',
+            gap: 10,
+          }}
+        >
           <span style={{ color: '#2d3748', fontSize: 13 }}>❯</span>
           <input
             ref={inputRef}
@@ -101,14 +103,16 @@ export function SessionSwitcher({ client, sessions, onClose }: SessionSwitcherPr
               fontSize: 13,
             }}
           />
-          <span style={{
-            fontFamily: "'IBM Plex Sans', sans-serif",
-            fontSize: 10,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            color: '#2d3748',
-            fontWeight: 600,
-          }}>
+          <span
+            style={{
+              fontFamily: "'IBM Plex Sans', sans-serif",
+              fontSize: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              color: '#2d3748',
+              fontWeight: 600,
+            }}
+          >
             ⌃b s
           </span>
         </div>
@@ -120,7 +124,7 @@ export function SessionSwitcher({ client, sessions, onClose }: SessionSwitcherPr
               key={session.id}
               onClick={() => {
                 // TODO: client.selectSession(session.id)
-                onClose();
+                onClose()
               }}
               style={{
                 display: 'flex',
@@ -131,91 +135,110 @@ export function SessionSwitcher({ client, sessions, onClose }: SessionSwitcherPr
                 gap: 10,
                 marginBottom: 1,
                 background: i === selectedIndex ? 'rgba(40, 52, 78, 0.5)' : 'transparent',
-                border: i === selectedIndex ? '1px solid rgba(100, 140, 200, 0.10)' : '1px solid transparent',
+                border:
+                  i === selectedIndex
+                    ? '1px solid rgba(100, 140, 200, 0.10)'
+                    : '1px solid transparent',
                 transition: 'background 0.1s',
               }}
             >
               {/* Index key */}
-              <span style={{
-                fontSize: 10,
-                color: '#2d3748',
-                fontWeight: 500,
-                minWidth: 18,
-                textAlign: 'center',
-              }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: '#2d3748',
+                  fontWeight: 500,
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}
+              >
                 {i + 1}
               </span>
 
               {/* Status dot */}
-              <div style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: session.attached ? '#56d4a0' : '#4a5568',
-                boxShadow: session.attached ? '0 0 6px rgba(86, 212, 160, 0.12)' : 'none',
-                flexShrink: 0,
-              }} />
+              <div
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: session.attached ? '#56d4a0' : '#4a5568',
+                  boxShadow: session.attached ? '0 0 6px rgba(86, 212, 160, 0.12)' : 'none',
+                  flexShrink: 0,
+                }}
+              />
 
               {/* Name */}
-              <span style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: '#c8d0e0',
-                flex: 1,
-              }}>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: '#c8d0e0',
+                  flex: 1,
+                }}
+              >
                 {session.name}
               </span>
 
               {/* Meta */}
-              <span style={{ fontSize: 11, color: '#4a5568' }}>
-                {session.windowCount} win
-              </span>
+              <span style={{ fontSize: 11, color: '#4a5568' }}>{session.windowCount} win</span>
             </div>
           ))}
 
           {filtered.length === 0 && (
-            <div style={{
-              padding: '16px 12px',
-              color: '#4a5568',
-              fontSize: 13,
-              textAlign: 'center',
-            }}>
+            <div
+              style={{
+                padding: '16px 12px',
+                color: '#4a5568',
+                fontSize: 13,
+                textAlign: 'center',
+              }}
+            >
               No sessions match "{query}"
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: '8px 16px',
-          borderTop: '1px solid rgba(100, 140, 200, 0.06)',
-          fontSize: 10,
-          color: '#2d3748',
-          display: 'flex',
-          gap: 16,
-          fontFamily: "'IBM Plex Sans', sans-serif",
-        }}>
-          <span><Kbd>↑↓</Kbd> navigate</span>
-          <span><Kbd>⏎</Kbd> attach</span>
-          <span><Kbd>esc</Kbd> close</span>
+        <div
+          style={{
+            padding: '8px 16px',
+            borderTop: '1px solid rgba(100, 140, 200, 0.06)',
+            fontSize: 10,
+            color: '#2d3748',
+            display: 'flex',
+            gap: 16,
+            fontFamily: "'IBM Plex Sans', sans-serif",
+          }}
+        >
+          <span>
+            <Kbd>↑↓</Kbd> navigate
+          </span>
+          <span>
+            <Kbd>⏎</Kbd> attach
+          </span>
+          <span>
+            <Kbd>esc</Kbd> close
+          </span>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
-    <span style={{
-      padding: '1px 5px',
-      borderRadius: 3,
-      background: '#0c1018',
-      border: '1px solid rgba(100, 140, 200, 0.06)',
-      fontFamily: "'Commit Mono', monospace",
-      fontSize: 9,
-      color: '#4a5568',
-    }}>
+    <span
+      style={{
+        padding: '1px 5px',
+        borderRadius: 3,
+        background: '#0c1018',
+        border: '1px solid rgba(100, 140, 200, 0.06)',
+        fontFamily: "'Commit Mono', monospace",
+        fontSize: 9,
+        color: '#4a5568',
+      }}
+    >
       {children}
     </span>
-  );
+  )
 }

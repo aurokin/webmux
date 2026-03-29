@@ -1,36 +1,37 @@
 #!/usr/bin/env bun
 
-export {};
+export {}
 
-const command = process.argv[2];
+const command = process.argv[2]
 
 switch (command) {
   case 'serve':
-    await import('./commands/serve');
-    break;
+    await import('./commands/serve')
+    break
 
   case 'open':
-    await import('./commands/open');
-    break;
+    await import('./commands/open')
+    break
 
   case 'status':
-    await import('./commands/status');
-    break;
+    await import('./commands/status')
+    break
 
   case '--help':
   case '-h':
   case undefined:
-    printUsage();
-    break;
+    printUsage()
+    break
 
   default:
-    console.error(`Unknown command: ${command}`);
-    printUsage();
-    process.exit(1);
+    console.error(`Unknown command: ${command}`)
+    printUsage()
+    process.exit(1)
 }
 
 function printUsage(): void {
-  console.log(`
+  console.log(
+    `
 webmux — modern web client for tmux
 
 Usage:
@@ -48,5 +49,6 @@ Examples:
   webmux open https://example.com
   webmux open gh:owner/repo/pull/123
   webmux status
-`.trim());
+`.trim(),
+  )
 }

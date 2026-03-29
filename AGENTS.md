@@ -54,6 +54,7 @@ bun run --filter @webmux/cli build      # build CLI binary
 All architecture and implementation docs: `docs/README.md`
 
 Route by task:
+
 - Figuring out what to build next from the scaffold → `docs/architecture/implementation-plan.md`
 - Adding/changing protocol messages → `docs/architecture/protocol.md`
 - Working on bridge internals → `docs/bridge/`

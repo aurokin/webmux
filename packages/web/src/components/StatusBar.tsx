@@ -1,27 +1,28 @@
-import type { WebmuxClient } from '@webmux/client';
-import type { Session, Window } from '@webmux/shared';
+import type { WebmuxClient } from '@webmux/client'
+import type { Session } from '@webmux/shared'
 
 interface StatusBarProps {
-  client: WebmuxClient;
-  activeSession: Session | null;
-  activeWindow: Window | null;
-  onOpenSwitcher: () => void;
+  client: WebmuxClient
+  activeSession: Session | null
+  onOpenSwitcher: () => void
 }
 
-export function StatusBar({ client, activeSession, activeWindow, onOpenSwitcher }: StatusBarProps) {
+export function StatusBar({ client, activeSession, onOpenSwitcher }: StatusBarProps) {
   return (
-    <div style={{
-      height: 30,
-      background: 'rgba(18, 24, 38, 0.92)',
-      borderTop: '1px solid rgba(100, 140, 200, 0.06)',
-      display: 'flex',
-      alignItems: 'center',
-      fontSize: 11.5,
-      fontFamily: "'Commit Mono', monospace",
-      flexShrink: 0,
-      userSelect: 'none',
-      backdropFilter: 'blur(20px)',
-    }}>
+    <div
+      style={{
+        height: 30,
+        background: 'rgba(18, 24, 38, 0.92)',
+        borderTop: '1px solid rgba(100, 140, 200, 0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        fontSize: 11.5,
+        fontFamily: "'Commit Mono', monospace",
+        flexShrink: 0,
+        userSelect: 'none',
+        backdropFilter: 'blur(20px)',
+      }}
+    >
       {/* Session indicator */}
       <div
         onClick={onOpenSwitcher}
@@ -39,11 +40,15 @@ export function StatusBar({ client, activeSession, activeWindow, onOpenSwitcher 
           cursor: 'pointer',
         }}
       >
-        <div style={{
-          width: 7, height: 7, borderRadius: '50%',
-          background: '#56d4a0',
-          boxShadow: '0 0 6px rgba(86, 212, 160, 0.12)',
-        }} />
+        <div
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#56d4a0',
+            boxShadow: '0 0 6px rgba(86, 212, 160, 0.12)',
+          }}
+        />
         {activeSession?.name ?? 'no session'}
       </div>
 
@@ -74,49 +79,61 @@ export function StatusBar({ client, activeSession, activeWindow, onOpenSwitcher 
       </div>
 
       {/* Right side */}
-      <div style={{
-        marginLeft: 'auto',
-        display: 'flex',
-        alignItems: 'center',
-        height: '100%',
-        color: '#4a5568',
-        fontSize: 11,
-      }}>
-        <div style={{
-          padding: '0 12px',
-          height: '100%',
+      <div
+        style={{
+          marginLeft: 'auto',
           display: 'flex',
           alignItems: 'center',
-          borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-        }}>
-          <span style={{
-            fontSize: 10,
-            padding: '3px 8px',
-            borderRadius: 4,
-            cursor: 'pointer',
-            color: '#c8d0e0',
-          }}>
+          height: '100%',
+          color: '#4a5568',
+          fontSize: 11,
+        }}
+      >
+        <div
+          style={{
+            padding: '0 12px',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              padding: '3px 8px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              color: '#c8d0e0',
+            }}
+          >
             ⌃b s
           </span>
         </div>
-        <div style={{
-          padding: '0 12px',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-        }}>
+        <div
+          style={{
+            padding: '0 12px',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
+          }}
+        >
           <Clock />
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function Clock() {
   // Simple clock - update every minute
-  const now = new Date();
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const now = new Date()
+  const time = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 
-  return <span>{time}</span>;
+  return <span>{time}</span>
 }

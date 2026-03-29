@@ -1,24 +1,24 @@
-import { useRef } from 'react';
-import type { WebmuxClient } from '@webmux/client';
-import { useTerminal } from '../hooks/useTerminal';
-import { PaneChrome } from './PaneChrome';
+import { useRef } from 'react'
+import type { WebmuxClient } from '@webmux/client'
+import { useTerminal } from '../hooks/useTerminal'
+import { PaneChrome } from './PaneChrome'
 
 interface PaneProps {
-  client: WebmuxClient;
-  paneId: string;
-  currentCommand: string;
-  focused: boolean;
-  onFocus: () => void;
+  client: WebmuxClient
+  paneId: string
+  currentCommand: string
+  focused: boolean
+  onFocus: () => void
 }
 
 export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { focus } = useTerminal(client, paneId, containerRef);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { focus } = useTerminal(client, paneId, containerRef)
 
   const handleClick = () => {
-    onFocus();
-    focus();
-  };
+    onFocus()
+    focus()
+  }
 
   return (
     <div
@@ -36,11 +36,7 @@ export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneP
         overflow: 'hidden',
       }}
     >
-      <PaneChrome
-        paneId={paneId}
-        currentCommand={currentCommand}
-        focused={focused}
-      />
+      <PaneChrome paneId={paneId} currentCommand={currentCommand} focused={focused} />
       <div
         ref={containerRef}
         style={{
@@ -51,5 +47,5 @@ export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneP
         }}
       />
     </div>
-  );
+  )
 }

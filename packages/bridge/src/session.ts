@@ -5,7 +5,7 @@ import type {
   BridgeMessage,
   Pane,
   ClientInfo,
-} from '@webmux/shared';
+} from '@webmux/shared'
 
 /**
  * Manages session state and client ownership.
@@ -17,43 +17,43 @@ import type {
  * See docs/bridge/websocket.md for the handoff protocol.
  */
 export class SessionManager {
-  private sessions: Session[];
-  private snapshotHash: string;
-  private ownership = new Map<string, SessionOwnership>();
-  private clients = new Map<string, ClientInfo>();
+  private sessions: Session[]
+  private snapshotHash: string
+  private ownership = new Map<string, SessionOwnership>()
+  private clients = new Map<string, ClientInfo>()
 
   /** Set by the WebSocket server to broadcast state changes. */
-  onUpdate: ((message: BridgeMessage) => void) | null = null;
+  onUpdate: ((message: BridgeMessage) => void) | null = null
 
   constructor(initialSessions: Session[]) {
-    this.sessions = initialSessions;
-    this.snapshotHash = JSON.stringify(initialSessions);
+    this.sessions = initialSessions
+    this.snapshotHash = JSON.stringify(initialSessions)
   }
 
   getSessions(): Session[] {
-    return this.sessions;
+    return this.sessions
   }
 
   getOwnership(): SessionOwnership[] {
-    return Array.from(this.ownership.values());
+    return Array.from(this.ownership.values())
   }
 
   setClientInfo(client: ClientInfo): void {
-    this.clients.set(client.clientId, client);
+    this.clients.set(client.clientId, client)
   }
 
   removeClient(clientId: string): void {
-    this.clients.delete(clientId);
+    this.clients.delete(clientId)
   }
 
   getClientInfo(clientId: string): ClientInfo | null {
-    return this.clients.get(clientId) ?? null;
+    return this.clients.get(clientId) ?? null
   }
 
   getOwnedSessionIds(clientId: string): string[] {
     return Array.from(this.ownership.values())
       .filter((ownership) => ownership.ownerId === clientId)
-      .map((ownership) => ownership.sessionId);
+      .map((ownership) => ownership.sessionId)
   }
 
   /**
@@ -61,18 +61,18 @@ export class SessionManager {
    * Diffs against current state and emits incremental updates.
    */
   applyState(newSessions: Session[]): void {
-    const nextHash = JSON.stringify(newSessions);
+    const nextHash = JSON.stringify(newSessions)
     if (nextHash === this.snapshotHash) {
-      return;
+      return
     }
 
-    this.sessions = newSessions;
-    this.snapshotHash = nextHash;
+    this.sessions = newSessions
+    this.snapshotHash = nextHash
 
     this.onUpdate?.({
       type: 'state.sync',
       sessions: newSessions,
-    });
+    })
   }
 
   /**
@@ -84,36 +84,36 @@ export class SessionManager {
       ownerId: clientId,
       ownerType: clientType ?? 'web',
       acquiredAt: Date.now(),
-    });
+    })
 
     this.onUpdate?.({
       type: 'session.controlChanged',
       sessionId,
       ownerId: clientId,
       ownerType: clientType ?? 'web',
-    });
+    })
   }
 
   /**
    * Release session ownership.
    */
   releaseControl(sessionId: string, clientId: string): void {
-    const current = this.ownership.get(sessionId);
-    if (current?.ownerId !== clientId) return; // not the owner
+    const current = this.ownership.get(sessionId)
+    if (current?.ownerId !== clientId) return // not the owner
 
     this.ownership.set(sessionId, {
       sessionId,
       ownerId: null,
       ownerType: null,
       acquiredAt: Date.now(),
-    });
+    })
 
     this.onUpdate?.({
       type: 'session.controlChanged',
       sessionId,
       ownerId: null,
       ownerType: null,
-    });
+    })
   }
 
   /**
@@ -121,14 +121,14 @@ export class SessionManager {
    * Returns true if the client owns the session that contains the pane.
    */
   canSendInput(paneId: string, clientId: string): boolean {
-    if (!clientId) return true;
+    if (!clientId) return true
 
-    const session = this.findSessionByPaneId(paneId);
-    if (!session) return false;
+    const session = this.findSessionByPaneId(paneId)
+    if (!session) return false
 
-    const ownership = this.ownership.get(session.id);
-    if (!ownership?.ownerId) return true;
-    return ownership.ownerId === clientId;
+    const ownership = this.ownership.get(session.id)
+    if (!ownership?.ownerId) return true
+    return ownership.ownerId === clientId
   }
 
   /**
@@ -137,36 +137,36 @@ export class SessionManager {
   getPaneTtyPath(paneId: string): string | null {
     for (const session of this.sessions) {
       for (const window of session.windows) {
-        const pane = window.panes.find((candidate) => candidate.id === paneId);
+        const pane = window.panes.find((candidate) => candidate.id === paneId)
         if (pane) {
-          return pane.ttyPath;
+          return pane.ttyPath
         }
       }
     }
-    return null;
+    return null
   }
 
   getPane(paneId: string): Pane | null {
     for (const session of this.sessions) {
       for (const window of session.windows) {
-        const pane = window.panes.find((candidate) => candidate.id === paneId);
+        const pane = window.panes.find((candidate) => candidate.id === paneId)
         if (pane) {
-          return pane;
+          return pane
         }
       }
     }
-    return null;
+    return null
   }
 
   private findSessionByPaneId(paneId: string): Session | null {
     for (const session of this.sessions) {
       for (const window of session.windows) {
         if (window.panes.some((pane) => pane.id === paneId)) {
-          return session;
+          return session
         }
       }
     }
 
-    return null;
+    return null
   }
 }

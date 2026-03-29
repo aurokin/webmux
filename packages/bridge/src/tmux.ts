@@ -1,45 +1,46 @@
-import { execFileSync } from 'node:child_process';
-import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared';
-import type { Session, Window, Pane } from '@webmux/shared';
-import type { SessionManager } from './session';
-import { bindLayoutToPanes, buildFallbackLayout, parseTmuxLayout } from './layout';
+import { execFileSync } from 'node:child_process'
+import { DEFAULT_POLL_INTERVAL_MS } from '@webmux/shared'
+import type { Session, Window, Pane } from '@webmux/shared'
+import type { SessionManager } from './session'
+import { bindLayoutToPanes, buildFallbackLayout, parseTmuxLayout } from './layout'
 
-const FIELD_SEPARATOR = '\x1f';
+const FIELD_SEPARATOR = '\x1f'
 
 function splitFields(line: string, expectedFields: number): string[] {
-  const fields = line.split(FIELD_SEPARATOR);
+  const fields = line.split(FIELD_SEPARATOR)
   if (fields.length < expectedFields) {
-    throw new Error(`Expected ${expectedFields} fields, received ${fields.length}`);
+    throw new Error(`Expected ${expectedFields} fields, received ${fields.length}`)
   }
 
   if (fields.length === expectedFields) {
-    return fields;
+    return fields
   }
 
   return [
     ...fields.slice(0, expectedFields - 1),
     fields.slice(expectedFields - 1).join(FIELD_SEPARATOR),
-  ];
+  ]
 }
 
 function parseBoolean(value: string): boolean {
-  return value === '1';
+  return value === '1'
 }
 
 function parseInteger(value: string, field: string): number {
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10)
   if (Number.isNaN(parsed)) {
-    throw new Error(`Invalid ${field}: ${value}`);
+    throw new Error(`Invalid ${field}: ${value}`)
   }
-  return parsed;
+  return parsed
 }
 
 function isNoTmuxServerError(error: unknown): boolean {
-  return error instanceof Error && (
-    error.message.includes('no server running') ||
-    error.message.includes('failed to connect to server') ||
-    error.message.includes('No such file or directory')
-  );
+  return (
+    error instanceof Error &&
+    (error.message.includes('no server running') ||
+      error.message.includes('failed to connect to server') ||
+      error.message.includes('No such file or directory'))
+  )
 }
 
 /**
@@ -49,13 +50,13 @@ function isNoTmuxServerError(error: unknown): boolean {
  * to tmux -CC control mode, this is the only file that changes.
  */
 export class TmuxClient {
-  private pollInterval: number = DEFAULT_POLL_INTERVAL_MS;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private socketPath: string | null = null;
+  private pollInterval: number = DEFAULT_POLL_INTERVAL_MS
+  private pollTimer: ReturnType<typeof setInterval> | null = null
+  private socketPath: string | null = null
 
   constructor(options?: { socketPath?: string; pollInterval?: number }) {
-    this.socketPath = options?.socketPath ?? null;
-    this.pollInterval = options?.pollInterval ?? DEFAULT_POLL_INTERVAL_MS;
+    this.socketPath = options?.socketPath ?? null
+    this.pollInterval = options?.pollInterval ?? DEFAULT_POLL_INTERVAL_MS
   }
 
   /**
@@ -63,20 +64,20 @@ export class TmuxClient {
    * Throws on non-zero exit code.
    */
   private async exec(args: string[]): Promise<string> {
-    const cmd = ['tmux'];
-    if (this.socketPath) cmd.push('-S', this.socketPath);
-    cmd.push(...args);
+    const cmd = ['tmux']
+    if (this.socketPath) cmd.push('-S', this.socketPath)
+    cmd.push(...args)
 
-    const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
+    const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+    const stdout = await new Response(proc.stdout).text()
+    const exitCode = await proc.exited
 
     if (exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text();
-      throw new Error(`tmux ${args[0]} failed (${exitCode}): ${stderr.trim()}`);
+      const stderr = await new Response(proc.stderr).text()
+      throw new Error(`tmux ${args[0]} failed (${exitCode}): ${stderr.trim()}`)
     }
 
-    return stdout.trim();
+    return stdout.trim()
   }
 
   /**
@@ -85,20 +86,19 @@ export class TmuxClient {
    * Used only for connection lifecycle work where the caller cannot await.
    */
   private execSync(args: string[]): string {
-    const cmd = ['tmux'];
-    if (this.socketPath) cmd.push('-S', this.socketPath);
-    cmd.push(...args);
+    const cmd = ['tmux']
+    if (this.socketPath) cmd.push('-S', this.socketPath)
+    cmd.push(...args)
 
     try {
       return execFileSync(cmd[0], cmd.slice(1), {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
-      }).trim();
+      }).trim()
     } catch (error) {
-      const stderr = error instanceof Error && 'stderr' in error
-        ? String(error.stderr ?? '').trim()
-        : '';
-      throw new Error(`tmux ${args[0]} failed: ${stderr || String(error)}`);
+      const stderr =
+        error instanceof Error && 'stderr' in error ? String(error.stderr ?? '').trim() : ''
+      throw new Error(`tmux ${args[0]} failed: ${stderr || String(error)}`, { cause: error })
     }
   }
 
@@ -106,35 +106,33 @@ export class TmuxClient {
    * Discover all sessions with their windows and panes.
    */
   async listSessions(): Promise<Session[]> {
-    let output = '';
-    try {
-      output = await this.exec([
-        'list-sessions',
-        '-F',
-        [
-          '#{session_id}',
-          '#{session_name}',
-          '#{session_windows}',
-          '#{session_attached}',
-        ].join(FIELD_SEPARATOR),
-      ]);
-    } catch (error) {
-      if (isNoTmuxServerError(error)) {
-        return [];
+    const output = await (async () => {
+      try {
+        return await this.exec([
+          'list-sessions',
+          '-F',
+          ['#{session_id}', '#{session_name}', '#{session_windows}', '#{session_attached}'].join(
+            FIELD_SEPARATOR,
+          ),
+        ])
+      } catch (error) {
+        if (isNoTmuxServerError(error)) {
+          return ''
+        }
+        throw error
       }
-      throw error;
-    }
+    })()
 
     if (!output) {
-      return [];
+      return []
     }
 
-    const sessions: Session[] = [];
+    const sessions: Session[] = []
     for (const line of output.split('\n')) {
-      if (!line.trim()) continue;
+      if (!line.trim()) continue
 
-      const [id, name] = splitFields(line, 4);
-      const windows = await this.listWindows(id);
+      const [id, name] = splitFields(line, 4)
+      const windows = await this.listWindows(id)
 
       sessions.push({
         id,
@@ -142,10 +140,10 @@ export class TmuxClient {
         windowCount: windows.length,
         attached: line.endsWith(`${FIELD_SEPARATOR}1`),
         windows,
-      });
+      })
     }
 
-    return sessions;
+    return sessions
   }
 
   /**
@@ -165,25 +163,25 @@ export class TmuxClient {
         '#{window_panes}',
         '#{window_layout}',
       ].join(FIELD_SEPARATOR),
-    ]);
+    ])
 
     if (!output) {
-      return [];
+      return []
     }
 
-    const windows: Window[] = [];
+    const windows: Window[] = []
     for (const line of output.split('\n')) {
-      if (!line.trim()) continue;
+      if (!line.trim()) continue
 
-      const [id, indexValue, name, activeValue, _paneCountValue, layoutValue] = splitFields(line, 6);
-      const panes = await this.listPanes(id);
+      const [id, indexValue, name, activeValue, _paneCountValue, layoutValue] = splitFields(line, 6)
+      const panes = await this.listPanes(id)
 
-      let layout;
+      let layout
       try {
-        layout = bindLayoutToPanes(parseTmuxLayout(layoutValue), panes);
+        layout = bindLayoutToPanes(parseTmuxLayout(layoutValue), panes)
       } catch (error) {
-        console.warn(`[tmux] failed to parse layout for ${id}:`, error);
-        layout = buildFallbackLayout(panes);
+        console.warn(`[tmux] failed to parse layout for ${id}:`, error)
+        layout = buildFallbackLayout(panes)
       }
 
       windows.push({
@@ -194,10 +192,10 @@ export class TmuxClient {
         paneCount: panes.length,
         panes,
         layout,
-      });
+      })
     }
 
-    return windows;
+    return windows
   }
 
   /**
@@ -219,26 +217,18 @@ export class TmuxClient {
         '#{pane_tty}',
         '#{window_zoomed_flag}',
       ].join(FIELD_SEPARATOR),
-    ]);
+    ])
 
     if (!output) {
-      return [];
+      return []
     }
 
-    const panes: Pane[] = [];
+    const panes: Pane[] = []
     for (const line of output.split('\n')) {
-      if (!line.trim()) continue;
+      if (!line.trim()) continue
 
-      const [
-        id,
-        indexValue,
-        colsValue,
-        rowsValue,
-        currentCommand,
-        pidValue,
-        ttyPath,
-        zoomedValue,
-      ] = splitFields(line, 8);
+      const [id, indexValue, colsValue, rowsValue, currentCommand, pidValue, ttyPath, zoomedValue] =
+        splitFields(line, 8)
 
       panes.push({
         id,
@@ -249,46 +239,54 @@ export class TmuxClient {
         pid: parseInteger(pidValue, 'pane pid'),
         ttyPath,
         zoomed: parseBoolean(zoomedValue),
-      });
+      })
     }
 
-    return panes;
+    return panes
   }
 
   /**
    * Execute a tmux structural command (split, create window, etc.)
    */
   async splitPane(paneId: string, direction: 'horizontal' | 'vertical'): Promise<void> {
-    const flag = direction === 'horizontal' ? '-h' : '-v';
-    await this.exec(['split-window', '-t', paneId, flag]);
+    const flag = direction === 'horizontal' ? '-h' : '-v'
+    await this.exec(['split-window', '-t', paneId, flag])
   }
 
   async createWindow(sessionId: string): Promise<void> {
-    await this.exec(['new-window', '-t', sessionId]);
+    await this.exec(['new-window', '-t', sessionId])
   }
 
   async selectWindow(windowId: string): Promise<void> {
-    await this.exec(['select-window', '-t', windowId]);
+    await this.exec(['select-window', '-t', windowId])
   }
 
   async closePane(paneId: string): Promise<void> {
-    await this.exec(['kill-pane', '-t', paneId]);
+    await this.exec(['kill-pane', '-t', paneId])
   }
 
   async resizePane(paneId: string, cols: number, rows: number): Promise<void> {
-    await this.exec(['resize-pane', '-t', paneId, '-x', String(cols), '-y', String(rows)]);
+    await this.exec(['resize-pane', '-t', paneId, '-x', String(cols), '-y', String(rows)])
   }
 
   async resizeSession(sessionId: string, cols: number, rows: number): Promise<void> {
-    await this.exec(['resize-window', '-t', `${sessionId}:`, '-x', String(cols), '-y', String(rows)]);
+    await this.exec([
+      'resize-window',
+      '-t',
+      `${sessionId}:`,
+      '-x',
+      String(cols),
+      '-y',
+      String(rows),
+    ])
   }
 
   pipePaneOutput(paneId: string, shellCommand: string): void {
-    this.execSync(['pipe-pane', '-O', '-t', paneId, shellCommand]);
+    this.execSync(['pipe-pane', '-O', '-t', paneId, shellCommand])
   }
 
   closePanePipe(paneId: string): void {
-    this.execSync(['pipe-pane', '-t', paneId]);
+    this.execSync(['pipe-pane', '-t', paneId])
   }
 
   /**
@@ -298,18 +296,18 @@ export class TmuxClient {
   startPolling(sessionManager: SessionManager): void {
     this.pollTimer = setInterval(async () => {
       try {
-        const sessions = await this.listSessions();
-        sessionManager.applyState(sessions);
+        const sessions = await this.listSessions()
+        sessionManager.applyState(sessions)
       } catch (err) {
-        console.error('[tmux poll]', err);
+        console.error('[tmux poll]', err)
       }
-    }, this.pollInterval);
+    }, this.pollInterval)
   }
 
   stopPolling(): void {
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
     }
   }
 }

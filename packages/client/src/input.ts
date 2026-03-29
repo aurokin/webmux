@@ -8,24 +8,24 @@
  * See docs/client/input.md for design details.
  */
 
-const encoder = new TextEncoder();
+const encoder = new TextEncoder()
 
-export type InputMode = 'direct' | 'buffered';
+export type InputMode = 'direct' | 'buffered'
 
 export class InputHandler {
-  private mode: InputMode = 'direct';
-  private send: ((data: Uint8Array) => void) | null = null;
+  private mode: InputMode = 'direct'
+  private send: ((data: Uint8Array) => void) | null = null
 
   constructor(sendFn: (data: Uint8Array) => void) {
-    this.send = sendFn;
+    this.send = sendFn
   }
 
   setMode(mode: InputMode): void {
-    this.mode = mode;
+    this.mode = mode
   }
 
   getMode(): InputMode {
-    return this.mode;
+    return this.mode
   }
 
   /**
@@ -37,16 +37,16 @@ export class InputHandler {
    * Accepts both string and Uint8Array. Strings are UTF-8 encoded.
    */
   write(data: string | Uint8Array): void {
-    if (!this.send) return;
+    if (!this.send) return
 
     if (typeof data === 'string') {
-      this.send(encoder.encode(data));
+      this.send(encoder.encode(data))
     } else {
-      this.send(data);
+      this.send(data)
     }
   }
 
   dispose(): void {
-    this.send = null;
+    this.send = null
   }
 }

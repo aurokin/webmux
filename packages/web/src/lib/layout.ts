@@ -1,4 +1,4 @@
-import type { LayoutNode, LayoutContainer, LayoutLeaf } from '@webmux/shared';
+import type { LayoutNode, LayoutLeaf } from '@webmux/shared'
 
 /**
  * Parse tmux layout string into a LayoutNode tree.
@@ -11,11 +11,11 @@ import type { LayoutNode, LayoutContainer, LayoutLeaf } from '@webmux/shared';
  *
  * See docs/web/layout.md for full format documentation.
  */
-export function parseTmuxLayout(layoutStr: string): LayoutNode {
+export function parseTmuxLayout(_layoutStr: string): LayoutNode {
   // TODO: Implement tmux layout string parser
   // For v0, the bridge can do this parsing and send LayoutNode directly.
   // This function exists for when we want client-side parsing.
-  throw new Error('Not implemented — bridge sends parsed LayoutNode');
+  throw new Error('Not implemented — bridge sends parsed LayoutNode')
 }
 
 /**
@@ -23,9 +23,9 @@ export function parseTmuxLayout(layoutStr: string): LayoutNode {
  */
 export function collectPaneIds(node: LayoutNode): string[] {
   if (node.type === 'pane') {
-    return [node.paneId];
+    return [node.paneId]
   }
-  return node.children.flatMap(collectPaneIds);
+  return node.children.flatMap(collectPaneIds)
 }
 
 /**
@@ -33,13 +33,13 @@ export function collectPaneIds(node: LayoutNode): string[] {
  */
 export function findPane(node: LayoutNode, paneId: string): LayoutLeaf | null {
   if (node.type === 'pane') {
-    return node.paneId === paneId ? node : null;
+    return node.paneId === paneId ? node : null
   }
   for (const child of node.children) {
-    const found = findPane(child, paneId);
-    if (found) return found;
+    const found = findPane(child, paneId)
+    if (found) return found
   }
-  return null;
+  return null
 }
 
 /**
@@ -47,21 +47,21 @@ export function findPane(node: LayoutNode, paneId: string): LayoutLeaf | null {
  */
 export function layoutDimensions(node: LayoutNode): { cols: number; rows: number } {
   if (node.type === 'pane') {
-    return { cols: node.cols, rows: node.rows };
+    return { cols: node.cols, rows: node.rows }
   }
 
-  const childDims = node.children.map(layoutDimensions);
+  const childDims = node.children.map(layoutDimensions)
 
   if (node.type === 'horizontal') {
     return {
       cols: childDims.reduce((sum, d) => sum + d.cols, 0),
       rows: Math.max(...childDims.map((d) => d.rows)),
-    };
+    }
   }
 
   // vertical
   return {
     cols: Math.max(...childDims.map((d) => d.cols)),
     rows: childDims.reduce((sum, d) => sum + d.rows, 0),
-  };
+  }
 }
