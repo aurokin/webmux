@@ -1,13 +1,28 @@
-import type { WebmuxClient } from '@webmux/client'
+import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 
 interface StatusBarProps {
   client: WebmuxClient
   activeSession: Session | null
+  connectionStatus: ConnectionStatus
+  latency: number
   onOpenSwitcher: () => void
 }
 
-export function StatusBar({ client, activeSession, onOpenSwitcher }: StatusBarProps) {
+export function StatusBar({
+  client,
+  activeSession,
+  connectionStatus,
+  latency,
+  onOpenSwitcher,
+}: StatusBarProps) {
+  const statusColor =
+    connectionStatus === 'connected'
+      ? '#56d4a0'
+      : connectionStatus === 'reconnecting'
+        ? '#e8c660'
+        : '#f07080'
+
   return (
     <div
       style={{
@@ -25,6 +40,7 @@ export function StatusBar({ client, activeSession, onOpenSwitcher }: StatusBarPr
     >
       {/* Session indicator */}
       <div
+        data-testid="session-switcher-button"
         onClick={onOpenSwitcher}
         style={{
           display: 'flex',
@@ -103,12 +119,34 @@ export function StatusBar({ client, activeSession, onOpenSwitcher }: StatusBarPr
               fontSize: 10,
               padding: '3px 8px',
               borderRadius: 4,
-              cursor: 'pointer',
               color: '#c8d0e0',
             }}
           >
             ⌃b s
           </span>
+        </div>
+        <div
+          style={{
+            padding: '0 12px',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: statusColor,
+            }}
+          />
+          <span>{connectionStatus}</span>
+          {connectionStatus === 'connected' && latency > 0 ? (
+            <span style={{ color: '#7a8698' }}>{latency}ms</span>
+          ) : null}
         </div>
         <div
           style={{

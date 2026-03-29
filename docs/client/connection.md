@@ -37,6 +37,7 @@ When the control channel reconnects, all data channels are closed. The consumer 
 1. Client creates `WebmuxClient` with a token.
 2. On connect, token is passed as a query parameter on the WebSocket URL.
 3. If the bridge rejects the token (WebSocket close code 4001), the client does NOT retry — it emits `connection:status` → `'disconnected'` immediately. Auth failures are not transient.
+4. Consumers can read `client.connectionIssue` to distinguish auth failure from a generic offline/disconnected state.
 
 ## Heartbeat
 

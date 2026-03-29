@@ -69,16 +69,12 @@ export function createWebSocketServer(options: ServerOptions) {
       const url = new URL(req.url)
       const reqToken = url.searchParams.get('token')
       const clientId = url.searchParams.get('clientId')
-
-      // Validate auth token
-      if (reqToken !== token) {
-        return new Response('Unauthorized', { status: 401 })
-      }
+      const authenticated = reqToken === token
 
       // Route: /control
       if (url.pathname === '/control') {
         const upgraded = server.upgrade(req, {
-          data: { type: 'control', clientId: null, clientType: null, authenticated: true },
+          data: { type: 'control', clientId: null, clientType: null, authenticated },
         })
         return upgraded ? undefined : new Response('Upgrade failed', { status: 500 })
       }
@@ -93,7 +89,7 @@ export function createWebSocketServer(options: ServerOptions) {
             paneId,
             connectionId: crypto.randomUUID(),
             clientId,
-            authenticated: true,
+            authenticated,
           },
         })
         return upgraded ? undefined : new Response('Upgrade failed', { status: 500 })
@@ -109,6 +105,11 @@ export function createWebSocketServer(options: ServerOptions) {
 
       open(ws) {
         if (ws.data.type === 'control') {
+          if (!ws.data.authenticated) {
+            ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
+            return
+          }
+
           controlClients.add(ws as ServerWebSocket<ControlSocketData>)
 
           // Send welcome
@@ -122,6 +123,11 @@ export function createWebSocketServer(options: ServerOptions) {
         }
 
         if (ws.data.type === 'data') {
+          if (!ws.data.authenticated) {
+            ws.close(WS_CLOSE.AUTH_FAILED, 'AUTH_FAILED')
+            return
+          }
+
           // Start forwarding PTY output to this WebSocket
           const paneId = ws.data.paneId
           const ttyPath = sessionManager.getPaneTtyPath(paneId)

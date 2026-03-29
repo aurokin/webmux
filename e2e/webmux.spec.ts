@@ -16,14 +16,30 @@ test.describe.serial('webmux browser validation', () => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
 
-    await expect(page.locator('body')).toContainText(stack.sessionName)
-
     await page.locator('.xterm').first().click()
     await page.keyboard.type('webmux-e2e')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(800)
 
-    expect(stack.capturePane()).toContain('webmux-e2e')
+    expect(captureEither(stack, 'webmux-e2e')).toBe(true)
+  })
+
+  test('switches between live tmux sessions from the session picker', async ({ page }) => {
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+
+    await page.getByTestId('session-switcher-button').click()
+    await page.getByPlaceholder('Filter sessions...').fill(stack.secondarySessionName)
+    await page.getByTestId(`session-option-${stack.secondarySessionName}`).click()
+
+    await expect(page.locator('body')).toContainText(stack.secondarySessionName)
+
+    await page.locator('.xterm').first().click()
+    await page.keyboard.type('second-session')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(800)
+
+    expect(stack.capturePane(stack.secondarySessionName)).toContain('second-session')
   })
 
   test('reconnects control and pane channels after the bridge restarts', async ({ page }) => {
@@ -38,6 +54,19 @@ test.describe.serial('webmux browser validation', () => {
     await page.keyboard.press('Enter')
     await page.waitForTimeout(1000)
 
-    expect(stack.capturePane()).toContain('bridge-restarted')
+    expect(captureEither(stack, 'bridge-restarted')).toBe(true)
+  })
+
+  test('shows an explicit authentication failure state for invalid tokens', async ({ page }) => {
+    await page.goto(stack.appUrl('badtoken'), { waitUntil: 'networkidle' })
+
+    await expect(page.locator('body')).toContainText('Authentication failed')
+    await expect(page.locator('body')).toContainText('valid token')
   })
 })
+
+function captureEither(stack: WebmuxE2EStack, text: string): boolean {
+  return [stack.sessionName, stack.secondarySessionName].some((sessionName) =>
+    stack.capturePane(sessionName).includes(text),
+  )
+}

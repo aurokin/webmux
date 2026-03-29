@@ -6,11 +6,11 @@ webmux connects to your existing tmux sessions and gives them a browser-based UI
 
 ## Status
 
-This repository is currently a scaffold and design reference.
+This repository is still a scaffold-first codebase, but it now includes a working core bridge path and a minimal browser validation client.
 
-- The code under `packages/` shows intended boundaries, protocols, and API shape.
-- Many files are illustrative snippets, not finished production implementation.
-- The docs describe the target system unless they explicitly say otherwise.
+- The daemon, bridge, tmux discovery, pane streaming, ownership enforcement, and browser-backed validation path are implemented and covered by automated checks.
+- Some files under `packages/` are still illustrative snippets rather than finished production implementation.
+- The docs describe the target system unless they explicitly say otherwise, and the implementation plan tracks what is actually done.
 - The current build order lives in `docs/architecture/implementation-plan.md`.
 
 ## Intended product
@@ -104,7 +104,7 @@ bun run check
 bun run check:full
 ```
 
-The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, and pane/control reconnection after a bridge restart.
+The current automated coverage covers the implemented backend path and a minimal browser validation path: layout parsing, session ownership, tmux discovery, session resize, pane input/output fan-out, live pane rendering in the web app, live session switching, explicit auth-failure handling, and pane/control reconnection after a bridge restart.
 
 ## Requirements
 

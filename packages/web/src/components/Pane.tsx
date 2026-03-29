@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { WebmuxClient } from '@webmux/client'
 import { useTerminal } from '../hooks/useTerminal'
 import { PaneChrome } from './PaneChrome'
@@ -14,6 +14,12 @@ interface PaneProps {
 export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { focus } = useTerminal(client, paneId, containerRef)
+
+  useEffect(() => {
+    if (focused) {
+      focus()
+    }
+  }, [focus, focused])
 
   const handleClick = () => {
     onFocus()

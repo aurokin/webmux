@@ -21,6 +21,7 @@ await client.connect();
 
 // Session state (reactive — updates automatically)
 client.sessions;          // Session[]
+client.connectionIssue;   // 'auth-failed' | 'protocol-error' | null
 client.activeSession;     // Session | null
 client.activeWindow;      // Window | null
 client.panes;             // Pane[] (of active window)

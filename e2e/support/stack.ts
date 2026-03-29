@@ -91,6 +91,7 @@ export class WebmuxE2EStack {
   readonly runtimeDir = mkdtempSync(path.join(os.tmpdir(), 'webmux-e2e-'))
   readonly tmuxSocketPath = path.join(this.runtimeDir, 'tmux.sock')
   readonly sessionName = `webmux-e2e-${crypto.randomUUID().slice(0, 8)}`
+  readonly secondarySessionName = `webmux-e2e-${crypto.randomUUID().slice(0, 8)}`
   readonly token = 'feedfacefeedfacefeedfacefeedface'
   readonly bridgeLogPath = path.join(this.runtimeDir, 'bridge.log')
   readonly webLogPath = path.join(this.runtimeDir, 'web.log')
@@ -107,6 +108,7 @@ export class WebmuxE2EStack {
   async start(): Promise<void> {
     mkdirSync(this.runtimeDir, { recursive: true })
     runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', this.sessionName, 'cat'])
+    runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', this.secondarySessionName, 'cat'])
 
     this.bridgePort = await getFreePort()
     this.webPort = await getFreePort()
@@ -192,11 +194,11 @@ export class WebmuxE2EStack {
     rmSync(this.runtimeDir, { recursive: true, force: true })
   }
 
-  appUrl(): string {
-    return `http://127.0.0.1:${this.webPort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${this.token}`
+  appUrl(token = this.token): string {
+    return `http://127.0.0.1:${this.webPort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${token}`
   }
 
-  capturePane(): string {
-    return runTmux(this.tmuxSocketPath, ['capture-pane', '-p', '-t', `${this.sessionName}:1`])
+  capturePane(sessionName = this.sessionName): string {
+    return runTmux(this.tmuxSocketPath, ['capture-pane', '-p', '-t', `${sessionName}:1`])
   }
 }

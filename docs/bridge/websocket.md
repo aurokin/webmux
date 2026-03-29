@@ -11,7 +11,7 @@ One per client. Carries JSON messages for session/window/pane management. See `d
 Lifecycle:
 
 1. Client connects with auth token.
-2. Bridge validates token. Rejects with 401 if invalid.
+2. Bridge validates token. Invalid tokens are closed explicitly with WebSocket code `4001` / `AUTH_FAILED` so browser clients can surface a real auth state.
 3. Bridge sends `welcome` message with protocol version and current owner info.
 4. Client sends `hello` with its client ID and type.
 5. Bridge sends full `state.sync` snapshot.
@@ -24,7 +24,7 @@ One per pane per client. Carries raw binary PTY data in both directions.
 Lifecycle:
 
 1. Client connects with auth token, pane ID, and client ID.
-2. Bridge validates token and pane existence.
+2. Bridge validates token and pane existence. Invalid tokens are closed with `4001` / `AUTH_FAILED`.
 3. Bridge subscribes this socket to the pane's shared stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
 4. Client sends binary frames (keystrokes) → bridge checks ownership for that `clientId` and writes allowed input to the pane TTY fd.
 5. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge detaches the tmux output pipe and closes the pane stream.

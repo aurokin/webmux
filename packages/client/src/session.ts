@@ -6,7 +6,7 @@ import type {
   ClientMessage,
   SessionOwnership,
 } from '@webmux/shared'
-import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS } from '@webmux/shared'
+import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS, WS_CLOSE } from '@webmux/shared'
 import { TypedEmitter, type WebmuxEventMap } from './events'
 import { Connection } from './connection'
 import { InputHandler, type InputMode } from './input'
@@ -18,6 +18,8 @@ export interface WebmuxClientOptions {
   clientType: ClientType
   latencyThreshold?: number
 }
+
+export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
 
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
@@ -35,6 +37,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private _sessions: Session[] = []
   private _ownership = new Map<string, SessionOwnership>()
   private _connectionStatus: ConnectionStatus = 'disconnected'
+  private _connectionIssue: ConnectionIssue = null
   private _latency = 0
 
   constructor(options: WebmuxClientOptions) {
@@ -48,6 +51,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     this.controlConnection = new Connection(controlUrl)
 
     this.controlConnection.onOpen = () => {
+      this._connectionIssue = null
       this.sendControl({
         type: 'hello',
         protocolVersion: PROTOCOL_VERSION,
@@ -68,8 +72,15 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       }
     }
 
+    this.controlConnection.onClose = (code) => {
+      this.setConnectionIssueFromClose(code)
+    }
+
     this.controlConnection.onStatusChange = (status) => {
       this._connectionStatus = status
+      if (status === 'connected') {
+        this._connectionIssue = null
+      }
       this.emit('connection:status', status)
 
       if (status === 'reconnecting') {
@@ -99,6 +110,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   get connectionStatus(): ConnectionStatus {
     return this._connectionStatus
   }
+  get connectionIssue(): ConnectionIssue {
+    return this._connectionIssue
+  }
   get latency(): number {
     return this._latency
   }
@@ -117,6 +131,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     this.paneConnections.clear()
     this.paneInputs.clear()
     this._connectionStatus = 'disconnected'
+    this._connectionIssue = null
     this.emit('connection:status', 'disconnected')
   }
 
@@ -228,6 +243,22 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   private sendControl(msg: ClientMessage): void {
     this.controlConnection.send(JSON.stringify(msg))
+  }
+
+  private setConnectionIssueFromClose(code: number): void {
+    switch (code) {
+      case WS_CLOSE.AUTH_FAILED:
+        this._connectionIssue = 'auth-failed'
+        break
+
+      case WS_CLOSE.PROTOCOL_ERROR:
+        this._connectionIssue = 'protocol-error'
+        break
+
+      default:
+        this._connectionIssue = null
+        break
+    }
   }
 
   private handleControlMessage(msg: BridgeMessage): void {

@@ -3,12 +3,24 @@ import type { Session } from '@webmux/shared'
 
 interface SessionSwitcherProps {
   sessions: Session[]
+  selectedSessionId: string | null
   onClose: () => void
+  onSelectSession: (sessionId: string) => void
 }
 
-export function SessionSwitcher({ sessions, onClose }: SessionSwitcherProps) {
+export function SessionSwitcher({
+  sessions,
+  selectedSessionId,
+  onClose,
+  onSelectSession,
+}: SessionSwitcherProps) {
   const [query, setQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(() =>
+    Math.max(
+      sessions.findIndex((session) => session.id === selectedSessionId),
+      0,
+    ),
+  )
   const inputRef = useRef<HTMLInputElement>(null)
 
   const filtered = sessions.filter((s) => s.name.toLowerCase().includes(query.toLowerCase()))
@@ -26,17 +38,18 @@ export function SessionSwitcher({ sessions, onClose }: SessionSwitcherProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
       case 'ArrowDown':
+        if (filtered.length === 0) return
         e.preventDefault()
         setSelectedIndex((i) => (i + 1) % filtered.length)
         break
       case 'ArrowUp':
+        if (filtered.length === 0) return
         e.preventDefault()
         setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length)
         break
       case 'Enter':
         if (filtered[selectedIndex]) {
-          // TODO: client.selectSession(filtered[selectedIndex].id)
-          onClose()
+          onSelectSession(filtered[selectedIndex].id)
         }
         break
       case 'Escape':
@@ -122,9 +135,9 @@ export function SessionSwitcher({ sessions, onClose }: SessionSwitcherProps) {
           {filtered.map((session, i) => (
             <div
               key={session.id}
+              data-testid={`session-option-${session.name}`}
               onClick={() => {
-                // TODO: client.selectSession(session.id)
-                onClose()
+                onSelectSession(session.id)
               }}
               style={{
                 display: 'flex',
@@ -177,6 +190,9 @@ export function SessionSwitcher({ sessions, onClose }: SessionSwitcherProps) {
                 }}
               >
                 {session.name}
+                {session.id === selectedSessionId ? (
+                  <span style={{ marginLeft: 8, color: '#56d4a0', fontSize: 11 }}>active</span>
+                ) : null}
               </span>
 
               {/* Meta */}

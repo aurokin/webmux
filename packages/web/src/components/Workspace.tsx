@@ -5,29 +5,52 @@ import { Pane } from './Pane'
 interface WorkspaceProps {
   client: WebmuxClient
   layout: LayoutNode | null
+  paneCommands: Record<string, string>
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  state: {
+    title: string
+    detail: string
+    tone: 'neutral' | 'warning' | 'error'
+  } | null
 }
 
 /**
  * Renders the tmux layout tree as nested CSS flex containers.
  * See docs/web/layout.md for the conversion algorithm.
  */
-export function Workspace({ client, layout, focusedPaneId, onFocusPane }: WorkspaceProps) {
-  if (!layout) {
+export function Workspace({
+  client,
+  layout,
+  paneCommands,
+  focusedPaneId,
+  onFocusPane,
+  state,
+}: WorkspaceProps) {
+  if (!layout || state) {
+    const tone = state?.tone ?? 'neutral'
+    const detail = state?.detail ?? 'Connect to a tmux session.'
+
     return (
       <div
         style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#4a5568',
+          gap: 10,
+          color: tone === 'error' ? '#f07080' : tone === 'warning' ? '#e8c660' : '#7a8698',
           fontSize: 14,
           fontFamily: "'IBM Plex Sans', sans-serif",
+          padding: 24,
+          textAlign: 'center',
         }}
       >
-        No active window. Connect to a tmux session.
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#c8d0e0' }}>
+          {state?.title ?? 'No active window'}
+        </div>
+        <div style={{ maxWidth: 480, lineHeight: 1.5 }}>{detail}</div>
       </div>
     )
   }
@@ -37,6 +60,7 @@ export function Workspace({ client, layout, focusedPaneId, onFocusPane }: Worksp
       <LayoutRenderer
         node={layout}
         client={client}
+        paneCommands={paneCommands}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
       />
@@ -47,17 +71,24 @@ export function Workspace({ client, layout, focusedPaneId, onFocusPane }: Worksp
 interface LayoutRendererProps {
   node: LayoutNode
   client: WebmuxClient
+  paneCommands: Record<string, string>
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
 }
 
-function LayoutRenderer({ node, client, focusedPaneId, onFocusPane }: LayoutRendererProps) {
+function LayoutRenderer({
+  node,
+  client,
+  paneCommands,
+  focusedPaneId,
+  onFocusPane,
+}: LayoutRendererProps) {
   if (node.type === 'pane') {
     return (
       <Pane
         client={client}
         paneId={node.paneId}
-        currentCommand="" // TODO: look up from session state
+        currentCommand={paneCommands[node.paneId] ?? ''}
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
       />
@@ -90,6 +121,7 @@ function LayoutRenderer({ node, client, focusedPaneId, onFocusPane }: LayoutRend
           <LayoutRenderer
             node={child}
             client={client}
+            paneCommands={paneCommands}
             focusedPaneId={focusedPaneId}
             onFocusPane={onFocusPane}
           />
