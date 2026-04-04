@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-webmux is currently a scaffold and design reference for a web-first tmux client.
+webmux is currently a scaffold and design reference for a web-first tmux client focused on the most authentic tmux experience possible inside the browser.
 
 - Source files under `packages/` are example snippets unless proven otherwise by working code and tests.
 - Docs under `docs/` mostly describe target behavior, not guaranteed current behavior.
@@ -34,6 +34,7 @@ bun run --filter @webmux/cli build      # build CLI binary
 ## Design intent
 
 - **Web-first, not Electron.** The browser is the product, not a compromise. Your cookies, extensions, and auth are already there. Electron is end-of-roadmap only if demand requires it.
+- **Authentic tmux first.** The product should feel like tmux in the browser. Customized UI is there to improve clarity and control, not to invent a different terminal model.
 - **Bun for bridge and frontend tooling** — shared types, native PTY API, fast WebSocket (uWebSockets underneath).
 - **Not using tmux -CC (control mode)** for v0 — polling tmux state + direct PTY streams per pane instead.
 - **Single tmux session model** — no session groups. One client "owns" the session at a time, others go passive. Handoff via mutex.
@@ -41,13 +42,16 @@ bun run --filter @webmux/cli build      # build CLI binary
 - **Keybinds work without fullscreen.** Ctrl+B prefix has zero browser conflicts. The only gap (Ctrl+W for vim) is handled by an optional companion extension on Chrome. Firefox/Zen users accept the limitation. See `docs/web/keyboard.md`.
 - **No Keyboard Lock API.** It requires fullscreen and isn't supported on Firefox/Zen (our primary target browser).
 - **Core-first delivery.** The daemon, bridge, PTY path, and ownership model come before UI polish. The web app should stay minimal until the backend contract is trustworthy.
+- **AI workflows are additive.** Features like switching between AI agents should build on top of the tmux model, not replace it. Keep the integration generic enough to support tooling like `agentscan`.
+- **Themes are presentation, not architecture.** Theme work starts with Tokyo Night, but it should only change appearance, not protocol or tmux semantics.
 
 ## Consumer priority (target order)
 
 1. Web app (`@webmux/web`) — the product
 2. Companion browser extension — optional keybind enhancement
-3. Mobile web — responsive layout, same app
-4. Electron (`@webmux/desktop`) — only if web + extension can't meet demand
+3. Native mobile app (`@webmux/mobile`) — phone + tablet consumer after the core bridge contract is stable
+4. Mobile web — responsive fallback and quick-access path
+5. Electron (`@webmux/desktop`) — only if web + extension + mobile can't meet demand
 
 ## Documentation
 

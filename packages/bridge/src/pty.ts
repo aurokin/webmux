@@ -75,7 +75,7 @@ export class PaneStream {
     this.readStream = fs.createReadStream('', {
       fd: this.outputFd,
       highWaterMark: PTY_READ_BUFFER_SIZE,
-      autoClose: false,
+      autoClose: true,
     })
 
     this.readStream.on('data', (chunk: Buffer) => {
@@ -132,9 +132,21 @@ export class PaneStream {
     this.onClose = null
     this.onData = null
 
+    // Stop tmux from writing first. Closing our side of the FIFO before
+    // detaching pipe-pane can leave tmux blocked in the pipe command.
+    if (this.outputPipeAttached) {
+      try {
+        this.tmux.closePanePipe(this.paneId)
+      } catch (err) {
+        console.error(`[pty] failed to detach output pipe for pane ${this.paneId}:`, err)
+      }
+      this.outputPipeAttached = false
+    }
+
     if (this.readStream) {
       this.readStream.destroy()
       this.readStream = null
+      this.outputFd = null
     }
     if (this.outputFd !== null) {
       try {
@@ -151,14 +163,6 @@ export class PaneStream {
         // fd may already be closed
       }
       this.inputFd = null
-    }
-    if (this.outputPipeAttached) {
-      try {
-        this.tmux.closePanePipe(this.paneId)
-      } catch (err) {
-        console.error(`[pty] failed to detach output pipe for pane ${this.paneId}:`, err)
-      }
-      this.outputPipeAttached = false
     }
     if (this.outputPipePath) {
       try {

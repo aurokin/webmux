@@ -216,12 +216,43 @@ Tasks:
 - Revisit layout ergonomics, spacing, and visual hierarchy
 - Improve session switcher UX beyond minimum functionality
 - Refine pane chrome, status bar, and passive/active indicators
+- Add a real theme system and ship Tokyo Night as the first supported theme
 - Add higher-level keyboard affordances only after bridge behavior is stable
 - Remove scaffold-era shortcuts and replace them with intentional UI behavior
 
 Done when:
 
 - UI work is improving a stable product rather than compensating for core instability
+
+## Phase 9: Add a dedicated mobile consumer
+
+Goal: support phone + tablet usage with a real mobile app after the bridge contract and browser experience are stable.
+
+Tasks:
+
+- Decide whether the mobile consumer should reuse `@webmux/client` directly or require a smaller consumer-safe SDK layer
+- Design touch-first session switching, pane focus, and ownership handoff flows
+- Support phone and tablet layouts without changing bridge semantics
+- Preserve the same single-owner tmux model across web and mobile consumers
+
+Done when:
+
+- A user can connect from a phone or tablet app, monitor sessions, and intentionally take control without changing tmux semantics
+
+## Phase 10: Add AI agent workflows
+
+Goal: make switching between AI agents a first-class workflow after the tmux foundation is dependable.
+
+Tasks:
+
+- Define how agent switching maps onto tmux-native concepts without breaking the core terminal model
+- Integrate with external tooling such as `agentscan` while keeping bridge and client contracts generic
+- Decide which pieces belong in plain tmux panes versus richer browser-side surfaces
+- Validate that agent workflows still degrade cleanly to a normal tmux session when integrations are absent
+
+Done when:
+
+- A user can move between multiple AI agents from a tmux-backed workspace with less friction than raw pane/session management alone
 
 ## Implementation order to follow now
 
@@ -232,13 +263,16 @@ Done when:
 5. Add the minimum web client needed to validate one real session.
 6. Add ownership handoff.
 7. Add rich-pane features.
-8. Do UI and design refinement last.
+8. Do UI and design refinement.
+9. Add a dedicated mobile consumer.
+10. Add AI agent workflows.
 
 ## Explicit non-goals for the first working version
 
 - Electron wrapper
-- Mobile-specific UI beyond basic responsive behavior
+- Native mobile app work before the bridge and browser contracts are stable
 - tmux control mode (`tmux -CC`)
 - Buffered input mode unless latency forces it
 - Extension work before the base web client is dependable
 - UI polish before daemon, bridge, and protocol behavior are stable
+- AI agent workflows before the core tmux path is dependable

@@ -13,7 +13,7 @@ Most docs in this tree describe the target system. Until the implementation plan
 - [overview.md](./architecture/overview.md) — Target system design, package responsibilities, data flow. **Read first if you're new to the codebase.**
 - [protocol.md](./architecture/protocol.md) — Message schemas for control and data channels. **Read when adding or changing any message type.**
 - [latency.md](./architecture/latency.md) — Input path design, zero-buffering rules, buffered mode. **Read before touching input handling anywhere.**
-- [roadmap.md](./architecture/roadmap.md) — Product milestones and release ordering. **Read to understand what ships when.**
+- [roadmap.md](./architecture/roadmap.md) — Product milestones, future consumers, themes, and agent workflow ordering. **Read to understand what ships when.**
 
 ## Bridge (the Bun daemon)
 

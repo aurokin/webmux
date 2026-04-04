@@ -1,8 +1,8 @@
 # webmux
 
-A modern web client for tmux. Not a replacement — an extension.
+A web-first tmux client focused on the most authentic tmux experience possible inside the browser.
 
-webmux connects to your existing tmux sessions and gives them a browser-based UI. Your terminal workflow stays the same. Your sessions persist. You can switch between webmux and your regular terminal at any time because it's the same tmux underneath.
+webmux connects to your existing tmux sessions and gives them a browser-based UI without replacing tmux itself. Your terminal workflow stays the same. Your sessions persist. You can switch between webmux and your regular terminal at any time because it's the same tmux underneath.
 
 ## Status
 
@@ -16,8 +16,11 @@ This repository is still a scaffold-first codebase, but it now includes a workin
 
 ## Intended product
 
+- **Authentic tmux first.** webmux should feel like tmux in the browser, not a terminal-inspired dashboard. The customized UI exists to make tmux clearer and easier to control, not to invent a different interaction model.
 - **Connects to real tmux sessions.** webmux discovers your running tmux server, attaches to sessions, and renders panes in the browser using xterm.js. Everything you see in webmux is a live view of actual tmux state.
-- **Works across devices.** Start a session on your desktop terminal, pick it up in the browser on your phone. One session, one source of truth, seamless handoff with a single button.
+- **Works across devices.** Start a session on your desktop terminal, pick it up in the browser, and later in a dedicated mobile app for phone and tablet. One session, one source of truth, seamless handoff with a single button.
+- **Adds high-value workflows around tmux.** After the core tmux path is dependable, webmux should make tasks like switching between AI agents fast and deliberate, similar to tools such as cmux, likely integrating with external tooling such as `agentscan`.
+- **Supports intentional visual customization.** Themes are part of the roadmap, starting with Tokyo Night as the first reference theme once the theme system exists.
 - **Stub CLI for rich content.** Run `webmux open gh:pr/1234` in a pane. In a regular terminal, you get a text summary. In the webmux web client, the pane upgrades to a webview showing the actual GitHub PR. The protocol is extensible — anyone can build integrations.
 
 ## Architecture
@@ -45,7 +48,7 @@ This repository is still a scaffold-first codebase, but it now includes a workin
                └─────────────┘
 ```
 
-The web app is the primary product. The architecture supports future consumers (Electron, mobile) via the `@webmux/client` SDK, but the web app is designed to be sufficient — not a stepping stone. At the moment, treat the diagram above as target architecture rather than proof of current completeness.
+The web app is the primary product. The architecture also needs to support future consumers, especially a dedicated mobile app, via the `@webmux/client` SDK. At the moment, treat the diagram above as target architecture rather than proof of current completeness.
 
 ## Packages
 
@@ -128,7 +131,7 @@ shared ← cli
 - No consumer ever imports from bridge.
 - Client never imports from web.
 - Shared imports from nothing.
-- Electron and mobile are not currently in the repo. When added, they import `@webmux/client` — same as web.
+- Future mobile and desktop consumers are not currently in the repo. When added, they should import `@webmux/client` or another consumer-safe SDK layer rather than the bridge directly.
 
 ## Documentation
 

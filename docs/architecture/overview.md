@@ -10,6 +10,14 @@ webmux is a web client for tmux. It connects to an existing tmux server, reads s
 
 webmux is additive. It doesn't manage tmux — it observes and proxies it. A user can `tmux attach` from a regular terminal and see the same sessions. The web client is just another way to view and interact with the same tmux state.
 
+## Product intent
+
+The goal is to offer the most authentic tmux experience possible inside the browser while still taking advantage of a customized UI where it improves clarity, control, and handoff.
+
+- **Authenticity over imitation.** tmux behavior stays authoritative. The browser UI should expose tmux state faithfully, not reinterpret it into a different product.
+- **Customization serves tmux.** Themes, pane chrome, status UI, and future rich views should make tmux easier to use without breaking terminal expectations.
+- **Extra workflows come after the core path is trustworthy.** Features like richer pane types and fast switching between AI agents are part of the roadmap, but they should build on a solid tmux foundation rather than compete with it.
+
 ## System layers
 
 ```
@@ -40,7 +48,7 @@ The bridge also manages the **client handoff mutex** — tracking which connecte
 
 ### @webmux/client
 
-A framework-agnostic SDK for connecting to the bridge. It handles WebSocket connection lifecycle (connect, reconnect, auth), maintains a reactive model of session state, and emits typed events when things change. Any JavaScript consumer (React web app, Electron app, React Native app) imports this package to talk to the bridge.
+A framework-agnostic SDK for connecting to the bridge. It handles WebSocket connection lifecycle (connect, reconnect, auth), maintains a reactive model of session state, and emits typed events when things change. Any JavaScript consumer (React web app, native mobile app, Electron app) imports this package to talk to the bridge.
 
 ### @webmux/cli
 
@@ -109,19 +117,28 @@ The web app is the primary consumer, not a stepping stone to a desktop app.
 
 - **Zero install.** Open a URL, connect to your tmux. No binary to download, no auto-updater, no bundled Chromium.
 - **The browser is the feature.** When stub panes open webviews, your cookies, extensions, password manager, and logins are already there. An Electron app would need its own auth for every service.
-- **Device handoff is a URL.** Pick up your phone, open the bookmark, tap "Take Control." No native app needed on the second device.
+- **Device handoff is a URL.** Pick up your phone, open the bookmark, tap "Take Control." A native app is not required on the second device, even if we later ship one because the experience is better.
 - **Keybinds work.** The core tmux workflow (Ctrl+B prefix) has zero browser conflicts. The only gap is Ctrl+W for vim window splits, solvable with an optional companion extension on Chrome. See `docs/web/keyboard.md` for the full keybind analysis.
+
+Web-first does not mean web-only. A dedicated mobile app for phone and tablet is on the roadmap as an additional consumer once the bridge contract, ownership model, and browser experience are dependable.
 
 ## Future consumers
 
 The architecture supports multiple consumers via `@webmux/client`. The priority order:
 
 1. **Web app** (`@webmux/web`) — the product. Ships first, primary focus.
-2. **Companion browser extension** — optional keybind enhancement. Small scope, post-v0.
-3. **Mobile web** — the same web app, responsive layout with single-pane view and swipe navigation. Post-v1.
-4. **Electron wrapper** (`@webmux/desktop`, not yet created) — for users who need full keybind control without the browser extension. Imports `@webmux/client`, wraps the same UI. End of roadmap — only build this if there's demand that the web app and extension cannot meet.
+2. **Companion browser extension** — optional keybind enhancement for browser authenticity. Small scope, post-v0.
+3. **Native mobile app** (`@webmux/mobile`, not yet created) — a phone + tablet consumer focused on touch ergonomics, handoff, and session control while preserving the same tmux-backed model.
+4. **Mobile web** — a responsive fallback for quick access from any browser, even if the long-term mobile experience is better in a dedicated app.
+5. **Electron wrapper** (`@webmux/desktop`, not yet created) — only if demand remains after the web app, extension, and mobile app settle.
 
 Each consumer imports `@webmux/client` and implements its own rendering layer. The bridge doesn't know or care which consumer is connected.
+
+## Additional product workflows
+
+webmux is not only a terminal renderer. Once the core tmux experience is dependable, the product should support higher-level workflows that fit naturally around tmux sessions.
+
+The first planned example is fast switching between AI agents, inspired by tools like cmux. The likely implementation path is integration with `agentscan`, but the bridge and client APIs should stay generic enough that this workflow is not hard-coded to one external project.
 
 ## Future: tmux -CC control mode
 
