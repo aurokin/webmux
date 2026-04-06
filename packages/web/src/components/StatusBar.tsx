@@ -1,7 +1,8 @@
-import type { CSSProperties } from 'react'
+import { useState, useEffect } from 'react'
 import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 import type { OwnershipState } from '../hooks/useOwnership'
+import { cn } from '../lib/cn'
 
 interface StatusBarProps {
   client: WebmuxClient
@@ -9,6 +10,7 @@ interface StatusBarProps {
   ownership: OwnershipState
   connectionStatus: ConnectionStatus
   latency: number
+  tabPosition: 'top' | 'bottom'
   onOpenSwitcher: () => void
 }
 
@@ -18,223 +20,176 @@ export function StatusBar({
   ownership,
   connectionStatus,
   latency,
+  tabPosition,
   onOpenSwitcher,
 }: StatusBarProps) {
   const canMutate = ownership.mode === 'active'
   const statusColor =
     connectionStatus === 'connected'
-      ? '#56d4a0'
+      ? 'bg-accent-green'
       : connectionStatus === 'reconnecting'
-        ? '#e8c660'
-        : '#f07080'
+        ? 'bg-accent-yellow'
+        : 'bg-accent-red'
 
   return (
-    <div
-      style={{
-        height: 30,
-        background: 'rgba(18, 24, 38, 0.92)',
-        borderTop: '1px solid rgba(100, 140, 200, 0.06)',
-        display: 'flex',
-        alignItems: 'center',
-        fontSize: 11.5,
-        fontFamily: "'Commit Mono', monospace",
-        flexShrink: 0,
-        userSelect: 'none',
-        backdropFilter: 'blur(20px)',
-      }}
-    >
-      {/* Session indicator */}
-      <div
-        data-testid="session-switcher-button"
-        onClick={onOpenSwitcher}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '0 14px',
-          height: '100%',
-          background: 'rgba(86, 212, 160, 0.12)',
-          borderRight: '1px solid rgba(100, 140, 200, 0.06)',
-          color: '#56d4a0',
-          fontWeight: 700,
-          fontSize: 11,
-          cursor: 'pointer',
-        }}
-      >
-        <div
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: '#56d4a0',
-            boxShadow: '0 0 6px rgba(86, 212, 160, 0.12)',
-          }}
-        />
-        {activeSession?.name ?? 'no session'}
-      </div>
+    <div className="h-[var(--status-h)] bg-bg-deep border-t border-border-subtle flex items-center text-[11px] font-mono text-text-tertiary shrink-0 select-none">
+      {/* Session badge */}
+      <Segment>
+        <button
+          onClick={onOpenSwitcher}
+          className="bg-accent-green text-bg-deep font-semibold px-2 py-0.5 rounded-[3px] text-[10px] tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all"
+        >
+          {activeSession?.name ?? 'no session'}
+        </button>
+      </Segment>
 
-      {/* Window tabs */}
-      <div style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
-        {activeSession?.windows.map((win) => (
-          <div
-            key={win.id}
-            onClick={() => {
-              if (canMutate) {
-                client.selectWindow(activeSession.id, win.index)
-              }
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 14px',
-              height: '100%',
-              color: win.active ? '#c8d0e0' : '#4a5568',
-              background: win.active ? 'rgba(26, 34, 52, 0.95)' : 'transparent',
-              cursor: canMutate ? 'pointer' : 'default',
-              opacity: canMutate || win.active ? 1 : 0.7,
-              borderRight: '1px solid rgba(100, 140, 200, 0.06)',
-              transition: 'color 0.12s, background 0.12s',
-            }}
-          >
-            {win.active && <span style={{ fontSize: 9, color: '#56d4a0' }}>❯</span>}
-            <span style={{ fontSize: 10, color: '#2d3748' }}>{win.index}</span>
-            {win.name}
-          </div>
-        ))}
-      </div>
+      {/* Window tabs (when tab position = bottom) */}
+      {tabPosition === 'bottom' && activeSession && (
+        <>
+          {activeSession.windows.map((win) => (
+            <Segment key={win.id}>
+              <button
+                onClick={() => {
+                  if (canMutate) {
+                    client.selectWindow(activeSession.id, win.index)
+                  }
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 transition-colors',
+                  win.active ? 'text-text-primary' : 'text-text-ghost',
+                  canMutate ? 'cursor-pointer' : 'cursor-default',
+                )}
+              >
+                <span className="text-[10px] text-text-ghost">{win.index}</span>
+                <span>{win.name}</span>
+                {win.active && <span className="text-accent-green text-[9px]">❯</span>}
+              </button>
+            </Segment>
+          ))}
+        </>
+      )}
+
+      {/* Center: pane count + prefix hint */}
+      <Segment>
+        <span className="text-accent-blue">◼</span>
+        <span>
+          {activeSession
+            ? activeSession.windows
+                .find((w) => w.active)
+                ?.panes.map((p) => p.currentCommand || 'zsh')
+                .join(' · ') ?? ''
+            : ''}
+        </span>
+      </Segment>
+
+      <Segment>
+        <kbd className="text-[10px] px-1.5 py-px rounded-[3px] bg-bg-elevated text-text-ghost font-medium border border-border-subtle">
+          ⌃b
+        </kbd>
+        <span>prefix</span>
+      </Segment>
 
       {/* Right side */}
-      <div
-        style={{
-          marginLeft: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          height: '100%',
-          color: '#4a5568',
-          fontSize: 11,
-        }}
-      >
-        <div
-          data-testid="ownership-mode"
-          style={{
-            padding: '0 12px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-          }}
-        >
+      <div className="ml-auto flex items-center">
+        {/* Ownership */}
+        <Segment>
           <span
-            style={{
-              color:
-                ownership.mode === 'active'
-                  ? '#56d4a0'
-                  : ownership.mode === 'passive'
-                    ? '#e8c660'
-                    : '#7a8698',
-            }}
+            className={cn(
+              ownership.mode === 'active'
+                ? 'text-accent-green'
+                : ownership.mode === 'passive'
+                  ? 'text-accent-yellow'
+                  : 'text-text-tertiary',
+            )}
           >
             {ownership.mode}
           </span>
-          {ownership.mode === 'unclaimed' && activeSession ? (
+          {ownership.mode === 'unclaimed' && activeSession && (
             <button
-              data-testid="claim-control-button"
               onClick={() => client.takeControl(activeSession.id)}
-              style={controlButtonStyle}
+              className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
-              take control
+              claim
             </button>
-          ) : null}
-          {ownership.mode === 'active' && activeSession ? (
+          )}
+          {ownership.mode === 'active' && activeSession && (
             <button
-              data-testid="release-control-button"
               onClick={() => client.releaseControl(activeSession.id)}
-              style={controlButtonStyle}
+              className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
               release
             </button>
-          ) : null}
-        </div>
-        <div
-          style={{
-            padding: '0 12px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-          }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              padding: '3px 8px',
-              borderRadius: 4,
-              color: '#c8d0e0',
-            }}
-          >
-            ⌃b s
-          </span>
-        </div>
-        <div
-          style={{
-            padding: '0 12px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-          }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: statusColor,
-            }}
-          />
+          )}
+        </Segment>
+
+        {/* Connection */}
+        <Segment>
+          <span className={cn('w-[5px] h-[5px] rounded-full', statusColor)} />
           <span>{connectionStatus}</span>
-          {connectionStatus === 'connected' && latency > 0 ? (
-            <span style={{ color: '#7a8698' }}>{latency}ms</span>
-          ) : null}
-        </div>
-        <div
-          style={{
-            padding: '0 12px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            borderLeft: '1px solid rgba(100, 140, 200, 0.06)',
-          }}
-        >
+          {connectionStatus === 'connected' && latency > 0 && (
+            <span className="text-text-ghost">{latency}ms</span>
+          )}
+        </Segment>
+
+        {/* Encoding */}
+        <Segment>utf-8</Segment>
+
+        {/* Clock */}
+        <Segment>
           <Clock />
-        </div>
+        </Segment>
+
+        {/* Date */}
+        <Segment last>
+          <DateDisplay />
+        </Segment>
       </div>
     </div>
   )
 }
 
-const controlButtonStyle = {
-  padding: '2px 8px',
-  borderRadius: 4,
-  border: '1px solid rgba(100, 140, 200, 0.10)',
-  background: 'transparent',
-  color: '#c8d0e0',
-  cursor: 'pointer',
-  fontFamily: "'Commit Mono', monospace",
-  fontSize: 10,
-} satisfies CSSProperties
+function Segment({
+  children,
+  last = false,
+}: {
+  children: React.ReactNode
+  last?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-1.5 px-3 h-full',
+        !last && 'border-r border-border-subtle',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
 
 function Clock() {
-  // Simple clock - update every minute
-  const now = new Date()
-  const time = now.toLocaleTimeString('en-US', {
+  const [time, setTime] = useState(formatTime)
+
+  useEffect(() => {
+    const interval = setInterval(() => setTime(formatTime()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  return <span>{time}</span>
+}
+
+function formatTime() {
+  return new Date().toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   })
+}
 
-  return <span>{time}</span>
+function DateDisplay() {
+  const date = new Date().toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+  return <span>{date}</span>
 }

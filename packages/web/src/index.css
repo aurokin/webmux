@@ -1,0 +1,189 @@
+@import 'tailwindcss';
+
+/* ═══ Theme tokens ═══ */
+
+:root {
+  /* Backgrounds */
+  --bg-deep: #0a0a0c;
+  --bg-base: #0f1014;
+  --bg-surface: #161820;
+  --bg-elevated: #1c1f2a;
+  --bg-hover: #242836;
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(255, 255, 255, 0.15);
+
+  /* Text */
+  --text-primary: #e4e4e8;
+  --text-secondary: #8b8d98;
+  --text-tertiary: #5c5e6a;
+  --text-ghost: #3a3c48;
+
+  /* Accents */
+  --accent-green: #3dd68c;
+  --accent-green-dim: rgba(61, 214, 140, 0.12);
+  --accent-green-glow: rgba(61, 214, 140, 0.06);
+  --accent-blue: #5b9df5;
+  --accent-blue-dim: rgba(91, 157, 245, 0.12);
+  --accent-yellow: #f5c542;
+  --accent-yellow-dim: rgba(245, 197, 66, 0.1);
+  --accent-red: #f55b5b;
+  --accent-red-dim: rgba(245, 91, 91, 0.1);
+  --accent-purple: #b07df5;
+  --accent-purple-dim: rgba(176, 125, 245, 0.1);
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-ui: 'DM Sans', -apple-system, system-ui, sans-serif;
+
+  /* Spacing */
+  --pane-gap: 2px;
+  --status-h: 36px;
+  --tab-h: 38px;
+  --sidebar-w: 260px;
+  --pane-header-h: 28px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* Tokyo Night theme (default — matches :root) */
+[data-theme='tokyo-night'] {
+  --bg-deep: #0a0a0c;
+  --bg-base: #0f1014;
+  --bg-surface: #161820;
+  --bg-elevated: #1c1f2a;
+  --bg-hover: #242836;
+  --text-primary: #e4e4e8;
+  --text-secondary: #8b8d98;
+  --text-tertiary: #5c5e6a;
+  --text-ghost: #3a3c48;
+  --accent-green: #3dd68c;
+  --accent-blue: #5b9df5;
+  --accent-yellow: #f5c542;
+  --accent-red: #f55b5b;
+  --accent-purple: #b07df5;
+}
+
+/* ═══ Tailwind theme extension ═══ */
+
+@theme {
+  --color-bg-deep: var(--bg-deep);
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-active: var(--border-active);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-ghost: var(--text-ghost);
+
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-dim: var(--accent-green-dim);
+  --color-accent-green-glow: var(--accent-green-glow);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-blue-dim: var(--accent-blue-dim);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-dim: var(--accent-yellow-dim);
+  --color-accent-red: var(--accent-red);
+  --color-accent-red-dim: var(--accent-red-dim);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-purple-dim: var(--accent-purple-dim);
+
+  --font-family-mono: var(--font-mono);
+  --font-family-ui: var(--font-ui);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+/* ═══ Base styles ═══ */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══ Custom utilities ═══ */
+
+.pane-focus-glow {
+  box-shadow:
+    inset 0 0 0 1px var(--accent-green),
+    0 0 20px var(--accent-green-glow);
+}
+
+.pane-unfocused {
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+/* ═══ Scrollbar styling ═══ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-active);
+}
+
+/* ═══ xterm.js overrides ═══ */
+
+.xterm {
+  padding: 0;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+/* ═══ Reduced motion ═══ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,6 +1,7 @@
 import type { WebmuxClient } from '@webmux/client'
 import type { LayoutNode } from '@webmux/shared'
 import { Pane } from './Pane'
+import { cn } from '../lib/cn'
 
 interface WorkspaceProps {
   client: WebmuxClient
@@ -8,6 +9,7 @@ interface WorkspaceProps {
   paneCommands: Record<string, string>
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  showPaneHeaders: boolean
   state: {
     title: string
     detail: string
@@ -15,54 +17,44 @@ interface WorkspaceProps {
   } | null
 }
 
-/**
- * Renders the tmux layout tree as nested CSS flex containers.
- * See docs/web/layout.md for the conversion algorithm.
- */
 export function Workspace({
   client,
   layout,
   paneCommands,
   focusedPaneId,
   onFocusPane,
+  showPaneHeaders,
   state,
 }: WorkspaceProps) {
   if (!layout || state) {
-    const tone = state?.tone ?? 'neutral'
-    const detail = state?.detail ?? 'Connect to a tmux session.'
-
     return (
       <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          color: tone === 'error' ? '#f07080' : tone === 'warning' ? '#e8c660' : '#7a8698',
-          fontSize: 14,
-          fontFamily: "'IBM Plex Sans', sans-serif",
-          padding: 24,
-          textAlign: 'center',
-        }}
+        className={cn(
+          'flex-1 flex flex-col items-center justify-center gap-2.5 p-6 text-center font-ui text-sm',
+          state?.tone === 'error'
+            ? 'text-accent-red'
+            : state?.tone === 'warning'
+              ? 'text-accent-yellow'
+              : 'text-text-tertiary',
+        )}
       >
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#c8d0e0' }}>
+        <div className="text-[15px] font-semibold text-text-primary">
           {state?.title ?? 'No active window'}
         </div>
-        <div style={{ maxWidth: 480, lineHeight: 1.5 }}>{detail}</div>
+        <div className="max-w-[480px] leading-relaxed">{state?.detail ?? 'Connect to a tmux session.'}</div>
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', gap: 1 }}>
+    <div className="flex-1 flex overflow-hidden gap-[var(--pane-gap)] p-[var(--pane-gap)] bg-bg-deep">
       <LayoutRenderer
         node={layout}
         client={client}
         paneCommands={paneCommands}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
+        showPaneHeaders={showPaneHeaders}
       />
     </div>
   )
@@ -74,6 +66,7 @@ interface LayoutRendererProps {
   paneCommands: Record<string, string>
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  showPaneHeaders: boolean
 }
 
 function LayoutRenderer({
@@ -82,6 +75,7 @@ function LayoutRenderer({
   paneCommands,
   focusedPaneId,
   onFocusPane,
+  showPaneHeaders,
 }: LayoutRendererProps) {
   if (node.type === 'pane') {
     return (
@@ -91,32 +85,25 @@ function LayoutRenderer({
         currentCommand={paneCommands[node.paneId] ?? ''}
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
+        showHeader={showPaneHeaders}
       />
     )
   }
 
-  const direction = node.type === 'horizontal' ? 'row' : 'column'
+  const isRow = node.type === 'horizontal'
 
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: direction,
-        flex: 1,
-        gap: 1,
-        minHeight: 0,
-        minWidth: 0,
-      }}
+      className={cn(
+        'flex flex-1 min-h-0 min-w-0 gap-[var(--pane-gap)]',
+        isRow ? 'flex-row' : 'flex-col',
+      )}
     >
       {node.children.map((child, i) => (
         <div
           key={i}
-          style={{
-            flex: node.ratios[i],
-            display: 'flex',
-            minHeight: 0,
-            minWidth: 0,
-          }}
+          className="flex min-h-0 min-w-0"
+          style={{ flex: node.ratios[i] }}
         >
           <LayoutRenderer
             node={child}
@@ -124,6 +111,7 @@ function LayoutRenderer({
             paneCommands={paneCommands}
             focusedPaneId={focusedPaneId}
             onFocusPane={onFocusPane}
+            showPaneHeaders={showPaneHeaders}
           />
         </div>
       ))}

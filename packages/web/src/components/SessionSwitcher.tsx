@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { Session } from '@webmux/shared'
+import { cn } from '../lib/cn'
 
 interface SessionSwitcherProps {
   sessions: Session[]
@@ -25,12 +26,10 @@ export function SessionSwitcher({
 
   const filtered = sessions.filter((s) => s.name.toLowerCase().includes(query.toLowerCase()))
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  // Reset selection when filter changes
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
@@ -51,9 +50,22 @@ export function SessionSwitcher({
         if (filtered[selectedIndex]) {
           onSelectSession(filtered[selectedIndex].id)
         }
+        // TODO: if no match and query is non-empty, create new session with query as name
         break
       case 'Escape':
         onClose()
+        break
+      case 'n':
+        if (e.ctrlKey) {
+          e.preventDefault()
+          // TODO: create new session with query as name
+        }
+        break
+      case 'k':
+        if (e.ctrlKey) {
+          e.preventDefault()
+          // TODO: kill selected session
+        }
         break
     }
   }
@@ -63,40 +75,12 @@ export function SessionSwitcher({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        paddingTop: '12vh',
-        zIndex: 500,
-      }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[12vh] z-[500]"
     >
-      <div
-        style={{
-          width: 520,
-          background: 'rgba(26, 34, 52, 0.95)',
-          border: '1px solid rgba(100, 140, 200, 0.10)',
-          borderRadius: 10,
-          boxShadow: '0 32px 100px rgba(0, 0, 0, 0.6)',
-          overflow: 'hidden',
-          backdropFilter: 'blur(24px)',
-        }}
-      >
+      <div className="w-[520px] bg-bg-surface/95 border border-border-default rounded-lg shadow-[0_32px_100px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-3xl">
         {/* Search */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 16px',
-            borderBottom: '1px solid rgba(100, 140, 200, 0.06)',
-            gap: 10,
-          }}
-        >
-          <span style={{ color: '#2d3748', fontSize: 13 }}>❯</span>
+        <div className="flex items-center px-4 border-b border-border-subtle gap-2.5">
+          <span className="text-text-ghost text-[13px]">❯</span>
           <input
             ref={inputRef}
             value={query}
@@ -105,135 +89,90 @@ export function SessionSwitcher({
             placeholder="Filter sessions..."
             autoComplete="off"
             spellCheck={false}
-            style={{
-              flex: 1,
-              height: 48,
-              background: 'none',
-              border: 'none',
-              outline: 'none',
-              color: '#c8d0e0',
-              fontFamily: "'Commit Mono', monospace",
-              fontSize: 13,
-            }}
+            className="flex-1 h-12 bg-transparent border-none outline-none text-text-primary font-mono text-[13px]"
           />
-          <span
-            style={{
-              fontFamily: "'IBM Plex Sans', sans-serif",
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              color: '#2d3748',
-              fontWeight: 600,
-            }}
-          >
+          <span className="font-ui text-[10px] uppercase tracking-widest text-text-ghost font-semibold">
             ⌃b s
           </span>
         </div>
 
         {/* Session list */}
-        <div style={{ padding: 6, maxHeight: 420, overflowY: 'auto' }}>
+        <div className="p-1.5 max-h-[420px] overflow-y-auto">
           {filtered.map((session, i) => (
-            <div
+            <button
               key={session.id}
               data-testid={`session-option-${session.name}`}
-              onClick={() => {
-                onSelectSession(session.id)
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '9px 12px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                gap: 10,
-                marginBottom: 1,
-                background: i === selectedIndex ? 'rgba(40, 52, 78, 0.5)' : 'transparent',
-                border:
-                  i === selectedIndex
-                    ? '1px solid rgba(100, 140, 200, 0.10)'
-                    : '1px solid transparent',
-                transition: 'background 0.1s',
-              }}
+              onClick={() => onSelectSession(session.id)}
+              className={cn(
+                'w-full flex items-center px-3 py-2.5 rounded-md cursor-pointer gap-2.5 mb-px transition-colors text-left',
+                i === selectedIndex
+                  ? 'bg-bg-hover border border-border-default'
+                  : 'border border-transparent hover:bg-bg-hover',
+              )}
             >
-              {/* Index key */}
-              <span
-                style={{
-                  fontSize: 10,
-                  color: '#2d3748',
-                  fontWeight: 500,
-                  minWidth: 18,
-                  textAlign: 'center',
-                }}
-              >
+              {/* Index */}
+              <span className="text-[10px] text-text-ghost font-medium min-w-[18px] text-center">
                 {i + 1}
               </span>
 
               {/* Status dot */}
-              <div
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: '50%',
-                  background: session.attached ? '#56d4a0' : '#4a5568',
-                  boxShadow: session.attached ? '0 0 6px rgba(86, 212, 160, 0.12)' : 'none',
-                  flexShrink: 0,
-                }}
+              <span
+                className={cn(
+                  'w-[7px] h-[7px] rounded-full shrink-0',
+                  session.attached
+                    ? 'bg-accent-green shadow-[0_0_6px_var(--accent-green-dim)]'
+                    : 'bg-text-ghost',
+                )}
               />
 
               {/* Name */}
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: '#c8d0e0',
-                  flex: 1,
-                }}
-              >
+              <span className="text-[13px] font-medium text-text-primary flex-1">
                 {session.name}
-                {session.id === selectedSessionId ? (
-                  <span style={{ marginLeft: 8, color: '#56d4a0', fontSize: 11 }}>active</span>
-                ) : null}
+                {session.id === selectedSessionId && (
+                  <span className="ml-2 text-accent-green text-[11px]">active</span>
+                )}
               </span>
 
               {/* Meta */}
-              <span style={{ fontSize: 11, color: '#4a5568' }}>{session.windowCount} win</span>
-            </div>
+              <span className="text-[11px] text-text-ghost">{session.windowCount} win</span>
+            </button>
           ))}
 
           {filtered.length === 0 && (
-            <div
-              style={{
-                padding: '16px 12px',
-                color: '#4a5568',
-                fontSize: 13,
-                textAlign: 'center',
-              }}
-            >
+            <div className="py-4 text-center text-text-ghost text-[13px]">
               No sessions match "{query}"
+              {query.length > 0 && (
+                <div className="mt-1 text-[11px] text-text-ghost">
+                  Press <Kbd>⏎</Kbd> to create "{query}"
+                </div>
+              )}
             </div>
           )}
         </div>
 
+        {/* Match counter */}
+        {sessions.length > 0 && (
+          <div className="px-4 py-1 text-[10px] text-text-ghost">
+            {filtered.length}/{sessions.length}
+          </div>
+        )}
+
         {/* Footer */}
-        <div
-          style={{
-            padding: '8px 16px',
-            borderTop: '1px solid rgba(100, 140, 200, 0.06)',
-            fontSize: 10,
-            color: '#2d3748',
-            display: 'flex',
-            gap: 16,
-            fontFamily: "'IBM Plex Sans', sans-serif",
-          }}
-        >
+        <div className="flex gap-4 px-4 py-2 border-t border-border-subtle text-[10px] text-text-ghost font-ui">
           <span>
             <Kbd>↑↓</Kbd> navigate
           </span>
           <span>
-            <Kbd>⏎</Kbd> attach
+            <Kbd>⏎</Kbd> select
           </span>
           <span>
             <Kbd>esc</Kbd> close
+          </span>
+          <span>
+            <Kbd>⌃n</Kbd> new
+          </span>
+          <span>
+            <Kbd>⌃k</Kbd> kill
           </span>
         </div>
       </div>
@@ -243,18 +182,8 @@ export function SessionSwitcher({
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
-    <span
-      style={{
-        padding: '1px 5px',
-        borderRadius: 3,
-        background: '#0c1018',
-        border: '1px solid rgba(100, 140, 200, 0.06)',
-        fontFamily: "'Commit Mono', monospace",
-        fontSize: 9,
-        color: '#4a5568',
-      }}
-    >
+    <kbd className="px-1 py-px bg-bg-deep border border-border-subtle rounded-[3px] font-mono text-[9px] text-text-ghost">
       {children}
-    </span>
+    </kbd>
   )
 }

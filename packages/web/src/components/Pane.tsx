@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { WebmuxClient } from '@webmux/client'
 import { useTerminal } from '../hooks/useTerminal'
 import { PaneChrome } from './PaneChrome'
+import { cn } from '../lib/cn'
 
 interface PaneProps {
   client: WebmuxClient
@@ -9,9 +10,10 @@ interface PaneProps {
   currentCommand: string
   focused: boolean
   onFocus: () => void
+  showHeader: boolean
 }
 
-export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneProps) {
+export function Pane({ client, paneId, currentCommand, focused, onFocus, showHeader }: PaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { focus } = useTerminal(client, paneId, containerRef)
 
@@ -29,29 +31,15 @@ export function Pane({ client, paneId, currentCommand, focused, onFocus }: PaneP
   return (
     <div
       onClick={handleClick}
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        minWidth: 0,
-        background: 'rgba(12, 16, 26, 0.88)',
-        backdropFilter: 'blur(16px)',
-        border: `1px solid ${focused ? 'rgba(100, 180, 240, 0.25)' : 'rgba(100, 140, 200, 0.06)'}`,
-        transition: 'border-color 0.2s',
-        overflow: 'hidden',
-      }}
+      className={cn(
+        'flex-1 flex flex-col min-h-0 min-w-0 bg-bg-base rounded-sm overflow-hidden transition-shadow duration-200',
+        focused ? 'pane-focus-glow' : 'pane-unfocused',
+      )}
     >
-      <PaneChrome paneId={paneId} currentCommand={currentCommand} focused={focused} />
-      <div
-        ref={containerRef}
-        style={{
-          flex: 1,
-          padding: '4px 8px',
-          minHeight: 0,
-          overflow: 'hidden',
-        }}
-      />
+      {showHeader && (
+        <PaneChrome paneId={paneId} currentCommand={currentCommand} focused={focused} />
+      )}
+      <div ref={containerRef} className="flex-1 px-2 py-1 min-h-0 overflow-hidden" />
     </div>
   )
 }

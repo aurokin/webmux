@@ -14,30 +14,11 @@ export function HandoffBanner({ client, activeSession, ownership }: HandoffBanne
   return (
     <div
       data-testid="handoff-banner"
-      style={{
-        position: 'absolute',
-        top: 8,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'rgba(26, 34, 52, 0.95)',
-        border: '1px solid rgba(100, 140, 200, 0.10)',
-        borderRadius: 8,
-        padding: '8px 16px',
-        fontFamily: "'IBM Plex Sans', sans-serif",
-        fontSize: 12,
-        color: '#7a8698',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        zIndex: 200,
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-        backdropFilter: 'blur(16px)',
-        whiteSpace: 'nowrap',
-      }}
+      className="absolute top-2 left-1/2 -translate-x-1/2 bg-bg-elevated/95 border border-border-default rounded-lg px-4 py-2 font-ui text-[12px] text-text-secondary flex items-center gap-2.5 z-[200] shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md whitespace-nowrap"
     >
-      <span style={{ fontSize: 14 }}>📱</span>
+      <span className="text-sm">📱</span>
       <span>Session active on</span>
-      <span style={{ color: '#e8c660', fontWeight: 500 }}>
+      <span className="text-accent-yellow font-medium">
         {ownership.ownerType === 'mobile'
           ? 'mobile device'
           : ownership.ownerType === 'electron'
@@ -46,20 +27,8 @@ export function HandoffBanner({ client, activeSession, ownership }: HandoffBanne
       </span>
       <button
         data-testid="take-control-button"
-        onClick={() => {
-          client.takeControl(activeSession.id)
-        }}
-        style={{
-          padding: '4px 12px',
-          borderRadius: 4,
-          background: '#56d4a0',
-          color: '#080a10',
-          fontWeight: 600,
-          fontSize: 11,
-          cursor: 'pointer',
-          border: 'none',
-          fontFamily: "'IBM Plex Sans', sans-serif",
-        }}
+        onClick={() => client.takeControl(activeSession.id)}
+        className="px-3 py-1 rounded-sm bg-accent-green text-bg-deep font-semibold text-[11px] cursor-pointer border-none font-ui hover:brightness-110 transition-all"
       >
         Take Control
       </button>

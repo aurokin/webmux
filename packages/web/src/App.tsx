@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { WebmuxClient, type ConnectionIssue, type ConnectionStatus } from '@webmux/client'
 import type { LayoutNode, Session, Window } from '@webmux/shared'
+import { Sidebar } from './components/sidebar/Sidebar'
+import { TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
 import { StatusBar } from './components/StatusBar'
 import { SessionSwitcher } from './components/SessionSwitcher'
+import { CommandPalette } from './components/CommandPalette'
 import { HandoffBanner } from './components/HandoffBanner'
 import { useConnectionStatus, useLatency, useSessions } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
+import { usePreferences } from './hooks/usePreferences'
+import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
 
-/**
- * Read bridge URL and token from URL params or defaults.
- * Example: http://localhost:5173?bridge=ws://localhost:7400&token=abc123
- */
 function getConfig() {
   const params = new URLSearchParams(window.location.search)
   return {
@@ -32,7 +33,9 @@ export function App() {
     })
   })
 
+  const { preferences, setPreference } = usePreferences()
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
 
@@ -40,6 +43,12 @@ export function App() {
   const connectionStatus = useConnectionStatus(client)
   const latency = useLatency(client)
 
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', preferences.theme)
+  }, [preferences.theme])
+
+  // Connect to bridge
   useEffect(() => {
     if (!config.token) {
       console.warn('[webmux] No token provided. Add ?token=xxx to the URL.')
@@ -49,38 +58,7 @@ export function App() {
     return () => client.disconnect()
   }, [client, config.token])
 
-  // Prefix key handling
-  useEffect(() => {
-    let prefixMode = false
-    let prefixTimer: ReturnType<typeof setTimeout>
-
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'b') {
-        e.preventDefault()
-        prefixMode = true
-        clearTimeout(prefixTimer)
-        prefixTimer = setTimeout(() => {
-          prefixMode = false
-        }, 2000)
-        return
-      }
-
-      if (prefixMode) {
-        prefixMode = false
-        e.preventDefault()
-        switch (e.key) {
-          case 's':
-            setSwitcherOpen((o) => !o)
-            break
-          // TODO: Handle other prefix keys (z, ", %, x, c, etc.)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
+  // Auto-select session
   useEffect(() => {
     setSelectedSessionId((current) => getNextSelectedSessionId(sessions, current))
   }, [sessions])
@@ -90,6 +68,7 @@ export function App() {
   const ownership = useSessionOwnership(client, activeSession?.id ?? null)
   const paneCommands = getPaneCommands(activeWindow)
 
+  // Auto-focus first pane when window changes
   useEffect(() => {
     const paneIds = activeWindow ? collectPaneIds(activeWindow.layout) : []
     setFocusedPaneId((current) => {
@@ -97,6 +76,57 @@ export function App() {
       return current && paneIds.includes(current) ? current : paneIds[0]
     })
   }, [activeWindow])
+
+  // Keybind actions
+  const keybindActions: KeybindActions = useMemo(
+    () => ({
+      toggleSwitcher: () => setSwitcherOpen((o) => !o),
+      toggleCommandPalette: () => setPaletteOpen((o) => !o),
+      toggleSidebar: () => setPreference('sidebarOpen', !preferences.sidebarOpen),
+      jumpToSession: (index: number) => {
+        const session = sessions[index]
+        if (session) {
+          setSelectedSessionId(session.id)
+          setFocusedPaneId(null)
+        }
+      },
+      splitHorizontal: () => {
+        // TODO: wire to client.splitPane when available
+      },
+      splitVertical: () => {
+        // TODO: wire to client.splitPane when available
+      },
+      zoomPane: () => {
+        // TODO: wire to client.zoomPane when available
+      },
+      closePane: () => {
+        // TODO: wire to client.closePane when available
+      },
+      newWindow: () => {
+        // TODO: wire to client.createWindow when available
+      },
+      nextWindow: () => {
+        if (!activeSession) return
+        const windows = activeSession.windows
+        const currentIdx = windows.findIndex((w) => w.active)
+        const nextIdx = (currentIdx + 1) % windows.length
+        client.selectWindow(activeSession.id, windows[nextIdx].index)
+      },
+      prevWindow: () => {
+        if (!activeSession) return
+        const windows = activeSession.windows
+        const currentIdx = windows.findIndex((w) => w.active)
+        const prevIdx = (currentIdx - 1 + windows.length) % windows.length
+        client.selectWindow(activeSession.id, windows[prevIdx].index)
+      },
+      detach: () => {
+        client.disconnect()
+      },
+    }),
+    [sessions, activeSession, preferences.sidebarOpen, setPreference, client],
+  )
+
+  useKeybinds(keybindActions)
 
   const workspaceState = getWorkspaceState({
     hasToken: config.token.length > 0,
@@ -107,50 +137,81 @@ export function App() {
     activeWindow,
   })
 
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      setSelectedSessionId(sessionId)
+      setFocusedPaneId(null)
+    },
+    [],
+  )
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        width: '100vw',
-        background: '#080a10',
-        color: '#c8d0e0',
-        fontFamily: "'Commit Mono', 'JetBrains Mono', monospace",
-      }}
-    >
-      <HandoffBanner client={client} activeSession={activeSession} ownership={ownership} />
-
-      <Workspace
-        client={client}
-        layout={activeWindow?.layout ?? null}
-        paneCommands={paneCommands}
+    <div className="flex h-screen w-screen bg-bg-deep text-text-primary">
+      {/* Sidebar */}
+      <Sidebar
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
+        activeWindow={activeWindow}
         focusedPaneId={focusedPaneId}
+        isOpen={preferences.sidebarOpen}
+        onToggle={() => setPreference('sidebarOpen', !preferences.sidebarOpen)}
+        onSelectSession={handleSelectSession}
         onFocusPane={setFocusedPaneId}
-        state={workspaceState}
       />
 
-      <StatusBar
-        client={client}
-        activeSession={activeSession}
-        ownership={ownership}
-        connectionStatus={connectionStatus}
-        latency={latency}
-        onOpenSwitcher={() => setSwitcherOpen(true)}
-      />
+      {/* Main area */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Tab bar (when position = top) */}
+        {preferences.tabPosition === 'top' && activeSession && (
+          <TabBar
+            client={client}
+            activeSession={activeSession}
+            canMutate={ownership.mode === 'active'}
+            onToggleSidebar={() => setPreference('sidebarOpen', !preferences.sidebarOpen)}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
+        )}
 
+        {/* Handoff banner */}
+        <HandoffBanner client={client} activeSession={activeSession} ownership={ownership} />
+
+        {/* Pane area */}
+        <Workspace
+          client={client}
+          layout={activeWindow?.layout ?? null}
+          paneCommands={paneCommands}
+          focusedPaneId={focusedPaneId}
+          onFocusPane={setFocusedPaneId}
+          state={workspaceState}
+          showPaneHeaders={preferences.paneHeaders}
+        />
+
+        {/* Status bar */}
+        <StatusBar
+          client={client}
+          activeSession={activeSession}
+          ownership={ownership}
+          connectionStatus={connectionStatus}
+          latency={latency}
+          tabPosition={preferences.tabPosition}
+          onOpenSwitcher={() => setSwitcherOpen(true)}
+        />
+      </div>
+
+      {/* Overlays */}
       {switcherOpen && (
         <SessionSwitcher
           sessions={sessions}
           selectedSessionId={selectedSessionId}
           onClose={() => setSwitcherOpen(false)}
           onSelectSession={(sessionId) => {
-            setSelectedSessionId(sessionId)
-            setFocusedPaneId(null)
+            handleSelectSession(sessionId)
             setSwitcherOpen(false)
           }}
         />
       )}
+
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   )
 }
@@ -159,7 +220,6 @@ function getNextSelectedSessionId(sessions: Session[], current: string | null): 
   if (current && sessions.some((session) => session.id === current)) {
     return current
   }
-
   return sessions.find((session) => session.attached)?.id ?? sessions[0]?.id ?? null
 }
 
@@ -167,7 +227,6 @@ function getActiveSession(sessions: Session[], selectedSessionId: string | null)
   if (selectedSessionId) {
     return sessions.find((session) => session.id === selectedSessionId) ?? null
   }
-
   return sessions.find((session) => session.attached) ?? sessions[0] ?? null
 }
 
@@ -178,7 +237,6 @@ function getActiveWindow(session: Session | null): Window | null {
 
 function getPaneCommands(window: Window | null): Record<string, string> {
   if (!window) return {}
-
   return Object.fromEntries(window.panes.map((pane) => [pane.id, pane.currentCommand]))
 }
 
@@ -186,7 +244,6 @@ function collectPaneIds(node: LayoutNode): string[] {
   if (node.type === 'pane') {
     return [node.paneId]
   }
-
   return node.children.flatMap(collectPaneIds)
 }
 
@@ -214,7 +271,6 @@ function getWorkspaceState({
       tone: 'warning' as const,
     }
   }
-
   if (connectionIssue === 'auth-failed') {
     return {
       title: 'Authentication failed',
@@ -222,7 +278,6 @@ function getWorkspaceState({
       tone: 'error' as const,
     }
   }
-
   if (connectionIssue === 'protocol-error') {
     return {
       title: 'Protocol mismatch',
@@ -230,7 +285,6 @@ function getWorkspaceState({
       tone: 'error' as const,
     }
   }
-
   if (sessions.length === 0) {
     if (connectionStatus === 'connecting') {
       return {
@@ -239,7 +293,6 @@ function getWorkspaceState({
         tone: 'neutral' as const,
       }
     }
-
     if (connectionStatus === 'reconnecting') {
       return {
         title: 'Bridge offline',
@@ -247,7 +300,6 @@ function getWorkspaceState({
         tone: 'warning' as const,
       }
     }
-
     if (connectionStatus === 'disconnected') {
       return {
         title: 'No tmux sessions available',
@@ -256,15 +308,13 @@ function getWorkspaceState({
       }
     }
   }
-
   if (!activeSession) {
     return {
       title: 'No session selected',
-      detail: 'Choose a live tmux session to start validating the bridge.',
+      detail: 'Choose a live tmux session to start.',
       tone: 'neutral' as const,
     }
   }
-
   if (!activeWindow) {
     return {
       title: 'No active window',
@@ -272,6 +322,5 @@ function getWorkspaceState({
       tone: 'warning' as const,
     }
   }
-
   return null
 }
