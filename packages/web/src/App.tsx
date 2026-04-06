@@ -124,6 +124,9 @@ export function App() {
       detach: () => {
         client.disconnect()
       },
+      openSettings: () => {
+        setSettingsOpen(true)
+      },
     }),
     [sessions, activeSession, focusedPaneId, preferences.sidebarOpen, setPreference, client],
   )

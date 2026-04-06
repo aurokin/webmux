@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
-import { COMMANDS, type Command } from '../lib/commands'
+import { useState, useEffect, useRef, useMemo, type KeyboardEvent } from 'react'
+import { getCommands, type Command } from '../lib/commands'
 import { cn } from '../lib/cn'
 
 interface CommandPaletteProps {
@@ -11,8 +11,9 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const commands = useMemo(() => getCommands(), [])
 
-  const filtered = COMMANDS.filter(
+  const filtered = commands.filter(
     (cmd) =>
       cmd.label.toLowerCase().includes(query.toLowerCase()) ||
       cmd.category.toLowerCase().includes(query.toLowerCase()),

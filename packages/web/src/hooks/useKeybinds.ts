@@ -1,4 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
+import {
+  getKeybinds,
+  getPrefix,
+  buildKeyMap,
+  matchesPrefix,
+  type ActionId,
+} from '../lib/keybinds'
 
 export interface KeybindActions {
   toggleSwitcher: () => void
@@ -13,16 +20,21 @@ export interface KeybindActions {
   nextWindow: () => void
   prevWindow: () => void
   detach: () => void
+  openSettings: () => void
 }
 
 export function useKeybinds(actions: KeybindActions) {
   const prefixMode = useRef(false)
   const prefixTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
+  const binds = useMemo(() => getKeybinds(), [])
+  const prefix = useMemo(() => getPrefix(), [])
+  const keyMap = useMemo(() => buildKeyMap(binds), [binds])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Enter prefix mode on Ctrl+B
-      if (e.ctrlKey && e.key === 'b' && !e.metaKey && !e.altKey) {
+      // Enter prefix mode
+      if (matchesPrefix(e, prefix) && e.type === 'keydown') {
         e.preventDefault()
         prefixMode.current = true
         clearTimeout(prefixTimer.current)
@@ -37,52 +49,65 @@ export function useKeybinds(actions: KeybindActions) {
       // Consume the prefix key
       prefixMode.current = false
       clearTimeout(prefixTimer.current)
-      e.preventDefault()
 
-      switch (e.key) {
-        case 's':
-          actions.toggleSwitcher()
-          break
-        case ':':
-          actions.toggleCommandPalette()
-          break
-        case 'b':
-          actions.toggleSidebar()
-          break
-        case '"':
-          actions.splitHorizontal()
-          break
-        case '%':
-          actions.splitVertical()
-          break
-        case 'z':
-          actions.zoomPane()
-          break
-        case 'x':
-          actions.closePane()
-          break
-        case 'c':
-          actions.newWindow()
-          break
-        case 'n':
-          actions.nextWindow()
-          break
-        case 'p':
-          actions.prevWindow()
-          break
-        case 'd':
-          actions.detach()
-          break
-        default:
-          // Number keys: jump to session by index
-          if (e.key >= '0' && e.key <= '9') {
-            actions.jumpToSession(parseInt(e.key, 10))
-          }
-          break
+      const action = keyMap.get(e.key)
+      if (action) {
+        e.preventDefault()
+        executeAction(action, actions)
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [actions])
+  }, [actions, keyMap, prefix])
+}
+
+function executeAction(action: ActionId, actions: KeybindActions) {
+  switch (action) {
+    case 'toggleSwitcher':
+      actions.toggleSwitcher()
+      break
+    case 'toggleCommandPalette':
+      actions.toggleCommandPalette()
+      break
+    case 'toggleSidebar':
+      actions.toggleSidebar()
+      break
+    case 'splitHorizontal':
+      actions.splitHorizontal()
+      break
+    case 'splitVertical':
+      actions.splitVertical()
+      break
+    case 'zoomPane':
+      actions.zoomPane()
+      break
+    case 'closePane':
+      actions.closePane()
+      break
+    case 'newWindow':
+      actions.newWindow()
+      break
+    case 'nextWindow':
+      actions.nextWindow()
+      break
+    case 'prevWindow':
+      actions.prevWindow()
+      break
+    case 'detach':
+      actions.detach()
+      break
+    case 'settings':
+      actions.openSettings()
+      break
+    default:
+      // jumpToSession0..9
+      if (action.startsWith('jumpToSession')) {
+        const index = parseInt(action.replace('jumpToSession', ''), 10)
+        if (!isNaN(index)) {
+          actions.jumpToSession(index)
+        }
+      }
+      break
+  }
 }
