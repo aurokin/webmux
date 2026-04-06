@@ -174,6 +174,36 @@ Done when:
 
 - Two browser clients can attach to the same tmux-backed session and transfer control intentionally
 
+## Phase 5b: Web app redesign and frontend wiring
+
+Goal: replace the scaffold-era validation UI with the real web app design, wire frontend actions to the client SDK, and build the keybind customization system.
+
+Status:
+
+- Web app redesign landed on 2026-04-04.
+- Frontend action wiring landed on 2026-04-04.
+- Keybind customization system landed on 2026-04-05.
+- Phase 5b is complete.
+
+What shipped:
+
+- **Tailwind CSS v4 migration:** Replaced all inline styles with Tailwind utility classes. CSS custom properties define the full theme token set, consumed via `@theme` block. Tokyo Night is the default (and currently only) theme.
+- **Component architecture redesign:** New Sidebar (cmux-style session/pane nav), TabBar (top window tabs), StatusBar (segmented, ownership/connection/latency/clock), Workspace (flex pane layout with optional headers), SessionSwitcher (fuzzy search modal), CommandPalette (grouped commands with keybind display), Settings (General + Keybinds tabs), HandoffBanner.
+- **User preferences system:** `usePreferences` hook backed by localStorage with cross-tab sync via `useSyncExternalStore`. Controls tab position, pane headers, sidebar, font, font size, theme, background style.
+- **Frontend action wiring:** Split, close, new window, next/prev window, select window, and detach are wired to real `WebmuxClient` methods. Zoom pane, create session, and kill session remain stubs (need protocol extensions).
+- **Keybind customization:** Full per-action rebinding with configurable prefix key. `lib/keybinds.ts` provides the config layer (defaults, localStorage overrides, `buildKeyMap` for reverse lookup). `useKeybinds` hook consumes the config. Settings panel has click-to-record UI for rebinding, per-action and global reset. Command palette dynamically reflects current keybind config.
+- **Typography and fonts:** Curated list of 8 monospace fonts selectable in Settings. Font size slider (10-20px). Google Fonts loaded in index.html.
+- **Background options:** Solid (default), gradient, pattern, and custom color backgrounds independent of theme.
+
+What remains for later phases:
+
+- Zoom pane (needs `zoomPane` protocol message)
+- Session create/kill from sidebar/switcher (needs `createSession`/`killSession` protocol messages)
+- Additional themes beyond Tokyo Night
+- Resize handles on pane gaps
+- Responsive/mobile layout
+- Companion browser extension for Ctrl+W
+
 ## Phase 6: Add rich-pane primitives
 
 Goal: the project-specific differentiator exists after the core tmux client is solid.
@@ -211,14 +241,20 @@ Done when:
 
 Goal: improve usability and visual quality only after the core system is dependable.
 
+Status:
+
+- Foundational UI redesign, theme system, keybind customization, and preference system shipped in Phase 5b.
+- Remaining work in this phase is iterative refinement on top of the working design.
+
 Tasks:
 
-- Revisit layout ergonomics, spacing, and visual hierarchy
-- Improve session switcher UX beyond minimum functionality
-- Refine pane chrome, status bar, and passive/active indicators
-- Add a real theme system and ship Tokyo Night as the first supported theme
-- Add higher-level keyboard affordances only after bridge behavior is stable
-- Remove scaffold-era shortcuts and replace them with intentional UI behavior
+- Add pane resize handles (drag-to-resize on pane gaps)
+- Add additional themes beyond Tokyo Night
+- Implement responsive sidebar collapse below breakpoint (~900px)
+- Refine session switcher with Ctrl+N create and Ctrl+K kill (requires backend protocol)
+- Add pane zoom UI indicator
+- Polish animations, transitions, and micro-interactions
+- Audit accessibility (focus rings, ARIA labels, contrast ratios, reduced motion)
 
 Done when:
 
@@ -256,16 +292,18 @@ Done when:
 
 ## Implementation order to follow now
 
-1. Fix repo/typecheck wiring.
-2. Implement tmux discovery.
-3. Implement PTY streaming and input writes.
-4. Reconcile heartbeat and control protocol.
-5. Add the minimum web client needed to validate one real session.
-6. Add ownership handoff.
-7. Add rich-pane features.
-8. Do UI and design refinement.
-9. Add a dedicated mobile consumer.
-10. Add AI agent workflows.
+1. ~~Fix repo/typecheck wiring.~~ (Phase 0 — done)
+2. ~~Implement tmux discovery.~~ (Phase 1 — done)
+3. ~~Implement PTY streaming and input writes.~~ (Phase 2 — done)
+4. ~~Reconcile heartbeat and control protocol.~~ (Phase 3 — done)
+5. ~~Add the minimum web client needed to validate one real session.~~ (Phase 4 — done)
+6. ~~Add ownership handoff.~~ (Phase 5 — done)
+7. ~~Redesign web app, wire frontend actions, build keybind system.~~ (Phase 5b — done)
+8. Add rich-pane features. (Phase 6)
+9. Production hardening. (Phase 7)
+10. UI refinement and polish. (Phase 8)
+11. Add a dedicated mobile consumer. (Phase 9)
+12. Add AI agent workflows. (Phase 10)
 
 ## Explicit non-goals for the first working version
 

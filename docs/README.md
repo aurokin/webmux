@@ -30,6 +30,7 @@ Most docs in this tree describe the target system. Until the implementation plan
 
 ## Web (React + xterm.js)
 
+- [design.md](./web/design.md) — Visual design spec, layout, themes, keybinds, preferences. **Read first for any UI/UX work.**
 - [components.md](./web/components.md) — Component tree, ownership, state flow. **Read when adding or modifying UI.**
 - [layout.md](./web/layout.md) — Tmux pane tree to CSS flex conversion, resize handles. **Read when touching pane layout.**
 - [terminal.md](./web/terminal.md) — xterm.js integration, data binding, lifecycle. **Read when changing terminal rendering.**

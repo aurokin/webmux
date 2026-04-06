@@ -422,6 +422,43 @@ All tmux prefix keys (Ctrl+B + key) work as expected and are intercepted before 
 | `Ctrl+B d` | Detach (close web client) |
 | `Escape` | Close any open overlay |
 
+## Keybind customization
+
+All keybinds are fully rebindable from the Settings panel (Keybinds tab). The system is implemented in `packages/web/src/lib/keybinds.ts`.
+
+### Architecture
+
+- **ActionId:** A union type covering every bindable action (`toggleSwitcher`, `splitHorizontal`, `jumpToSession0`..`jumpToSession9`, `settings`, etc.).
+- **DEFAULT_KEYBINDS:** A record mapping each `ActionId` to its default key, label, and category.
+- **User overrides:** Stored in `localStorage` under `webmux:keybinds` (per-action overrides) and `webmux:prefix` (prefix key config). Only changed keys are stored — missing keys fall back to defaults.
+- **buildKeyMap():** Builds a reverse lookup (`Map<key, ActionId>`) used by the keybind handler at runtime.
+- **useKeybinds hook:** Reads the config once via `useMemo`, listens for prefix key, then dispatches the matched action.
+
+### Prefix key
+
+The prefix key (default: `Ctrl+B`) is customizable. Users can set any key, with or without Ctrl. The prefix config stores `{ key, ctrl, display }`.
+
+After pressing the prefix key, the user has 2 seconds to press the action key. If the timer expires, prefix mode resets.
+
+### Settings UI
+
+The Keybinds tab in Settings shows:
+
+- **Prefix key** at the top with click-to-record and reset to default
+- **Action groups** organized by category (Sessions, Panes, Windows, View)
+- **Per-action rows:** Click the current key badge to enter recording mode. A green pulsing "press a key..." badge appears. Press any key to bind, Escape to unbind, Backspace to cancel.
+- **Per-action reset:** Appears on hover when a binding differs from the default.
+- **Session jump keys (0-9):** Collapsed in a `<details>` element to keep the list clean.
+- **Reset all:** Button at the bottom to restore all defaults.
+
+### Command palette integration
+
+The command palette (`CommandPalette.tsx`) dynamically reads keybind display strings from the config system via `getCommands()` in `lib/commands.ts`. Rebinding a key in Settings is immediately reflected in the palette's keybind hints.
+
+### Persistence
+
+All customizations persist in `localStorage` and survive page reloads. There is no server-side sync yet — that would come with user accounts.
+
 ## Responsive behavior
 
 For v0, the web app targets desktop browsers (1280px+ viewport). Mobile and tablet layouts are deferred to the mobile consumer phase.

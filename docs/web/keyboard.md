@@ -49,23 +49,32 @@ The extension is fully optional. The webmux web app must work perfectly without 
 
 ## Prefix key interception
 
-The web app intercepts Ctrl+B before xterm.js processes it using `terminal.attachCustomKeyEventHandler()`. When in prefix mode, the next keypress is handled by the webmux UI (session switcher, pane split, zoom, etc.) rather than being sent to the terminal.
+The web app intercepts the prefix key before xterm.js processes it using a global `keydown` listener in the `useKeybinds` hook. When in prefix mode, the next keypress is matched against the user's keybind config and dispatched as an action rather than being sent to the terminal.
 
-```typescript
-terminal.attachCustomKeyEventHandler((event) => {
-  if (event.ctrlKey && event.key === 'b' && event.type === 'keydown') {
-    enterPrefixMode()
-    return false // prevent xterm.js from processing
-  }
-  if (inPrefixMode) {
-    handlePrefixKey(event.key)
-    return false
-  }
-  return true // pass through to xterm.js
-})
-```
+The handler uses `matchesPrefix()` from `lib/keybinds.ts` to detect the prefix key and `buildKeyMap()` to resolve the action key to an `ActionId`. Prefix mode expires after 2 seconds if no action key is pressed.
 
-This works identically on all browsers because Ctrl+B is not a reserved browser shortcut.
+This works identically on all browsers because Ctrl+B (the default prefix) is not a reserved browser shortcut.
+
+## Keybind customization
+
+All keybinds — including the prefix key itself — are fully rebindable via the Settings panel (Keybinds tab). The configuration system lives in `packages/web/src/lib/keybinds.ts`.
+
+### What's customizable
+
+- **Prefix key:** Any key, with or without Ctrl. Default: `Ctrl+B`.
+- **Every action key:** Split, close, zoom, window navigation, session switching, sidebar toggle, command palette, settings, session jump (0-9), and detach.
+- **Unbinding:** Any action can be unbound entirely (set to `none`).
+
+### How it works
+
+- User overrides are stored in `localStorage` (`webmux:keybinds` for action keys, `webmux:prefix` for the prefix key).
+- Only changed keys are persisted — unmodified actions fall back to `DEFAULT_KEYBINDS`.
+- The `useKeybinds` hook reads the merged config once at mount via `useMemo` and builds a reverse key-to-action map.
+- The command palette dynamically reads display strings from the config, so rebinding a key is immediately reflected in the palette's hints.
+
+### Settings UI
+
+The Keybinds tab provides a click-to-record interface: click a keybind badge, press the desired key, done. Escape unbinds, Backspace cancels. Individual and global reset buttons are available. See `docs/web/design.md` for full UI details.
 
 ## Keyboard Lock API (not used)
 
