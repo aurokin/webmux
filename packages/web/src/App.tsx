@@ -8,6 +8,7 @@ import { StatusBar } from './components/StatusBar'
 import { SessionSwitcher } from './components/SessionSwitcher'
 import { CommandPalette } from './components/CommandPalette'
 import { HandoffBanner } from './components/HandoffBanner'
+import { Settings } from './components/Settings'
 import { useConnectionStatus, useLatency, useSessions } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
 import { usePreferences } from './hooks/usePreferences'
@@ -36,6 +37,7 @@ export function App() {
   const { preferences, setPreference } = usePreferences()
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
 
@@ -91,19 +93,19 @@ export function App() {
         }
       },
       splitHorizontal: () => {
-        // TODO: wire to client.splitPane when available
+        if (focusedPaneId) client.splitPane(focusedPaneId, 'horizontal')
       },
       splitVertical: () => {
-        // TODO: wire to client.splitPane when available
+        if (focusedPaneId) client.splitPane(focusedPaneId, 'vertical')
       },
       zoomPane: () => {
-        // TODO: wire to client.zoomPane when available
+        // zoomPane not yet in client API — needs protocol extension
       },
       closePane: () => {
-        // TODO: wire to client.closePane when available
+        if (focusedPaneId) client.closePane(focusedPaneId)
       },
       newWindow: () => {
-        // TODO: wire to client.createWindow when available
+        if (activeSession) client.createWindow(activeSession.id)
       },
       nextWindow: () => {
         if (!activeSession) return
@@ -123,7 +125,7 @@ export function App() {
         client.disconnect()
       },
     }),
-    [sessions, activeSession, preferences.sidebarOpen, setPreference, client],
+    [sessions, activeSession, focusedPaneId, preferences.sidebarOpen, setPreference, client],
   )
 
   useKeybinds(keybindActions)
@@ -143,6 +145,26 @@ export function App() {
       setFocusedPaneId(null)
     },
     [],
+  )
+
+  const handleCommand = useCallback(
+    (commandId: string) => {
+      const actionMap: Record<string, () => void> = {
+        'split-h': keybindActions.splitHorizontal,
+        'split-v': keybindActions.splitVertical,
+        'zoom': keybindActions.zoomPane,
+        'close-pane': keybindActions.closePane,
+        'new-window': keybindActions.newWindow,
+        'next-window': keybindActions.nextWindow,
+        'prev-window': keybindActions.prevWindow,
+        'list-sessions': keybindActions.toggleSwitcher,
+        'detach': keybindActions.detach,
+        'toggle-sidebar': keybindActions.toggleSidebar,
+        'settings': () => setSettingsOpen(true),
+      }
+      actionMap[commandId]?.()
+    },
+    [keybindActions],
   )
 
   return (
@@ -211,7 +233,18 @@ export function App() {
         />
       )}
 
-      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      {paletteOpen && (
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          onExecute={handleCommand}
+        />
+      )}
+
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   )
 }

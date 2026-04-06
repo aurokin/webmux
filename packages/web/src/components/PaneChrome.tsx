@@ -1,12 +1,14 @@
+import type { WebmuxClient } from '@webmux/client'
 import { cn } from '../lib/cn'
 
 interface PaneChromeProps {
+  client: WebmuxClient
   paneId: string
   currentCommand: string
   focused: boolean
 }
 
-export function PaneChrome({ paneId, currentCommand, focused }: PaneChromeProps) {
+export function PaneChrome({ client, paneId, currentCommand, focused }: PaneChromeProps) {
   return (
     <div className="group h-[var(--pane-header-h)] flex items-center px-2.5 bg-bg-surface border-b border-border-subtle text-[11px] text-text-tertiary gap-2 shrink-0 select-none">
       {/* Focus dot */}
@@ -25,18 +27,42 @@ export function PaneChrome({ paneId, currentCommand, focused }: PaneChromeProps)
 
       {/* Hover actions */}
       <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <PaneAction title="Split horizontal" icon="◨" />
-        <PaneAction title="Split vertical" icon="◧" />
-        <PaneAction title="Zoom" icon="⛶" />
+        <PaneAction
+          title="Split horizontal"
+          icon="◨"
+          onClick={() => client.splitPane(paneId, 'horizontal')}
+        />
+        <PaneAction
+          title="Split vertical"
+          icon="◧"
+          onClick={() => client.splitPane(paneId, 'vertical')}
+        />
+        <PaneAction
+          title="Close pane"
+          icon="×"
+          onClick={() => client.closePane(paneId)}
+        />
       </div>
     </div>
   )
 }
 
-function PaneAction({ title, icon }: { title: string; icon: string }) {
+function PaneAction({
+  title,
+  icon,
+  onClick,
+}: {
+  title: string
+  icon: string
+  onClick: () => void
+}) {
   return (
     <button
       title={title}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
       className="w-5 h-5 flex items-center justify-center rounded-[3px] text-text-ghost hover:text-text-secondary hover:bg-bg-hover transition-colors text-[10px]"
     >
       {icon}

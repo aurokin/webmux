@@ -37,7 +37,7 @@ export function Pane({ client, paneId, currentCommand, focused, onFocus, showHea
       )}
     >
       {showHeader && (
-        <PaneChrome paneId={paneId} currentCommand={currentCommand} focused={focused} />
+        <PaneChrome client={client} paneId={paneId} currentCommand={currentCommand} focused={focused} />
       )}
       <div ref={containerRef} className="flex-1 px-2 py-1 min-h-0 overflow-hidden" />
     </div>

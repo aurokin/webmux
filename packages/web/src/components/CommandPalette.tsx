@@ -1,31 +1,13 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
-
-interface Command {
-  id: string
-  label: string
-  category: string
-  keybind: string
-  icon: string
-}
-
-const COMMANDS: Command[] = [
-  { id: 'split-h', label: 'Split Horizontal', category: 'Panes', keybind: '⌃b "', icon: '◨' },
-  { id: 'split-v', label: 'Split Vertical', category: 'Panes', keybind: '⌃b %', icon: '◧' },
-  { id: 'zoom', label: 'Zoom Pane', category: 'Panes', keybind: '⌃b z', icon: '⛶' },
-  { id: 'close-pane', label: 'Close Pane', category: 'Panes', keybind: '⌃b x', icon: '×' },
-  { id: 'new-window', label: 'New Window', category: 'Windows', keybind: '⌃b c', icon: '+' },
-  { id: 'next-window', label: 'Next Window', category: 'Windows', keybind: '⌃b n', icon: '→' },
-  { id: 'prev-window', label: 'Previous Window', category: 'Windows', keybind: '⌃b p', icon: '←' },
-  { id: 'swap-window', label: 'Swap Window', category: 'Windows', keybind: '⌃b .', icon: '↔' },
-  { id: 'list-sessions', label: 'List Sessions', category: 'Sessions', keybind: '⌃b s', icon: '☰' },
-  { id: 'detach', label: 'Detach Session', category: 'Sessions', keybind: '⌃b d', icon: '⎋' },
-]
+import { COMMANDS, type Command } from '../lib/commands'
+import { cn } from '../lib/cn'
 
 interface CommandPaletteProps {
   onClose: () => void
+  onExecute: (commandId: string) => void
 }
 
-export function CommandPalette({ onClose }: CommandPaletteProps) {
+export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +42,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         break
       case 'Enter':
         if (filtered[selectedIndex]) {
-          // TODO: execute command
+          onExecute(filtered[selectedIndex].id)
           onClose()
         }
         break
@@ -114,10 +96,14 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
                 return (
                   <button
                     key={cmd.id}
-                    onClick={onClose}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm cursor-pointer transition-colors ${
-                      idx === selectedIndex ? 'bg-bg-hover' : ''
-                    }`}
+                    onClick={() => {
+                      onExecute(cmd.id)
+                      onClose()
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm cursor-pointer transition-colors',
+                      idx === selectedIndex ? 'bg-bg-hover' : '',
+                    )}
                   >
                     <span className="w-7 h-7 flex items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle text-text-tertiary text-[12px] shrink-0">
                       {cmd.icon}
@@ -125,16 +111,18 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
                     <span className="flex-1 text-[13px] text-text-primary font-ui text-left">
                       {cmd.label}
                     </span>
-                    <span className="text-[10px] text-text-ghost font-mono flex gap-1">
-                      {cmd.keybind.split(' ').map((k, i) => (
-                        <kbd
-                          key={i}
-                          className="px-1.5 py-0.5 bg-bg-base border border-border-subtle rounded-[3px]"
-                        >
-                          {k}
-                        </kbd>
-                      ))}
-                    </span>
+                    {cmd.keybind && (
+                      <span className="text-[10px] text-text-ghost font-mono flex gap-1">
+                        {cmd.keybind.split(' ').map((k, i) => (
+                          <kbd
+                            key={i}
+                            className="px-1.5 py-0.5 bg-bg-base border border-border-subtle rounded-[3px]"
+                          >
+                            {k}
+                          </kbd>
+                        ))}
+                      </span>
+                    )}
                   </button>
                 )
               })}

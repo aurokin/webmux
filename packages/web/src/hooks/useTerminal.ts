@@ -3,6 +3,8 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { WebmuxClient } from '@webmux/client'
+import { usePreferences } from './usePreferences'
+import { getTheme } from '../lib/themes'
 
 /**
  * Manages an xterm.js Terminal instance lifecycle.
@@ -12,8 +14,7 @@ import type { WebmuxClient } from '@webmux/client'
  * - Wires output events to terminal.write().
  * - Wires terminal.onData to client.sendInput().
  * - Handles resize via FitAddon + ResizeObserver.
- *
- * See docs/web/terminal.md for details.
+ * - Reads font/theme from user preferences.
  */
 export function useTerminal(
   client: WebmuxClient,
@@ -23,41 +24,23 @@ export function useTerminal(
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { preferences } = usePreferences()
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    // Create terminal
+    const theme = getTheme(preferences.theme)
+    const fontFamily = `'${preferences.terminalFont}', 'JetBrains Mono', 'SF Mono', monospace`
+
     const terminal = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
-      fontFamily: "'Commit Mono', 'JetBrains Mono', 'SF Mono', monospace",
-      fontSize: 13,
+      fontFamily,
+      fontSize: preferences.terminalFontSize,
       lineHeight: 1.2,
       allowProposedApi: true,
-      theme: {
-        background: 'transparent',
-        foreground: '#c8d0e0',
-        cursor: '#56d4a0',
-        selectionBackground: 'rgba(100, 140, 200, 0.3)',
-        black: '#1a1e2e',
-        red: '#e06070',
-        green: '#56d4a0',
-        yellow: '#e8c660',
-        blue: '#6cacf0',
-        magenta: '#a888e0',
-        cyan: '#56c8d0',
-        white: '#c8d0e0',
-        brightBlack: '#4a5568',
-        brightRed: '#f07080',
-        brightGreen: '#66e4b0',
-        brightYellow: '#f8d670',
-        brightBlue: '#7cbcff',
-        brightMagenta: '#b898f0',
-        brightCyan: '#66d8e0',
-        brightWhite: '#e8ecf0',
-      },
+      theme: theme.xterm,
     })
 
     const fitAddon = new FitAddon()
@@ -78,14 +61,14 @@ export function useTerminal(
       }
     })
 
-    // Output: bridge → xterm.js
+    // Output: bridge -> xterm.js
     const unsubOutput = client.on('pane:output', (id, data) => {
       if (id === paneId) {
         terminal.write(data)
       }
     })
 
-    // Input: xterm.js → bridge
+    // Input: xterm.js -> bridge
     const inputDisposable = terminal.onData((data) => {
       client.sendInput(paneId, data)
     })
@@ -98,7 +81,7 @@ export function useTerminal(
       return true
     })
 
-    // Resize: container changes → fit → notify bridge
+    // Resize: container changes -> fit -> notify bridge
     let lastCols = terminal.cols
     let lastRows = terminal.rows
 
@@ -135,7 +118,7 @@ export function useTerminal(
       terminalRef.current = null
       fitAddonRef.current = null
     }
-  }, [client, paneId, containerRef])
+  }, [client, paneId, containerRef, preferences.terminalFont, preferences.terminalFontSize, preferences.theme])
 
   const focus = useCallback(() => {
     terminalRef.current?.focus()
