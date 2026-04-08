@@ -1,17 +1,25 @@
-import { useState, useEffect, useRef, useMemo, type KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import { getCommands, type Command } from '../lib/commands'
+import { onKeybindsChanged, type ActionId } from '../lib/keybinds'
 import { cn } from '../lib/cn'
 
 interface CommandPaletteProps {
   onClose: () => void
-  onExecute: (commandId: string) => void
+  onExecute: (commandId: ActionId) => void
 }
 
 export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const commands = useMemo(() => getCommands(), [])
+  const [commands, setCommands] = useState(() => getCommands())
+
+  useEffect(() => {
+    return onKeybindsChanged(() => {
+      setCommands(getCommands())
+      setSelectedIndex(0)
+    })
+  }, [])
 
   const filtered = commands.filter(
     (cmd) =>
@@ -19,13 +27,13 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
       cmd.category.toLowerCase().includes(query.toLowerCase()),
   )
 
+  // Single clamped index used for both display and keyboard handling
+  const safeIndex = filtered.length > 0 ? Math.min(selectedIndex, filtered.length - 1) : 0
+  const selectedId = filtered[safeIndex]?.id ?? null
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [query])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
@@ -41,12 +49,13 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
           setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length)
         }
         break
-      case 'Enter':
-        if (filtered[selectedIndex]) {
-          onExecute(filtered[selectedIndex].id)
+      case 'Enter': {
+        if (filtered.length > 0) {
+          onExecute(filtered[safeIndex].id)
           onClose()
         }
         break
+      }
       case 'Escape':
         onClose()
         break
@@ -59,8 +68,6 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
     if (!groups[cmd.category]) groups[cmd.category] = []
     groups[cmd.category].push(cmd)
   }
-
-  let flatIndex = 0
 
   return (
     <div
@@ -76,7 +83,7 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0) }}
             onKeyDown={handleKeyDown}
             placeholder="Type a command..."
             autoComplete="off"
@@ -92,9 +99,7 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
               <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-ghost font-ui">
                 {category}
               </div>
-              {commands.map((cmd) => {
-                const idx = flatIndex++
-                return (
+              {commands.map((cmd) => (
                   <button
                     key={cmd.id}
                     onClick={() => {
@@ -103,7 +108,7 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
                     }}
                     className={cn(
                       'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm cursor-pointer transition-colors',
-                      idx === selectedIndex ? 'bg-bg-hover' : '',
+                      cmd.id === selectedId ? 'bg-bg-hover' : '',
                     )}
                   >
                     <span className="w-7 h-7 flex items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle text-text-tertiary text-[12px] shrink-0">
@@ -125,8 +130,7 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
                       </span>
                     )}
                   </button>
-                )
-              })}
+              ))}
             </div>
           ))}
 

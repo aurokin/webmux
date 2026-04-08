@@ -1,5 +1,5 @@
-import { useSyncExternalStore, useEffect, useState } from 'react'
-import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
+import { useCallback, useSyncExternalStore, useEffect, useState } from 'react'
+import type { WebmuxClient, ConnectionStatus, ConnectionIssue } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 
 /**
@@ -14,20 +14,29 @@ export function useSessions(client: WebmuxClient): Session[] {
  * Subscribe to the client's connection status.
  */
 export function useConnectionStatus(client: WebmuxClient): ConnectionStatus {
-  const [status, setStatus] = useState<ConnectionStatus>(client.connectionStatus)
+  const subscribe = useCallback(
+    (cb: () => void) => client.on('connection:status', () => cb()),
+    [client],
+  )
+  return useSyncExternalStore(subscribe, () => client.connectionStatus)
+}
 
-  useEffect(() => {
-    return client.on('connection:status', setStatus)
-  }, [client])
-
-  return status
+/**
+ * Subscribe to the client's connection issue state.
+ */
+export function useConnectionIssue(client: WebmuxClient): ConnectionIssue {
+  const subscribe = useCallback(
+    (cb: () => void) => client.on('connection:issue', () => cb()),
+    [client],
+  )
+  return useSyncExternalStore(subscribe, () => client.connectionIssue)
 }
 
 /**
  * Subscribe to latency measurements.
  */
-export function useLatency(client: WebmuxClient): number {
-  const [latency, setLatency] = useState(0)
+export function useLatency(client: WebmuxClient): number | null {
+  const [latency, setLatency] = useState<number | null>(null)
 
   useEffect(() => {
     return client.on('latency:measured', setLatency)

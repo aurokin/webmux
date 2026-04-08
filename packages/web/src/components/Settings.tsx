@@ -9,11 +9,14 @@ import {
   resetKeybinds,
   getPrefix,
   setPrefix,
+  setCapturingKeybind,
+  normalizeKey,
   DEFAULT_PREFIX,
   type ActionId,
   type KeybindEntry,
   type PrefixConfig,
 } from '../lib/keybinds'
+// normalizeKey is also used in KeybindRow for default comparison
 import { cn } from '../lib/cn'
 
 interface SettingsProps {
@@ -174,23 +177,10 @@ function GeneralSettings({
       </SettingRow>
 
       {preferences.backgroundStyle === 'custom' && (
-        <SettingRow label="Custom color">
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={preferences.backgroundCustomColor || '#0a0a0c'}
-              onChange={(e) => setPreference('backgroundCustomColor', e.target.value)}
-              className="w-8 h-8 rounded-md border border-border-default cursor-pointer bg-transparent"
-            />
-            <input
-              type="text"
-              value={preferences.backgroundCustomColor}
-              onChange={(e) => setPreference('backgroundCustomColor', e.target.value)}
-              placeholder="#0a0a0c"
-              className="bg-bg-elevated border border-border-default rounded-md px-3 py-1.5 text-[12px] text-text-primary font-mono outline-none focus:border-border-active flex-1"
-            />
-          </div>
-        </SettingRow>
+        <CustomColorSetting
+          value={preferences.backgroundCustomColor}
+          onChange={(v) => setPreference('backgroundCustomColor', v)}
+        />
       )}
     </div>
   )
@@ -198,11 +188,15 @@ function GeneralSettings({
 
 /* ═══ Keybind Settings ═══ */
 
+type RecordingTarget =
+  | { kind: 'idle' }
+  | { kind: 'prefix' }
+  | { kind: 'action'; actionId: ActionId }
+
 function KeybindSettings() {
   const [entries, setEntries] = useState<KeybindEntry[]>(() => getKeybindEntries())
-  const [recording, setRecording] = useState<ActionId | null>(null)
+  const [recording, setRecording] = useState<RecordingTarget>({ kind: 'idle' })
   const [prefix, setPrefixState] = useState<PrefixConfig>(() => getPrefix())
-  const [recordingPrefix, setRecordingPrefix] = useState(false)
 
   const refresh = useCallback(() => {
     setEntries(getKeybindEntries())
@@ -210,6 +204,7 @@ function KeybindSettings() {
   }, [])
 
   const handleReset = useCallback(() => {
+    setRecording({ kind: 'idle' })
     resetKeybinds()
     refresh()
   }, [refresh])
@@ -238,18 +233,19 @@ function KeybindSettings() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {recordingPrefix ? (
+            {recording.kind === 'prefix' ? (
               <RecordingBadge
+                rejectShift
                 onCapture={(key, ctrl) => {
-                  setPrefix({ key, ctrl, display: ctrl ? `⌃${key}` : key })
-                  setRecordingPrefix(false)
+                  setPrefix({ key, ctrl })
+                  setRecording({ kind: 'idle' })
                   refresh()
                 }}
-                onCancel={() => setRecordingPrefix(false)}
+                onCancel={() => setRecording({ kind: 'idle' })}
               />
             ) : (
               <button
-                onClick={() => setRecordingPrefix(true)}
+                onClick={() => setRecording({ kind: 'prefix' })}
                 className="px-3 py-1.5 rounded-md bg-bg-elevated border border-border-default text-[12px] font-mono text-text-primary hover:border-border-active transition-colors"
               >
                 {prefix.display}
@@ -258,7 +254,7 @@ function KeybindSettings() {
             {(prefix.key !== DEFAULT_PREFIX.key || prefix.ctrl !== DEFAULT_PREFIX.ctrl) && (
               <button
                 onClick={() => {
-                  setPrefix(DEFAULT_PREFIX)
+                  setPrefix({ key: DEFAULT_PREFIX.key, ctrl: DEFAULT_PREFIX.ctrl })
                   refresh()
                 }}
                 className="text-[10px] text-text-ghost hover:text-text-secondary transition-colors"
@@ -282,19 +278,19 @@ function KeybindSettings() {
               <KeybindRow
                 key={entry.action}
                 entry={entry}
-                isRecording={recording === entry.action}
-                onStartRecording={() => setRecording(entry.action)}
+                isRecording={recording.kind === 'action' && recording.actionId === entry.action}
+                onStartRecording={() => setRecording({ kind: 'action', actionId: entry.action })}
                 onBind={(key) => {
                   setKeybind(entry.action, key)
-                  setRecording(null)
+                  setRecording({ kind: 'idle' })
                   refresh()
                 }}
                 onUnbind={() => {
                   setKeybind(entry.action, 'none')
-                  setRecording(null)
+                  setRecording({ kind: 'idle' })
                   refresh()
                 }}
-                onCancel={() => setRecording(null)}
+                onCancel={() => setRecording({ kind: 'idle' })}
               />
             ))}
           </div>
@@ -309,19 +305,19 @@ function KeybindSettings() {
             <KeybindRow
               key={entry.action}
               entry={entry}
-              isRecording={recording === entry.action}
-              onStartRecording={() => setRecording(entry.action)}
+              isRecording={recording.kind === 'action' && recording.actionId === entry.action}
+              onStartRecording={() => setRecording({ kind: 'action', actionId: entry.action })}
               onBind={(key) => {
                 setKeybind(entry.action, key)
-                setRecording(null)
+                setRecording({ kind: 'idle' })
                 refresh()
               }}
               onUnbind={() => {
                 setKeybind(entry.action, 'none')
-                setRecording(null)
+                setRecording({ kind: 'idle' })
                 refresh()
               }}
-              onCancel={() => setRecording(null)}
+              onCancel={() => setRecording({ kind: 'idle' })}
             />
           ))}
         </details>
@@ -359,7 +355,7 @@ function KeybindRow({
   onUnbind: () => void
   onCancel: () => void
 }) {
-  const isDefault = entry.key === DEFAULT_KEYBINDS[entry.action].key
+  const isDefault = entry.key === normalizeKey(DEFAULT_KEYBINDS[entry.action].key)
   const isUnbound = entry.key === 'none'
 
   return (
@@ -368,6 +364,7 @@ function KeybindRow({
       <div className="flex items-center gap-2">
         {isRecording ? (
           <RecordingBadge
+            rejectShift
             onCapture={(key) => onBind(key)}
             onCancel={onCancel}
             onUnbind={onUnbind}
@@ -405,43 +402,77 @@ function RecordingBadge({
   onCapture,
   onCancel,
   onUnbind,
+  rejectShift,
 }: {
   onCapture: (key: string, ctrl?: boolean) => void
   onCancel: () => void
   onUnbind?: () => void
+  /** Reject keys that require Shift (for prefix capture, since matchesPrefix rejects shiftKey) */
+  rejectShift?: boolean
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const onCaptureRef = useRef(onCapture)
+  const onCancelRef = useRef(onCancel)
+  const onUnbindRef = useRef(onUnbind)
+  const completedRef = useRef(false)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    onCaptureRef.current = onCapture
+    onCancelRef.current = onCancel
+    onUnbindRef.current = onUnbind
+  })
+
+  // Track mount state so cleanup doesn't dispatch to an unmounted parent
+  useEffect(() => { return () => { mountedRef.current = false } }, [])
 
   useEffect(() => {
+    setCapturingKeybind(true)
+    completedRef.current = false
     const handler = (e: KeyboardEvent) => {
       e.preventDefault()
+      e.stopImmediatePropagation()
       e.stopPropagation()
 
       if (e.key === 'Backspace') {
-        onCancel()
+        completedRef.current = true
+        onCancelRef.current()
         return
       }
       if (e.key === 'Escape') {
-        if (onUnbind) {
-          onUnbind()
+        completedRef.current = true
+        if (onUnbindRef.current) {
+          onUnbindRef.current()
         } else {
-          onCancel()
+          onCancelRef.current()
         }
         return
       }
-      // Ignore modifier-only presses
-      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+      // Ignore modifier-only and unbindable keys
+      if (['Control', 'Shift', 'Alt', 'Meta',
+        'Dead', 'Unidentified', 'Process',
+        'CapsLock', 'NumLock', 'ScrollLock', 'FnLock',
+        'ContextMenu', 'Pause', 'PrintScreen',
+      ].includes(e.key)) return
 
-      onCapture(e.key, e.ctrlKey)
+      // Reject shifted keys — normalizeKey lowercases single chars, so
+      // Shift+S → "S" → "s" would fire on bare "s", not the intended Shift+S.
+      if (rejectShift && e.shiftKey) return
+
+      completedRef.current = true
+      onCaptureRef.current(normalizeKey(e.key), e.ctrlKey)
     }
 
     window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
-  }, [onCapture, onCancel, onUnbind])
+    return () => {
+      window.removeEventListener('keydown', handler, true)
+      setCapturingKeybind(false)
+      // If unmounted without completing (e.g. details collapse), notify parent.
+      // Guard: don't fire if the entire parent tree is tearing down.
+      if (!completedRef.current && mountedRef.current) onCancelRef.current()
+    }
+  }, [])
 
   return (
     <div
-      ref={ref}
       className="px-2.5 py-1 rounded-md border border-accent-green bg-accent-green-dim text-accent-green text-[11px] font-mono animate-pulse"
     >
       press a key...
@@ -459,6 +490,53 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
       </label>
       {children}
     </div>
+  )
+}
+
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+/** Default color for the picker when no custom color is set */
+const COLOR_PICKER_DEFAULT = '#1a1b26'
+
+function CustomColorSetting({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value || COLOR_PICKER_DEFAULT)
+
+  // Sync draft when external value changes (e.g. color picker)
+  useEffect(() => { setDraft(value || COLOR_PICKER_DEFAULT) }, [value])
+
+  return (
+    <SettingRow label="Custom color">
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value || COLOR_PICKER_DEFAULT}
+          onChange={(e) => {
+            // Only propagate to parent — the sync effect will update draft,
+            // avoiding a redundant double-render.
+            onChange(e.target.value)
+          }}
+          className="w-8 h-8 rounded-md border border-border-default cursor-pointer bg-transparent"
+        />
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            if (HEX_COLOR_RE.test(e.target.value)) {
+              onChange(e.target.value)
+            }
+          }}
+          onBlur={() => {
+            if (!HEX_COLOR_RE.test(draft)) setDraft(value || COLOR_PICKER_DEFAULT)
+          }}
+          placeholder="#0a0a0c"
+          className={cn(
+            'bg-bg-elevated border rounded-md px-3 py-1.5 text-[12px] text-text-primary font-mono outline-none focus:border-border-active flex-1',
+            HEX_COLOR_RE.test(draft) || draft === '' ? 'border-border-default' : 'border-accent-red',
+          )}
+        />
+      </div>
+    </SettingRow>
   )
 }
 

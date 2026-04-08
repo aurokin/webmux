@@ -9,22 +9,34 @@ import { SessionSwitcher } from './components/SessionSwitcher'
 import { CommandPalette } from './components/CommandPalette'
 import { HandoffBanner } from './components/HandoffBanner'
 import { Settings } from './components/Settings'
-import { useConnectionStatus, useLatency, useSessions } from './hooks/useSession'
+import { useConnectionStatus, useConnectionIssue, useLatency, useSessions } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
-import { usePreferences } from './hooks/usePreferences'
+import { usePreferences, readPreferences } from './hooks/usePreferences'
 import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
 
-function getConfig() {
-  const params = new URLSearchParams(window.location.search)
-  return {
-    bridgeUrl: params.get('bridge') ?? 'ws://localhost:7400',
-    token: params.get('token') ?? '',
-    clientId: `web-${crypto.randomUUID().slice(0, 8)}`,
-  }
-}
+// Read config and strip token from URL immediately — before React renders —
+// to minimize the window where the token is visible in the address bar,
+// referrer headers, and browser history.
+// Guard for non-browser environments (SSR, Node test runners).
+const _initConfig = typeof window !== 'undefined'
+  ? (() => {
+      const params = new URLSearchParams(window.location.search)
+      const config = {
+        bridgeUrl: params.get('bridge') ?? 'ws://localhost:7400',
+        token: params.get('token') ?? '',
+        clientId: `web-${crypto.randomUUID().slice(0, 8)}`,
+      }
+      if (params.has('token')) {
+        const cleanUrl = new URL(window.location.href)
+        cleanUrl.searchParams.delete('token')
+        history.replaceState(null, '', cleanUrl.toString())
+      }
+      return config
+    })()
+  : { bridgeUrl: 'ws://localhost:7400', token: '', clientId: 'web-test' }
 
 export function App() {
-  const [config] = useState(getConfig)
+  const [config] = useState(() => _initConfig)
   const [client] = useState(() => {
     return new WebmuxClient({
       url: config.bridgeUrl,
@@ -43,6 +55,7 @@ export function App() {
 
   const sessions = useSessions(client)
   const connectionStatus = useConnectionStatus(client)
+  const connectionIssue = useConnectionIssue(client)
   const latency = useLatency(client)
 
   // Apply theme to document
@@ -56,7 +69,9 @@ export function App() {
       console.warn('[webmux] No token provided. Add ?token=xxx to the URL.')
       return
     }
-    client.connect()
+    client.connect().catch((err) => {
+      console.error('[webmux] connect failed:', err)
+    })
     return () => client.disconnect()
   }, [client, config.token])
 
@@ -84,13 +99,14 @@ export function App() {
     () => ({
       toggleSwitcher: () => setSwitcherOpen((o) => !o),
       toggleCommandPalette: () => setPaletteOpen((o) => !o),
-      toggleSidebar: () => setPreference('sidebarOpen', !preferences.sidebarOpen),
+      toggleSidebar: () => setPreference('sidebarOpen', !readPreferences().sidebarOpen),
       jumpToSession: (index: number) => {
         const session = sessions[index]
-        if (session) {
-          setSelectedSessionId(session.id)
-          setFocusedPaneId(null)
-        }
+        if (!session) return
+        setSelectedSessionId(session.id)
+        const targetWindow = session.windows.find((w) => w.active) ?? null
+        const paneIds = targetWindow ? collectPaneIds(targetWindow.layout) : []
+        setFocusedPaneId(paneIds[0] ?? null)
       },
       splitHorizontal: () => {
         if (focusedPaneId) client.splitPane(focusedPaneId, 'horizontal')
@@ -108,34 +124,40 @@ export function App() {
         if (activeSession) client.createWindow(activeSession.id)
       },
       nextWindow: () => {
-        if (!activeSession) return
+        if (!activeSession || activeSession.windows.length < 2) return
         const windows = activeSession.windows
         const currentIdx = windows.findIndex((w) => w.active)
+        if (currentIdx === -1) return
         const nextIdx = (currentIdx + 1) % windows.length
         client.selectWindow(activeSession.id, windows[nextIdx].index)
       },
       prevWindow: () => {
-        if (!activeSession) return
+        if (!activeSession || activeSession.windows.length < 2) return
         const windows = activeSession.windows
         const currentIdx = windows.findIndex((w) => w.active)
+        if (currentIdx === -1) return
         const prevIdx = (currentIdx - 1 + windows.length) % windows.length
         client.selectWindow(activeSession.id, windows[prevIdx].index)
       },
       detach: () => {
         client.disconnect()
+        setSelectedSessionId(null)
+        setFocusedPaneId(null)
       },
       openSettings: () => {
         setSettingsOpen(true)
       },
     }),
-    [sessions, activeSession, focusedPaneId, preferences.sidebarOpen, setPreference, client],
+    [sessions, activeSession, focusedPaneId, setPreference, client],
   )
 
-  useKeybinds(keybindActions)
+  // dispatch is stable (reads from actionsRef internally), so
+  // handleCommand never goes stale even when keybindActions changes.
+  const dispatch = useKeybinds(keybindActions)
 
   const workspaceState = getWorkspaceState({
     hasToken: config.token.length > 0,
-    connectionIssue: client.connectionIssue,
+    connectionIssue,
     connectionStatus,
     sessions,
     activeSession,
@@ -150,26 +172,6 @@ export function App() {
     [],
   )
 
-  const handleCommand = useCallback(
-    (commandId: string) => {
-      const actionMap: Record<string, () => void> = {
-        'split-h': keybindActions.splitHorizontal,
-        'split-v': keybindActions.splitVertical,
-        'zoom': keybindActions.zoomPane,
-        'close-pane': keybindActions.closePane,
-        'new-window': keybindActions.newWindow,
-        'next-window': keybindActions.nextWindow,
-        'prev-window': keybindActions.prevWindow,
-        'list-sessions': keybindActions.toggleSwitcher,
-        'detach': keybindActions.detach,
-        'toggle-sidebar': keybindActions.toggleSidebar,
-        'settings': () => setSettingsOpen(true),
-      }
-      actionMap[commandId]?.()
-    },
-    [keybindActions],
-  )
-
   return (
     <div className="flex h-screen w-screen bg-bg-deep text-text-primary">
       {/* Sidebar */}
@@ -179,20 +181,20 @@ export function App() {
         activeWindow={activeWindow}
         focusedPaneId={focusedPaneId}
         isOpen={preferences.sidebarOpen}
-        onToggle={() => setPreference('sidebarOpen', !preferences.sidebarOpen)}
+        onToggle={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
         onSelectSession={handleSelectSession}
         onFocusPane={setFocusedPaneId}
       />
 
       {/* Main area */}
-      <div className="flex flex-1 flex-col min-w-0">
+      <div className="relative flex flex-1 flex-col min-w-0">
         {/* Tab bar (when position = top) */}
         {preferences.tabPosition === 'top' && activeSession && (
           <TabBar
             client={client}
             activeSession={activeSession}
             canMutate={ownership.mode === 'active'}
-            onToggleSidebar={() => setPreference('sidebarOpen', !preferences.sidebarOpen)}
+            onToggleSidebar={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
             onOpenPalette={() => setPaletteOpen(true)}
           />
         )}
@@ -239,7 +241,7 @@ export function App() {
       {paletteOpen && (
         <CommandPalette
           onClose={() => setPaletteOpen(false)}
-          onExecute={handleCommand}
+          onExecute={dispatch}
         />
       )}
 
@@ -261,14 +263,17 @@ function getNextSelectedSessionId(sessions: Session[], current: string | null): 
 
 function getActiveSession(sessions: Session[], selectedSessionId: string | null): Session | null {
   if (selectedSessionId) {
-    return sessions.find((session) => session.id === selectedSessionId) ?? null
+    const found = sessions.find((session) => session.id === selectedSessionId)
+    if (found) return found
   }
+  // Fallback when selectedSessionId is null or stale (e.g. session was destroyed,
+  // but setSelectedSessionId effect hasn't fired yet)
   return sessions.find((session) => session.attached) ?? sessions[0] ?? null
 }
 
 function getActiveWindow(session: Session | null): Window | null {
   if (!session) return null
-  return session.windows.find((window) => window.active) ?? session.windows[0] ?? null
+  return session.windows.find((window) => window.active) ?? null
 }
 
 function getPaneCommands(window: Window | null): Record<string, string> {
@@ -321,27 +326,33 @@ function getWorkspaceState({
       tone: 'error' as const,
     }
   }
+  // Connection status checks run regardless of stale session data
+  if (connectionStatus === 'connecting') {
+    return {
+      title: 'Connecting to bridge',
+      detail: 'Waiting for the control channel to come up.',
+      tone: 'neutral' as const,
+    }
+  }
+  if (connectionStatus === 'reconnecting') {
+    return {
+      title: 'Bridge offline',
+      detail: 'The client is retrying the control connection.',
+      tone: 'warning' as const,
+    }
+  }
+  if (connectionStatus === 'disconnected') {
+    return {
+      title: 'Disconnected from bridge',
+      detail: 'The connection was closed. Refresh the page to reconnect.',
+      tone: 'warning' as const,
+    }
+  }
   if (sessions.length === 0) {
-    if (connectionStatus === 'connecting') {
-      return {
-        title: 'Connecting to bridge',
-        detail: 'Waiting for the control channel to come up.',
-        tone: 'neutral' as const,
-      }
-    }
-    if (connectionStatus === 'reconnecting') {
-      return {
-        title: 'Bridge offline',
-        detail: 'The client is retrying the control connection.',
-        tone: 'warning' as const,
-      }
-    }
-    if (connectionStatus === 'disconnected') {
-      return {
-        title: 'No tmux sessions available',
-        detail: 'Start tmux on the target socket or bring the bridge back online.',
-        tone: 'warning' as const,
-      }
+    return {
+      title: 'No tmux sessions available',
+      detail: 'Start tmux on the target socket or bring the bridge back online.',
+      tone: 'warning' as const,
     }
   }
   if (!activeSession) {

@@ -1,6 +1,8 @@
 import type { Session, Pane, ClientType, ConnectionStatus } from '@webmux/shared'
 import type { SessionOwnership } from '@webmux/shared'
 
+export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
+
 /**
  * Event map for the WebmuxClient.
  * Adding a new event here enforces type safety on all listeners.
@@ -18,6 +20,7 @@ export interface WebmuxEventMap {
     ownerType: ClientType | null,
   ) => void
   'connection:status': (status: ConnectionStatus) => void
+  'connection:issue': (issue: ConnectionIssue) => void
   'latency:measured': (rtt: number) => void
   'latency:high': (rtt: number) => void
 }

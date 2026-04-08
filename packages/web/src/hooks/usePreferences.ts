@@ -45,33 +45,55 @@ function read(): UserPreferences {
 }
 
 function write(prefs: UserPreferences) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+  } catch {
+    // quota exceeded — keep the existing cache and bail
+    return
+  }
   cached = prefs
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
   for (const listener of listeners) {
     listener()
   }
 }
 
+let storageListenerRegistered = false
+
+function ensureStorageListener() {
+  if (storageListenerRegistered) return
+  storageListenerRegistered = true
+  window.addEventListener('storage', (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) {
+      // Pre-warm cache so getSnapshot() stays referentially stable
+      try {
+        cached = e.newValue ? { ...DEFAULTS, ...JSON.parse(e.newValue) } : { ...DEFAULTS }
+      } catch {
+        cached = { ...DEFAULTS }
+      }
+      for (const listener of listeners) listener()
+    }
+  })
+}
+
 function subscribe(listener: () => void) {
   listeners.push(listener)
-
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY) {
-      cached = null
-      listener()
-    }
-  }
-  window.addEventListener('storage', onStorage)
-
+  ensureStorageListener()
   return () => {
     listeners = listeners.filter((l) => l !== listener)
-    window.removeEventListener('storage', onStorage)
   }
 }
 
 function getSnapshot(): UserPreferences {
   return read()
 }
+
+/**
+ * Imperatively read current preferences from the module-level cache.
+ * Always returns the latest committed value — use in event handlers or
+ * callbacks to avoid stale closures. Do NOT use to drive rendering;
+ * use usePreferences() for reactive reads.
+ */
+export const readPreferences = read
 
 export function usePreferences() {
   const preferences = useSyncExternalStore(subscribe, getSnapshot)

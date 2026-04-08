@@ -6,6 +6,7 @@ import {
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_MS,
   WS_CLOSE,
+  type ConnectionStatus,
 } from '@webmux/shared'
 
 /**
@@ -25,7 +26,7 @@ export class Connection {
   onOpen: (() => void) | null = null
   onMessage: ((data: string | ArrayBuffer) => void) | null = null
   onClose: ((code: number, reason: string) => void) | null = null
-  onStatusChange: ((status: 'connected' | 'reconnecting' | 'disconnected') => void) | null = null
+  onStatusChange: ((status: ConnectionStatus) => void) | null = null
   onLatency: ((rtt: number) => void) | null = null
 
   constructor(url: string) {
@@ -33,6 +34,10 @@ export class Connection {
   }
 
   connect(): void {
+    // Guard: don't tear down a live or in-flight connection
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return
+    }
     this.cleanup()
 
     try {
@@ -54,8 +59,12 @@ export class Connection {
         this.stopHeartbeat()
         this.onClose?.(event.code, event.reason)
 
-        // Don't reconnect on auth failure
-        if (event.code === WS_CLOSE.AUTH_FAILED) {
+        // Don't reconnect on terminal close codes
+        if (
+          event.code === WS_CLOSE.AUTH_FAILED ||
+          event.code === WS_CLOSE.PROTOCOL_ERROR ||
+          event.code === WS_CLOSE.PANE_DESTROYED
+        ) {
           this.onStatusChange?.('disconnected')
           return
         }
@@ -85,6 +94,7 @@ export class Connection {
   }
 
   disconnect(): void {
+    this.reconnectAttempts = 0
     this.cleanup()
     this.onStatusChange?.('disconnected')
   }
@@ -110,6 +120,14 @@ export class Connection {
     this.heartbeatTimer = setInterval(() => {
       if (this.ws?.readyState !== WebSocket.OPEN) return
 
+      // Clear any still-pending timeout from a previous tick before creating
+      // a new one. Without this, a reconnect between ticks leaks a dangling
+      // timeout that can close the healthy replacement socket.
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout)
+        this.heartbeatTimeout = null
+      }
+
       const pingTime = Date.now()
 
       // WebSocket API doesn't expose ping/pong directly in browsers.
@@ -117,9 +135,14 @@ export class Connection {
       // The bridge responds with a pong, and we measure RTT.
       this.send(JSON.stringify({ type: 'ping', t: pingTime }))
 
+      // Capture the socket reference at ping time so the timeout closes
+      // the correct socket even if a reconnect replaced this.ws.
+      const pingSocket = this.ws
       this.heartbeatTimeout = setTimeout(() => {
         // No pong received — connection is dead
-        this.ws?.close()
+        if (pingSocket?.readyState === WebSocket.OPEN) {
+          pingSocket.close()
+        }
       }, HEARTBEAT_TIMEOUT_MS)
     }, HEARTBEAT_INTERVAL_MS)
   }

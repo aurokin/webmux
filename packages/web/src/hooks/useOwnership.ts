@@ -52,7 +52,7 @@ export function useSessionOwnership(
     }
   }
 
-  if (!ownership?.ownerId) {
+  if (!ownership?.ownerId || ownership.sessionId !== sessionId) {
     return {
       ownerId: null,
       ownerType: null,

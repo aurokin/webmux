@@ -7,7 +7,7 @@ import type {
   SessionOwnership,
 } from '@webmux/shared'
 import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS, WS_CLOSE } from '@webmux/shared'
-import { TypedEmitter, type WebmuxEventMap } from './events'
+import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue } from './events'
 import { Connection } from './connection'
 import { InputHandler, type InputMode } from './input'
 
@@ -19,7 +19,7 @@ export interface WebmuxClientOptions {
   latencyThreshold?: number
 }
 
-export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
+export type { ConnectionIssue } from './events'
 
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
@@ -51,7 +51,6 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     this.controlConnection = new Connection(controlUrl)
 
     this.controlConnection.onOpen = () => {
-      this._connectionIssue = null
       this.sendControl({
         type: 'hello',
         protocolVersion: PROTOCOL_VERSION,
@@ -62,7 +61,13 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
     this.controlConnection.onMessage = (data) => {
       if (typeof data === 'string') {
-        const message = JSON.parse(data) as BridgeMessage
+        let message: BridgeMessage
+        try {
+          message = JSON.parse(data) as BridgeMessage
+        } catch (e) {
+          console.error('[webmux] failed to parse control message', e)
+          return
+        }
         if (message.type === 'pong') {
           this.controlConnection.handlePong(message.t)
           return
@@ -80,6 +85,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this._connectionStatus = status
       if (status === 'connected') {
         this._connectionIssue = null
+        this.emit('connection:issue', null)
       }
       this.emit('connection:status', status)
 
@@ -118,6 +124,11 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   }
 
   async connect(): Promise<void> {
+    if (
+      this._connectionStatus === 'connecting' ||
+      this._connectionStatus === 'connected' ||
+      this._connectionStatus === 'reconnecting'
+    ) return
     this._connectionStatus = 'connecting'
     this.emit('connection:status', 'connecting')
     this.controlConnection.connect()
@@ -130,9 +141,16 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
     this.paneConnections.clear()
     this.paneInputs.clear()
-    this._connectionStatus = 'disconnected'
-    this._connectionIssue = null
-    this.emit('connection:status', 'disconnected')
+    // controlConnection.disconnect() already emits 'disconnected' via
+    // onStatusChange. Only emit here if status wasn't already set
+    // (e.g. disconnect called before connect).
+    if (this._connectionStatus !== 'disconnected') {
+      this._connectionStatus = 'disconnected'
+      this.emit('connection:status', 'disconnected')
+    }
+    // Preserve terminal error issues (auth-failed, protocol-error) so the UI
+    // can still display them after disconnect. Only emit if clearing an active
+    // issue — don't emit a redundant null when issue is already null.
   }
 
   isOwner(sessionId: string): boolean {
@@ -218,12 +236,11 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   sendInput(paneId: string, data: string | Uint8Array): void {
     const session = this.findSessionByPaneId(paneId)
-    if (session) {
-      const ownership = this._ownership.get(session.id)
-      if (ownership?.ownerId !== this.options.clientId) {
-        return
-      }
-    }
+    // Block input if we can't confirm ownership — session not in local state
+    // (e.g. during a state.sync gap) or owned by another client.
+    if (!session) return
+    const ownership = this._ownership.get(session.id)
+    if (ownership?.ownerId !== this.options.clientId) return
 
     this.paneInputs.get(paneId)?.write(data)
   }
@@ -243,6 +260,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this.on('state:sync', callback),
       this.on('control:changed', callback),
       this.on('connection:status', callback),
+      this.on('connection:issue', callback),
     ]
     return () => unsubs.forEach((u) => u())
   }
@@ -261,15 +279,16 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     switch (code) {
       case WS_CLOSE.AUTH_FAILED:
         this._connectionIssue = 'auth-failed'
+        this.emit('connection:issue', this._connectionIssue)
         break
 
       case WS_CLOSE.PROTOCOL_ERROR:
         this._connectionIssue = 'protocol-error'
+        this.emit('connection:issue', this._connectionIssue)
         break
 
-      default:
-        this._connectionIssue = null
-        break
+      // Transient close — leave issue state unchanged.
+      // It will be cleared on the next successful connect via onStatusChange.
     }
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { Session } from '@webmux/shared'
 import { cn } from '../lib/cn'
+import { getPrefix, getKeybinds, formatKeybind, onKeybindsChanged } from '../lib/keybinds'
 
 interface SessionSwitcherProps {
   sessions: Session[]
@@ -24,6 +25,17 @@ export function SessionSwitcher({
   )
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Read keybind hint once at mount and subscribe to changes, avoiding
+  // localStorage parsing on every keystroke/render.
+  const [keybindHint, setKeybindHint] = useState(
+    () => formatKeybind(getPrefix(), getKeybinds().toggleSwitcher),
+  )
+  useEffect(() => {
+    return onKeybindsChanged(() => {
+      setKeybindHint(formatKeybind(getPrefix(), getKeybinds().toggleSwitcher))
+    })
+  }, [])
+
   const filtered = sessions.filter((s) => s.name.toLowerCase().includes(query.toLowerCase()))
 
   useEffect(() => {
@@ -33,6 +45,15 @@ export function SessionSwitcher({
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
+
+  // Clamp selectedIndex when the filtered list shrinks (e.g. session removed)
+  useEffect(() => {
+    if (filtered.length > 0) {
+      setSelectedIndex((i) => Math.min(i, filtered.length - 1))
+    }
+  }, [filtered.length])
+
+  const safeIndex = filtered.length > 0 ? Math.min(selectedIndex, filtered.length - 1) : 0
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
@@ -47,25 +68,13 @@ export function SessionSwitcher({
         setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length)
         break
       case 'Enter':
-        if (filtered[selectedIndex]) {
-          onSelectSession(filtered[selectedIndex].id)
+        if (filtered.length > 0) {
+          onSelectSession(filtered[safeIndex].id)
         }
         // TODO: if no match and query is non-empty, create new session with query as name
         break
       case 'Escape':
         onClose()
-        break
-      case 'n':
-        if (e.ctrlKey) {
-          e.preventDefault()
-          // TODO: create new session with query as name
-        }
-        break
-      case 'k':
-        if (e.ctrlKey) {
-          e.preventDefault()
-          // TODO: kill selected session
-        }
         break
     }
   }
@@ -92,7 +101,7 @@ export function SessionSwitcher({
             className="flex-1 h-12 bg-transparent border-none outline-none text-text-primary font-mono text-[13px]"
           />
           <span className="font-ui text-[10px] uppercase tracking-widest text-text-ghost font-semibold">
-            ⌃b s
+            {keybindHint}
           </span>
         </div>
 
@@ -105,7 +114,7 @@ export function SessionSwitcher({
               onClick={() => onSelectSession(session.id)}
               className={cn(
                 'w-full flex items-center px-3 py-2.5 rounded-md cursor-pointer gap-2.5 mb-px transition-colors text-left',
-                i === selectedIndex
+                i === safeIndex
                   ? 'bg-bg-hover border border-border-default'
                   : 'border border-transparent hover:bg-bg-hover',
               )}
@@ -134,18 +143,13 @@ export function SessionSwitcher({
               </span>
 
               {/* Meta */}
-              <span className="text-[11px] text-text-ghost">{session.windowCount} win</span>
+              <span className="text-[11px] text-text-ghost">{session.windows.length} win</span>
             </button>
           ))}
 
           {filtered.length === 0 && (
             <div className="py-4 text-center text-text-ghost text-[13px]">
               No sessions match "{query}"
-              {query.length > 0 && (
-                <div className="mt-1 text-[11px] text-text-ghost">
-                  Press <Kbd>⏎</Kbd> to create "{query}"
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -167,12 +171,6 @@ export function SessionSwitcher({
           </span>
           <span>
             <Kbd>esc</Kbd> close
-          </span>
-          <span>
-            <Kbd>⌃n</Kbd> new
-          </span>
-          <span>
-            <Kbd>⌃k</Kbd> kill
           </span>
         </div>
       </div>
