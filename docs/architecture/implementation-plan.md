@@ -161,6 +161,7 @@ Status:
 - The web client now shows active, passive, and unclaimed ownership state, exposes take-control and release flows, and updates from current ownership instead of only later handoff events.
 - Browser-backed validation now covers two-browser handoff, passive input blocking, passive control-mutation blocking, and voluntary release against an isolated tmux socket.
 - Phase 5 completed on 2026-03-29.
+- Idle-release deferred out of v0 on 2026-04-14. Disconnect-based release already covers the "walked away" case, and a time-based auto-release conflicts with authentic tmux semantics (tmux clients stay attached until they detach). If stale owners become a real problem, address it with a "force take" UI override rather than an idle timer.
 
 Tasks:
 
@@ -168,7 +169,7 @@ Tasks:
 - Show passive/active state clearly in the web UI
 - Implement "Take Control" and release flows
 - Resize tmux to the active client on ownership transfer
-- Decide whether idle-release belongs in v0.x or later
+- ~~Decide whether idle-release belongs in v0.x or later~~ — deferred out of v0; revisit only if stale owners become a real problem, and prefer a "force take" UI override over a time-based policy
 
 Done when:
 
