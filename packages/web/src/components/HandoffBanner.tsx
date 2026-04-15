@@ -9,22 +9,36 @@ interface HandoffBannerProps {
 }
 
 export function HandoffBanner({ client, activeSession, ownership }: HandoffBannerProps) {
-  if (!activeSession || ownership.mode !== 'passive') return null
+  if (!activeSession) return null
+  if (ownership.mode !== 'passive' && ownership.mode !== 'unclaimed') return null
+
+  const isUnclaimed = ownership.mode === 'unclaimed'
+  const ownerLabel =
+    ownership.ownerType === 'mobile'
+      ? 'mobile device'
+      : ownership.ownerType === 'electron'
+        ? 'desktop app'
+        : 'another client'
 
   return (
     <div
       data-testid="handoff-banner"
+      data-mode={ownership.mode}
       className="absolute top-2 left-1/2 -translate-x-1/2 bg-bg-elevated/95 border border-border-default rounded-lg px-4 py-2 font-ui text-[12px] text-text-secondary flex items-center gap-2.5 z-[200] shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md whitespace-nowrap"
     >
-      <span className="text-sm">📱</span>
-      <span>Session active on</span>
-      <span className="text-accent-yellow font-medium">
-        {ownership.ownerType === 'mobile'
-          ? 'mobile device'
-          : ownership.ownerType === 'electron'
-            ? 'desktop app'
-            : 'another client'}
-      </span>
+      {isUnclaimed ? (
+        <>
+          <span className="text-sm">🔒</span>
+          <span>No client is controlling this session — Take Control to interact and resize tmux to your viewport</span>
+        </>
+      ) : (
+        <>
+          <span className="text-sm">📱</span>
+          <span>Session active on</span>
+          <span className="text-accent-yellow font-medium">{ownerLabel}</span>
+          <span className="text-text-tertiary">— Take Control to resize tmux to your viewport</span>
+        </>
+      )}
       <button
         data-testid="take-control-button"
         onClick={() => client.takeControl(activeSession.id)}

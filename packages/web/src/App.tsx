@@ -24,7 +24,11 @@ const _initConfig = typeof window !== 'undefined'
       const config = {
         bridgeUrl: params.get('bridge') ?? 'ws://localhost:7400',
         token: params.get('token') ?? '',
-        clientId: `web-${crypto.randomUUID().slice(0, 8)}`,
+        clientId: `web-${
+          typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID().slice(0, 8)
+            : Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')
+        }`,
       }
       if (params.has('token')) {
         const cleanUrl = new URL(window.location.href)
@@ -207,6 +211,7 @@ export function App() {
           client={client}
           layout={activeWindow?.layout ?? null}
           paneCommands={paneCommands}
+          paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
           focusedPaneId={focusedPaneId}
           onFocusPane={setFocusedPaneId}
           state={workspaceState}

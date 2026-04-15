@@ -85,4 +85,42 @@ describe('tmux bridge integration', () => {
       manager.closeAll()
     }
   })
+
+  test('does not replay historical pane output to late subscribers', async () => {
+    harness.start('cat')
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessions = await tmux.listSessions()
+    const pane = sessions[0]?.windows[0]?.panes[0]
+    const manager = new PtyManager(tmux)
+    let first = ''
+    let second = ''
+
+    expect(pane).toBeDefined()
+
+    try {
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-a', (data) => {
+        first += Buffer.from(data).toString('utf8')
+      })
+
+      await delay(200)
+      manager.writeInput(pane!.id, Buffer.from('before-second-subscriber\n'))
+      await delay(800)
+
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-b', (data) => {
+        second += Buffer.from(data).toString('utf8')
+      })
+
+      await delay(200)
+      manager.writeInput(pane!.id, Buffer.from('after-second-subscriber\n'))
+      await delay(800)
+
+      expect(first).toContain('before-second-subscriber\r\n')
+      expect(first).toContain('after-second-subscriber\r\n')
+      expect(second).not.toContain('before-second-subscriber\r\n')
+      expect(second).toContain('after-second-subscriber\r\n')
+    } finally {
+      manager.closeAll()
+    }
+  })
 })

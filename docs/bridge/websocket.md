@@ -25,7 +25,7 @@ Lifecycle:
 
 1. Client connects with auth token, pane ID, and client ID.
 2. Bridge validates token and pane existence. Invalid tokens are closed with `4001` / `AUTH_FAILED`.
-3. Bridge subscribes this socket to the pane's shared stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
+3. Bridge subscribes this socket to the pane's shared live stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
 4. Bridge checks ownership for that `clientId` before accepting input. Passive and unclaimed clients are read-only on the data channel.
 5. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge detaches the tmux output pipe and closes the pane stream.
 

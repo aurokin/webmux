@@ -82,6 +82,8 @@ This is the most latency-sensitive line in the entire codebase. See `docs/archit
 4. **Last client disconnects:** Current implementation closes the pane stream, detaches the tmux output pipe, and removes the FIFO.
 5. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
 
+Current behavior is live-only. A newly attached subscriber receives bytes produced after it joins the shared stream; the bridge does not replay `capture-pane` output on the data channel.
+
 ## Resize
 
 When a client sends a `pane.resize` message on the control channel, the bridge needs to resize the PTY:

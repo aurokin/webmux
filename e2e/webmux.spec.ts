@@ -106,6 +106,7 @@ test.describe.serial('webmux browser validation', () => {
     await observerPage.getByTestId('take-control-button').click()
     await expect(observerPage.getByTestId('ownership-mode')).toContainText('active')
     await expect(ownerPage.getByTestId('ownership-mode')).toContainText('passive')
+    await expect(observerPage.locator('.xterm').first()).toContainText('owner-a')
 
     await observerPage.locator('.xterm').first().click()
     await observerPage.keyboard.type('owner-b')
@@ -117,8 +118,10 @@ test.describe.serial('webmux browser validation', () => {
     await observerPage.getByTestId('release-control-button').click()
     await expect(observerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
     await expect(ownerPage.getByTestId('ownership-mode')).toContainText('unclaimed')
+    await expect(observerPage.locator('.xterm').first()).toContainText('owner-b')
 
     await takeControl(ownerPage)
+    await expect(ownerPage.locator('.xterm').first()).toContainText('owner-b')
     await ownerPage.locator('.xterm').first().click()
     await ownerPage.keyboard.type('after-release')
     await ownerPage.keyboard.press('Enter')

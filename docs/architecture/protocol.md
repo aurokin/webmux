@@ -67,6 +67,7 @@ One WebSocket connection per pane. Carries raw binary PTY data (output) and raw 
 - **Client → Bridge:** binary frames containing raw input bytes. Single keystrokes or short sequences. Written directly to the PTY fd. No batching.
 
 Data channels carry no JSON. They are pure byte streams.
+Historical pane snapshots, if added later, must use a separate protocol surface. Do not inject `tmux capture-pane` output into the live byte stream.
 
 ## Authentication
 

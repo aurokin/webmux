@@ -1,12 +1,14 @@
 import type { WebmuxClient } from '@webmux/client'
 import type { LayoutNode } from '@webmux/shared'
 import { Pane } from './Pane'
+import type { TerminalMode } from '../hooks/useTerminal'
 import { cn } from '../lib/cn'
 
 interface WorkspaceProps {
   client: WebmuxClient
   layout: LayoutNode | null
   paneCommands: Record<string, string>
+  paneMode: TerminalMode
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
   showPaneHeaders: boolean
@@ -21,6 +23,7 @@ export function Workspace({
   client,
   layout,
   paneCommands,
+  paneMode,
   focusedPaneId,
   onFocusPane,
   showPaneHeaders,
@@ -52,6 +55,7 @@ export function Workspace({
         node={layout}
         client={client}
         paneCommands={paneCommands}
+        paneMode={paneMode}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
         showPaneHeaders={showPaneHeaders}
@@ -64,6 +68,7 @@ interface LayoutRendererProps {
   node: LayoutNode
   client: WebmuxClient
   paneCommands: Record<string, string>
+  paneMode: TerminalMode
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
   showPaneHeaders: boolean
@@ -73,6 +78,7 @@ function LayoutRenderer({
   node,
   client,
   paneCommands,
+  paneMode,
   focusedPaneId,
   onFocusPane,
   showPaneHeaders,
@@ -83,6 +89,9 @@ function LayoutRenderer({
         client={client}
         paneId={node.paneId}
         currentCommand={paneCommands[node.paneId] ?? ''}
+        cols={node.cols}
+        rows={node.rows}
+        mode={paneMode}
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
         showHeader={showPaneHeaders}
@@ -109,6 +118,7 @@ function LayoutRenderer({
             node={child}
             client={client}
             paneCommands={paneCommands}
+            paneMode={paneMode}
             focusedPaneId={focusedPaneId}
             onFocusPane={onFocusPane}
             showPaneHeaders={showPaneHeaders}
