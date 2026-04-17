@@ -33,6 +33,8 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private controlConnection: Connection
   private paneConnections = new Map<string, Connection>()
   private paneInputs = new Map<string, InputHandler>()
+  private receivedWelcome = false
+  private receivedInitialStateSync = false
 
   private _sessions: Session[] = []
   private _ownership = new Map<string, SessionOwnership>()
@@ -47,7 +49,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       ...options,
     }
 
-    const controlUrl = `${options.url}/control?token=${options.token}`
+    const controlUrl = `${options.url}/control?token=${encodeURIComponent(options.token)}`
     this.controlConnection = new Connection(controlUrl)
 
     this.controlConnection.onOpen = () => {
@@ -82,12 +84,14 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
 
     this.controlConnection.onStatusChange = (status) => {
-      this._connectionStatus = status
       if (status === 'connected') {
-        this._connectionIssue = null
-        this.emit('connection:issue', null)
+        // For the control channel, a raw socket open is not yet a usable
+        // session connection. Wait for welcome + initial state.sync.
+        return
       }
-      this.emit('connection:status', status)
+
+      this.resetHandshake()
+      this.setConnectionStatus(status)
 
       if (status === 'reconnecting') {
         // Close all data channels — they'll be reopened after reconnect
@@ -129,8 +133,8 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this._connectionStatus === 'connected' ||
       this._connectionStatus === 'reconnecting'
     ) return
-    this._connectionStatus = 'connecting'
-    this.emit('connection:status', 'connecting')
+    this.resetHandshake()
+    this.setConnectionStatus('connecting')
     this.controlConnection.connect()
   }
 
@@ -295,17 +299,21 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private handleControlMessage(msg: BridgeMessage): void {
     switch (msg.type) {
       case 'welcome':
+        this.receivedWelcome = true
         this._ownership.clear()
         for (const o of msg.ownership) {
           this._ownership.set(o.sessionId, o)
         }
         this.emit('ownership:sync', Array.from(this._ownership.values()))
+        this.promoteToConnectedIfReady()
         break
 
       case 'state.sync':
+        this.receivedInitialStateSync = true
         this._sessions = msg.sessions
         this.pruneOwnership(this._sessions)
         this.emit('state:sync', msg.sessions)
+        this.promoteToConnectedIfReady()
         break
 
       case 'pane.added':
@@ -358,5 +366,29 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
 
     return null
+  }
+
+  private promoteToConnectedIfReady(): void {
+    if (!this.receivedWelcome || !this.receivedInitialStateSync) {
+      return
+    }
+
+    if (this._connectionStatus === 'connected') {
+      return
+    }
+
+    this._connectionIssue = null
+    this.emit('connection:issue', null)
+    this.setConnectionStatus('connected')
+  }
+
+  private resetHandshake(): void {
+    this.receivedWelcome = false
+    this.receivedInitialStateSync = false
+  }
+
+  private setConnectionStatus(status: ConnectionStatus): void {
+    this._connectionStatus = status
+    this.emit('connection:status', status)
   }
 }

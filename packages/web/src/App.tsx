@@ -9,46 +9,68 @@ import { SessionSwitcher } from './components/SessionSwitcher'
 import { CommandPalette } from './components/CommandPalette'
 import { HandoffBanner } from './components/HandoffBanner'
 import { Settings } from './components/Settings'
+import { TokenPrompt } from './components/TokenPrompt'
 import { useConnectionStatus, useConnectionIssue, useLatency, useSessions } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
 import { usePreferences, readPreferences } from './hooks/usePreferences'
 import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
+import {
+  DEFAULT_BRIDGE_URL,
+  type TokenSource,
+  getBridgeTokenStorageKey,
+  removeStoredBridgeTokenIfMatches,
+  resolveInitialBridgeAuth,
+  shouldPersistAcceptedBridgeToken,
+} from './lib/bridgeToken'
+import { shouldSubmitToken } from './lib/tokenSubmission'
+import { readSessionStorage, removeSessionStorage, writeSessionStorage } from './lib/sessionStorage'
 
 // Read config and strip token from URL immediately — before React renders —
 // to minimize the window where the token is visible in the address bar,
-// referrer headers, and browser history.
+// referrer headers, and browser history. URL tokens are only persisted after a
+// successful bridge handshake so a stale link cannot clobber the last
+// known-good token.
+// Stored tokens are still cleared on auth-failed.
 // Guard for non-browser environments (SSR, Node test runners).
 const _initConfig = typeof window !== 'undefined'
   ? (() => {
-      const params = new URLSearchParams(window.location.search)
+      const auth = resolveInitialBridgeAuth({
+        locationHref: window.location.href,
+        search: window.location.search,
+        readStorage: readSessionStorage,
+        replaceUrl: (url) => history.replaceState(null, '', url),
+      })
       const config = {
-        bridgeUrl: params.get('bridge') ?? 'ws://localhost:7400',
-        token: params.get('token') ?? '',
+        ...auth,
         clientId: `web-${
           typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID().slice(0, 8)
             : Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')
         }`,
       }
-      if (params.has('token')) {
-        const cleanUrl = new URL(window.location.href)
-        cleanUrl.searchParams.delete('token')
-        history.replaceState(null, '', cleanUrl.toString())
-      }
       return config
     })()
-  : { bridgeUrl: 'ws://localhost:7400', token: '', clientId: 'web-test' }
+  : {
+      bridgeUrl: DEFAULT_BRIDGE_URL,
+      storageKey: getBridgeTokenStorageKey(DEFAULT_BRIDGE_URL),
+      token: '',
+      tokenSource: 'none' as TokenSource,
+      clientId: 'web-test',
+    }
+
+function createClient(token: string): WebmuxClient {
+  return new WebmuxClient({
+    url: _initConfig.bridgeUrl,
+    token,
+    clientId: _initConfig.clientId,
+    clientType: 'web',
+  })
+}
 
 export function App() {
-  const [config] = useState(() => _initConfig)
-  const [client] = useState(() => {
-    return new WebmuxClient({
-      url: config.bridgeUrl,
-      token: config.token,
-      clientId: config.clientId,
-      clientType: 'web',
-    })
-  })
+  const [token, setToken] = useState(_initConfig.token)
+  const [tokenSource, setTokenSource] = useState<TokenSource>(_initConfig.tokenSource)
+  const [client, setClient] = useState(() => createClient(_initConfig.token))
 
   const { preferences, setPreference } = usePreferences()
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -67,17 +89,54 @@ export function App() {
     document.documentElement.setAttribute('data-theme', preferences.theme)
   }, [preferences.theme])
 
-  // Connect to bridge
+  // Connect to bridge. When token changes, the client is replaced via
+  // handleSubmitToken and this effect's cleanup disconnects the old one
+  // before the new one connects.
   useEffect(() => {
-    if (!config.token) {
-      console.warn('[webmux] No token provided. Add ?token=xxx to the URL.')
-      return
-    }
+    if (!token) return
     client.connect().catch((err) => {
       console.error('[webmux] connect failed:', err)
     })
     return () => client.disconnect()
-  }, [client, config.token])
+  }, [client, token])
+
+  // Tokens supplied via ?token= or the prompt should only replace the cached
+  // token after the bridge handshake accepts them. Until then, keep the last
+  // known-good token intact.
+  useEffect(() => {
+    if (!shouldPersistAcceptedBridgeToken(token, tokenSource, connectionStatus)) return
+    if (!writeSessionStorage(_initConfig.storageKey, token)) return
+    setTokenSource('storage')
+  }, [connectionStatus, token, tokenSource])
+
+  // Clear stored token on auth-failed so a reload won't auto-retry with it.
+  // Subscribe per-client and capture the token this client was built with, so
+  // that a late auth-failed from a replaced client can't clobber storage that
+  // already holds a newer, user-submitted token.
+  useEffect(() => {
+    const attemptedToken = token
+    return client.on('connection:issue', (issue) => {
+      if (issue !== 'auth-failed') return
+      removeStoredBridgeTokenIfMatches(
+        _initConfig.storageKey,
+        attemptedToken,
+        readSessionStorage,
+        removeSessionStorage,
+      )
+    })
+  }, [client, token])
+
+  const handleSubmitToken = useCallback((newToken: string) => {
+    if (!shouldSubmitToken({
+      nextToken: newToken,
+      currentToken: token,
+      connectionIssue,
+      connectionStatus,
+    })) return
+    setToken(newToken)
+    setTokenSource('user')
+    setClient(createClient(newToken))
+  }, [connectionIssue, connectionStatus, token])
 
   // Auto-select session
   useEffect(() => {
@@ -159,8 +218,14 @@ export function App() {
   // handleCommand never goes stale even when keybindActions changes.
   const dispatch = useKeybinds(keybindActions)
 
+  const showTokenPrompt = !token || connectionIssue === 'auth-failed'
+  const tokenPromptKind: 'missing' | 'storage-rejected' | 'submitted-rejected' = !token
+    ? 'missing'
+    : tokenSource === 'storage'
+      ? 'storage-rejected'
+      : 'submitted-rejected'
+
   const workspaceState = getWorkspaceState({
-    hasToken: config.token.length > 0,
     connectionIssue,
     connectionStatus,
     sessions,
@@ -207,16 +272,20 @@ export function App() {
         <HandoffBanner client={client} activeSession={activeSession} ownership={ownership} />
 
         {/* Pane area */}
-        <Workspace
-          client={client}
-          layout={activeWindow?.layout ?? null}
-          paneCommands={paneCommands}
-          paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
-          focusedPaneId={focusedPaneId}
-          onFocusPane={setFocusedPaneId}
-          state={workspaceState}
-          showPaneHeaders={preferences.paneHeaders}
-        />
+        {showTokenPrompt ? (
+          <TokenPrompt kind={tokenPromptKind} onSubmit={handleSubmitToken} />
+        ) : (
+          <Workspace
+            client={client}
+            layout={activeWindow?.layout ?? null}
+            paneCommands={paneCommands}
+            paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
+            focusedPaneId={focusedPaneId}
+            onFocusPane={setFocusedPaneId}
+            state={workspaceState}
+            showPaneHeaders={preferences.paneHeaders}
+          />
+        )}
 
         {/* Status bar */}
         <StatusBar
@@ -294,7 +363,6 @@ function collectPaneIds(node: LayoutNode): string[] {
 }
 
 interface WorkspaceStateInput {
-  hasToken: boolean
   connectionIssue: ConnectionIssue
   connectionStatus: ConnectionStatus
   sessions: Session[]
@@ -303,27 +371,12 @@ interface WorkspaceStateInput {
 }
 
 function getWorkspaceState({
-  hasToken,
   connectionIssue,
   connectionStatus,
   sessions,
   activeSession,
   activeWindow,
 }: WorkspaceStateInput) {
-  if (!hasToken) {
-    return {
-      title: 'Bridge token required',
-      detail: 'Open the client with ?token=<bridge-token> before connecting.',
-      tone: 'warning' as const,
-    }
-  }
-  if (connectionIssue === 'auth-failed') {
-    return {
-      title: 'Authentication failed',
-      detail: 'The provided bridge token was rejected. Refresh the page with a valid token.',
-      tone: 'error' as const,
-    }
-  }
   if (connectionIssue === 'protocol-error') {
     return {
       title: 'Protocol mismatch',
@@ -335,7 +388,7 @@ function getWorkspaceState({
   if (connectionStatus === 'connecting') {
     return {
       title: 'Connecting to bridge',
-      detail: 'Waiting for the control channel to come up.',
+      detail: 'Waiting for the bridge handshake to complete.',
       tone: 'neutral' as const,
     }
   }
