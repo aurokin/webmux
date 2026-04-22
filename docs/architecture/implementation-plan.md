@@ -2,22 +2,37 @@
 
 This plan turns the current scaffold into a working implementation.
 
-Use this document as the source of truth for build order. The rest of the docs mostly describe target behavior and end-state architecture.
+Use this document as the source of truth for build order and implementation status. The rest of the docs mostly describe target behavior and end-state architecture.
+
+Read this before deep architecture docs. Then read [harnesses.md](./harnesses.md) before changing code.
+
+## How To Use This Doc
+
+- Need to know what is real now: read the phase status sections.
+- Need to know what to build next: follow the phase order here, not the roadmap.
+- Need to know how to prove a change: pair this doc with [harnesses.md](./harnesses.md).
+
+## Current Shape
+
+- The repo is no longer scaffold-only. The core bridge path and browser validation path exist.
+- Backend-contract work remains higher priority than UI polish.
+- Rich panes and production hardening remain later-phase work.
 
 Implementation priority is intentionally core-first:
 
 - Build daemon and bridge behavior before UI polish.
 - Treat the web UI as a thin validation client until the bridge contract is stable.
 - Delay visual design and richer interaction work until the tmux, PTY, protocol, and ownership layers are dependable.
+- Add the smallest harness that can prove each phase before broadening scope.
 
-## What the scaffold already gives us
+## What the scaffold gave us at the outset
 
 - Clear package boundaries: `shared`, `bridge`, `client`, `cli`, `web`
 - A draft protocol and type model in `packages/shared`
 - A plausible bridge/client/web shape to implement against
 - Product direction: web-first tmux client, single-owner handoff model, optional rich panes
 
-## What the scaffold does not give us yet
+## What the scaffold did not give us at the outset
 
 - Working tmux discovery
 - Working PTY streaming
@@ -34,10 +49,10 @@ Goal: the repo should clearly communicate "scaffold" while supporting incrementa
 Status:
 
 - Completed on 2026-03-28.
-- Workspace typechecking is green across `@webmux/*`.
-- Cross-package source imports now resolve directly during typecheck, so implementation work can proceed without waiting on declaration builds.
-- Root quality scripts now include `lint`, `format:check`, `test:unit`, `test:integration`, and `check`.
-- The repo now has a real automated baseline: bridge unit tests for layout/session logic and tmux-backed integration tests for discovery, resize, and pane data flow.
+- Phase 0 established the workspace scripts, package wiring direction, and the initial automated baseline.
+- Cross-package source imports resolve directly during typecheck, so implementation work can proceed without waiting on declaration builds.
+- Root quality scripts include `lint`, `format:check`, `test:unit`, `test:integration`, and `check`.
+- Tooling drift after Phase 0 should be treated as regression against this phase, not as permission to skip harness work.
 
 Tasks:
 

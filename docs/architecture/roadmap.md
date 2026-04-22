@@ -2,6 +2,11 @@
 
 This is the product roadmap, not a statement of current implementation status.
 
+Read this only after:
+
+1. [implementation-plan.md](./implementation-plan.md) for what is already built
+2. [harnesses.md](./harnesses.md) for how new work gets proven
+
 For the scaffold-to-build work order, use `implementation-plan.md`.
 
 Priorities and milestones, in order.

@@ -1,42 +1,87 @@
 # Documentation Index
 
-Read the doc that matches what you're doing. Skip the rest.
+This docs tree is organized for progressive disclosure:
 
-Most docs in this tree describe the target system. Until the implementation plan lands a feature, treat code samples and package source as illustrative scaffold material rather than finished behavior.
+1. Understand what is real.
+2. Decide what to build next.
+3. Choose the smallest harness that can prove the change.
+4. Dive into subsystem detail only when you need it.
 
-## Implementation
+## Truth model
 
-- [implementation-plan.md](./architecture/implementation-plan.md) — Concrete build order from scaffold to working product. **Read first if you want to turn this repo into a real implementation.**
+These docs do not all answer the same question.
 
-## Architecture (start here for context)
+- [implementation-plan.md](./architecture/implementation-plan.md) — Source of truth for build order and implementation status.
+- [harnesses.md](./architecture/harnesses.md) — Source of truth for how changes get proven.
+- [overview.md](./architecture/overview.md) — Target architecture and system model.
+- [roadmap.md](./architecture/roadmap.md) — Future-facing product milestones, not current status.
 
-- [overview.md](./architecture/overview.md) — Target system design, package responsibilities, data flow. **Read first if you're new to the codebase.**
-- [protocol.md](./architecture/protocol.md) — Message schemas for control and data channels. **Read when adding or changing any message type.**
-- [latency.md](./architecture/latency.md) — Input path design, zero-buffering rules, buffered mode. **Read before touching input handling anywhere.**
-- [roadmap.md](./architecture/roadmap.md) — Product milestones, future consumers, themes, and agent workflow ordering. **Read to understand what ships when.**
+If a deep architecture doc and the implementation plan disagree, trust the implementation plan for what is built now.
 
-## Bridge (the Bun daemon)
+## Start Here
 
-- [tmux.md](./bridge/tmux.md) — How we discover and interact with tmux sessions, windows, panes. **Read when changing tmux integration.**
-- [pty.md](./bridge/pty.md) — Per-pane PTY lifecycle, read loop, data streaming. **Read when touching pane data flow.**
-- [websocket.md](./bridge/websocket.md) — WebSocket server architecture, control vs data channels, auth, client handoff mutex. **Read when changing connection handling.**
-- [gotchas.md](./bridge/gotchas.md) — Common mistakes in the bridge. **Read on your first bridge change.**
+Read these in order if you are new:
 
-## Client SDK
+1. [implementation-plan.md](./architecture/implementation-plan.md)
+2. [harnesses.md](./architecture/harnesses.md)
+3. [overview.md](./architecture/overview.md)
 
-- [sdk.md](./client/sdk.md) — Intended SDK shape and example usage. **Read when designing consumer-facing client APIs.**
-- [connection.md](./client/connection.md) — Connection state machine, reconnection, auth. **Read when changing connection behavior.**
-- [input.md](./client/input.md) — Direct input vs buffered input mode. **Read when touching keystroke handling.**
+That path gives you current status, proof strategy, and only then end-state architecture.
 
-## Web (React + xterm.js)
+## Read By Intent
 
-- [design.md](./web/design.md) — Visual design spec, layout, themes, keybinds, preferences. **Read first for any UI/UX work.**
-- [components.md](./web/components.md) — Component tree, ownership, state flow. **Read when adding or modifying UI.**
-- [layout.md](./web/layout.md) — Tmux pane tree to CSS flex conversion, resize handles. **Read when touching pane layout.**
-- [terminal.md](./web/terminal.md) — xterm.js integration, data binding, lifecycle. **Read when changing terminal rendering.**
-- [keyboard.md](./web/keyboard.md) — Browser keybind conflicts, companion extension plan, prefix key handling. **Read when touching keyboard input or keybinds.**
+### I need to know what is implemented today
 
-## CLI
+- [implementation-plan.md](./architecture/implementation-plan.md) — Phase-by-phase status, shipped work, remaining work.
 
-- [commands.md](./cli/commands.md) — `webmux serve`, `webmux open`, `webmux status`. **Read when adding CLI commands.**
-- [stub-protocol.md](./cli/stub-protocol.md) — Escape sequence protocol for rich pane rendering. **Read when building stub integrations.**
+### I need to know what to build next
+
+- [implementation-plan.md](./architecture/implementation-plan.md) — Current build order.
+- [roadmap.md](./architecture/roadmap.md) — Longer-range milestones after the current plan.
+
+### I need to know how to verify a change
+
+- [harnesses.md](./architecture/harnesses.md) — Harness ladder, change-to-proof mapping, preferred validation flow.
+- [latency.md](./architecture/latency.md) — Required invariants for the input path before you design a test wrong.
+
+### I need the system model
+
+- [overview.md](./architecture/overview.md) — Layers, package boundaries, data flow, ownership model.
+- [protocol.md](./architecture/protocol.md) — Control/data channel message contract.
+- [latency.md](./architecture/latency.md) — Zero-buffering rule and buffered-mode constraints.
+
+## Deep Dives By Area
+
+### Bridge
+
+- [tmux.md](./bridge/tmux.md) — Discovery, tmux commands, session/window/pane mapping.
+- [pty.md](./bridge/pty.md) — Pane stream lifecycle, PTY reads/writes, cleanup.
+- [websocket.md](./bridge/websocket.md) — Control/data channels, auth, ownership, handoff.
+- [gotchas.md](./bridge/gotchas.md) — Bridge-specific failure modes and mistakes.
+
+### Client SDK
+
+- [sdk.md](./client/sdk.md) — Consumer-facing client shape.
+- [connection.md](./client/connection.md) — Connection lifecycle, reconnection, auth.
+- [input.md](./client/input.md) — Direct input vs buffered input mode.
+
+### Web
+
+- [design.md](./web/design.md) — Visual direction, layout, themes, preferences.
+- [components.md](./web/components.md) — Component tree, ownership, state flow.
+- [layout.md](./web/layout.md) — Pane-tree to flex layout mapping and future resize work.
+- [terminal.md](./web/terminal.md) — xterm.js lifecycle and pane binding.
+- [keyboard.md](./web/keyboard.md) — Browser shortcut constraints and prefix behavior.
+
+### CLI
+
+- [commands.md](./cli/commands.md) — `webmux serve`, `webmux open`, `webmux status`.
+- [stub-protocol.md](./cli/stub-protocol.md) — Escape-sequence contract for rich panes.
+
+## Engineering Bias
+
+Prefer harness engineering over prose-first design drift:
+
+- Add or update the smallest proof harness before broadening a feature.
+- Prefer daemon, bridge, protocol, and ownership work before UI polish.
+- Treat the web app as a validation client until the backend contract is trustworthy.

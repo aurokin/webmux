@@ -1,8 +1,15 @@
-# Target Architecture
+# Architecture Overview
 
-This document describes the intended end-state architecture for webmux.
+This is the deep architecture document, not the first doc to read.
 
-The current repository is a scaffold. Source files under `packages/` demonstrate boundaries and API direction, but they do not yet implement every behavior described below.
+Use it after:
+
+1. [implementation-plan.md](./implementation-plan.md) for current status and build order
+2. [harnesses.md](./harnesses.md) for proof strategy
+
+This document describes the intended system model and package responsibilities.
+
+Some behavior described here is target-state architecture rather than guaranteed current implementation. When current behavior matters, defer to the implementation plan.
 
 webmux is a web client for tmux. It connects to an existing tmux server, reads session/window/pane state, streams pane data over WebSocket, and renders it in a browser via xterm.js.
 
