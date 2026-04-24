@@ -97,9 +97,11 @@ A client can voluntarily release ownership:
 
 Ownership becomes `null`. The next client to request control gets it immediately.
 
-### Idle release (optional, post-v0)
+### Idle release (deferred)
 
-If the owning client has sent no input for N minutes, the bridge could auto-release ownership. This prevents a forgotten browser tab from blocking handoff.
+Time-based idle release is currently deferred out of v0. Disconnect-based release already covers the common "walked away" case, and an idle timer conflicts with authentic tmux semantics.
+
+If stale owners become a real problem later, prefer an explicit force-take flow over a background auto-release policy.
 
 ## Auth
 

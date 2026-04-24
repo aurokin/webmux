@@ -1,11 +1,18 @@
 # Architecture Overview
 
+Doc type: reference
+Source of truth for: intended system model and package responsibilities
+Not the source of truth for: current implementation status or build order
+Read before this doc: [implementation-plan.md](./implementation-plan.md), [../decisions/README.md](../decisions/README.md), [harnesses.md](./harnesses.md)
+Describes: target behavior unless otherwise noted
+
 This is the deep architecture document, not the first doc to read.
 
 Use it after:
 
 1. [implementation-plan.md](./implementation-plan.md) for current status and build order
-2. [harnesses.md](./harnesses.md) for proof strategy
+2. [../decisions/README.md](../decisions/README.md) for locked constraints
+3. [harnesses.md](./harnesses.md) for proof strategy
 
 This document describes the intended system model and package responsibilities.
 

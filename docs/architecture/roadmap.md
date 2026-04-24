@@ -1,100 +1,52 @@
 # Roadmap
 
+Doc type: planning
+Source of truth for: future-facing milestones after the current implementation plan
+Not the source of truth for: what is already built today
+Read before this doc: [implementation-plan.md](./implementation-plan.md), [../decisions/README.md](../decisions/README.md), [harnesses.md](./harnesses.md)
+Describes: target future direction only
+
 This is the product roadmap, not a statement of current implementation status.
 
 Read this only after:
 
 1. [implementation-plan.md](./implementation-plan.md) for what is already built
-2. [harnesses.md](./harnesses.md) for how new work gets proven
+2. [../decisions/README.md](../decisions/README.md) for locked constraints
+3. [harnesses.md](./harnesses.md) for how new work gets proven
 
 For the scaffold-to-build work order, use `implementation-plan.md`.
 
+This roadmap intentionally omits completed milestones. Historical build phases live in the implementation plan.
+
+Detailed execution is tracked in the `Webmux` Linear project. This document stays intentionally milestone-scale.
+
 Priorities and milestones, in order.
 
-## v0 — Authentic browser tmux foundation
+## v0 — Complete the authentic browser tmux core
 
-The minimum viable product. A user runs `webmux serve`, opens the web app, and gets a tmux experience in the browser that feels faithful enough to replace a normal terminal session for real work.
+The core bridge path, ownership model, and minimal browser validation path are already in place. The remaining work to call v0 complete is concentrated in four areas:
 
-- [ ] Bridge discovers tmux sessions/windows/panes via CLI polling
-- [ ] Bridge opens PTY streams per pane and serves them over WebSocket
-- [ ] Bridge accepts input over WebSocket and writes to PTY fds
-- [ ] Web app connects via `@webmux/client`, renders pane layout with xterm.js
-- [ ] Session switcher (Ctrl+B S) with fuzzy search
-- [ ] Window tabs in status bar with click-to-switch
-- [ ] Pane split, close, zoom via prefix keys and UI controls
-- [ ] Draggable pane resize handles
-- [ ] Auth via random token printed to stdout
+- finish the missing core tmux workflows
+- land the rich-pane primitive
+- harden the bridge against realistic failure modes
+- add the minimum browser-side ergonomics needed to make the product dependable
 
-**Done when:** you can replace your terminal for a working session and not miss anything except Ctrl+W in vim.
+**Done when:** you can use webmux for a real working session, hand off across browsers intentionally, and trust the bridge contract under normal failure modes.
 
-## v0.1 — Session management polish
+## v0.1 — Browser ergonomics
 
-- [ ] Pane focus tracking with visual indicator
-- [ ] Layout persistence across window switches
-- [ ] Clean reconnection when the browser tab is backgrounded and refocused
-- [ ] Error states: bridge offline, tmux not running, session destroyed
-- [ ] Status bar: latency indicator, connection status
+After the core is dependable, improve the browser-native experience with optional shortcut recovery, buffered input for high-latency scenarios, and continued polish of the theme and shell experience.
 
-## v0.2 — Multi-device handoff
+## v1.0 — Release readiness
 
-- [ ] Client ownership mutex on the bridge
-- [ ] "Take Control" handoff banner in passive clients
-- [ ] Automatic tmux resize on handoff to new client dimensions
-- [ ] Passive mode: output visible, input disabled, visual indicator
-- [ ] Idle release: auto-release ownership after configurable inactivity
+Define the stable release surface, settle packaging and installation strategy, and align public and operator docs to the actual shipped behavior.
 
-## v0.3 — Companion browser extension
+## Post-v1 — Consumer expansion
 
-- [ ] Chrome extension: define commands for Ctrl+W, Ctrl+S, etc.
-- [ ] Extension opens shortcuts settings page with setup instructions
-- [ ] Extension communicates with webmux web app via content script
-- [ ] Extension only active on webmux tab (no interference with other tabs)
-- [ ] Document Zen/Firefox limitations
-
-## v0.4 — Stub CLI and webview panes
-
-- [ ] `webmux open` CLI with escape sequence protocol
-- [ ] Bridge detects stub escape sequences in PTY output
-- [ ] Web app upgrades pane renderer to iframe/webview on stub signal
-- [ ] Resource shorthands: `gh:`, `linear:`, `preview:`
-- [ ] `WEBMUX_RICH_CLIENT` environment variable set on proxied panes
-- [ ] Text fallback for regular terminals
-
-## v0.5 — Buffered input mode
-
-- [ ] Local input composition bar in pane UI
-- [ ] Send-on-enter for high-latency scenarios
-- [ ] Latency measurement via control channel ping/pong
-- [ ] Auto-suggest buffered mode when RTT exceeds threshold
-- [ ] Per-pane input mode toggle
-
-## v0.6 — Themes and visual customization
-
-- [ ] Introduce shared design tokens for terminal colors, chrome, spacing, and status UI
-- [ ] Ship Tokyo Night as the first supported theme
-- [ ] Ensure theme choices do not compromise terminal legibility or tmux authenticity
-- [ ] Keep xterm.js palette, pane chrome, and status surfaces visually coherent
-- [ ] Leave room for additional themes without coupling theme logic to tmux behavior
-
-## v0.7 — AI agent workflows
-
-- [ ] Define the product model for switching between AI agents from within a tmux-centric workflow
-- [ ] Integrate with external tooling such as `agentscan` without hard-coding the bridge to one backend
-- [ ] Make agent switching feel as direct as tmux session/window switching, similar in spirit to cmux
-- [ ] Decide what belongs in tmux panes vs richer browser-side UI
-- [ ] Keep the core tmux path usable even when agent integrations are unavailable
-
-## v1.0 — Production release
-
-- [ ] Stable protocol (version 1, documented, tested)
-- [ ] Performance profiling and optimization
-- [ ] Comprehensive error handling and edge case coverage
-- [ ] Documentation site
-- [ ] Installable CLI via `bun install -g @webmux/cli` or standalone binary
-
-## Post-v1 — Future
+Expand to additional consumers only after the bridge contract and release surface are trustworthy.
 
 - **Native mobile app (`@webmux/mobile`):** dedicated phone + tablet consumer for touch-first session control, handoff, and tablet layouts. Shares the same bridge contract and tmux-backed model.
-- **Mobile-responsive web layout:** single-pane view, swipe between panes, compressed status bar. Same web app, CSS-only changes plus touch gesture handling.
-- **tmux -CC control mode:** replace polling with push-based state updates from tmux. Bridge-internal change, no consumer impact.
-- **Electron wrapper (`@webmux/desktop`):** only if demand exists that web + extension cannot meet. Imports `@webmux/client`, wraps the same React UI in an Electron shell for full keybind control. End of roadmap.
+- **AI workflows:** additive agent-oriented navigation and rich surfaces that still preserve tmux as the workspace model.
+- **Mobile-responsive web layout:** quick-access fallback and responsive browser surface for smaller screens.
+- **tmux -CC control mode:** replace polling with push-based state updates from tmux without changing consumer semantics.
+- **Electron wrapper (`@webmux/desktop`):** only if web plus extension still cannot meet demand.

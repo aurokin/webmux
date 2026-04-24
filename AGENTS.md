@@ -6,6 +6,7 @@ webmux is currently a scaffold and design reference for a web-first tmux client 
 - Docs under `docs/` mostly describe target behavior, not guaranteed current behavior.
 - Use `docs/architecture/implementation-plan.md` as the source of truth for build order.
 - Prefer daemon, bridge, protocol, and ownership work before UI/design work.
+- Detailed execution planning lives in Linear; keep the repo focused on durable truth, decisions, harnesses, and phase-level direction.
 
 ## Scaffold commands
 

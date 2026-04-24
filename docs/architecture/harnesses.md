@@ -1,8 +1,16 @@
 # Harness Engineering
 
+Doc type: guideline
+Source of truth for: how changes get proven and which harness to reach for first
+Not the source of truth for: implementation status or future roadmap
+Read before this doc: [implementation-plan.md](./implementation-plan.md)
+Describes: active proof expectations and validation flow
+
 This document defines how webmux changes should be proven.
 
 The rule is simple: build the smallest harness that can falsify your assumption before you broaden scope.
+
+When detailed execution is tracked in Linear, each implementation issue should make its primary proof surface explicit there as well.
 
 For this project, that usually means:
 

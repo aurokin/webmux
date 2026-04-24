@@ -135,7 +135,22 @@ shared ← cli
 
 ## Documentation
 
-Architecture decisions, protocol specs, and implementation guides are in [`docs/`](./docs/README.md). Start with the documentation index, then read [`docs/architecture/implementation-plan.md`](./docs/architecture/implementation-plan.md) for the actual build order from scaffold to working system.
+Architecture decisions, protocol specs, implementation guides, and contributor gotchas are in [`docs/`](./docs/README.md).
+
+Start in this order:
+
+1. [`docs/architecture/implementation-plan.md`](./docs/architecture/implementation-plan.md) for what is real and what gets built next
+2. [`docs/decisions/README.md`](./docs/decisions/README.md) for locked architectural and product constraints
+3. [`docs/architecture/harnesses.md`](./docs/architecture/harnesses.md) for how changes should be proven
+
+Detailed execution lives in the Linear `Webmux` project. The repo keeps durable truth, not a second issue backlog.
+
+When you make a non-trivial change, update the matching layer instead of burying rationale in code or a PR:
+
+- status change -> implementation plan
+- durable constraint -> decision record
+- proof strategy -> harnesses
+- package-specific trap -> that package's `gotchas.md`
 
 ## License
 

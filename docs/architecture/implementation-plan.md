@@ -1,10 +1,16 @@
 # Implementation Plan
 
+Doc type: status
+Source of truth for: current implementation status and build order
+Not the source of truth for: locked decisions, deep subsystem semantics, or long-range roadmap priority
+Read before this doc: [docs/README.md](../README.md)
+Describes: current behavior and next build steps
+
 This plan turns the current scaffold into a working implementation.
 
 Use this document as the source of truth for build order and implementation status. The rest of the docs mostly describe target behavior and end-state architecture.
 
-Read this before deep architecture docs. Then read [harnesses.md](./harnesses.md) before changing code.
+Read this before deep architecture docs. Then read [../decisions/README.md](../decisions/README.md) and [harnesses.md](./harnesses.md) before changing code.
 
 ## How To Use This Doc
 
@@ -220,17 +226,26 @@ What remains for later phases:
 - Responsive/mobile layout
 - Companion browser extension for Ctrl+W
 
+## Execution Tracking
+
+Detailed execution now lives in the `Webmux` Linear project.
+
+Use this document for:
+
+- phase order
+- what is already real
+- what broad phase is next
+
+Use Linear for:
+
+- parent issue scope
+- tracer-bullet implementation slices
+- blocker relationships
+- issue-scale acceptance criteria
+
 ## Phase 6: Add rich-pane primitives
 
 Goal: the project-specific differentiator exists after the core tmux client is solid.
-
-Tasks:
-
-- Finalize the `webmux;` stub namespace and `WEBMUX_RICH_CLIENT`
-- Detect stub escape sequences in the PTY read path
-- Upgrade pane rendering from terminal to rich view when appropriate
-- Add text fallback behavior for regular terminals
-- Add guardrails for untrusted URLs
 
 Done when:
 
@@ -239,15 +254,6 @@ Done when:
 ## Phase 7: Production hardening
 
 Goal: move from working prototype to dependable tool.
-
-Tasks:
-
-- Add end-to-end tests around bridge, client, and web behavior
-- Test against tmux version variance and pane lifecycle edge cases
-- Add passive read-and-discard behavior for panes with no active subscribers if output backpressure requires it
-- Profile latency and throughput under noisy panes
-- Improve logging and operator-facing diagnostics
-- Decide packaging and distribution strategy for the CLI and bridge
 
 Done when:
 
@@ -262,16 +268,6 @@ Status:
 - Foundational UI redesign, theme system, keybind customization, and preference system shipped in Phase 5b.
 - Remaining work in this phase is iterative refinement on top of the working design.
 
-Tasks:
-
-- Add pane resize handles (drag-to-resize on pane gaps)
-- Add additional themes beyond Tokyo Night
-- Implement responsive sidebar collapse below breakpoint (~900px)
-- Refine session switcher with Ctrl+N create and Ctrl+K kill (requires backend protocol)
-- Add pane zoom UI indicator
-- Polish animations, transitions, and micro-interactions
-- Audit accessibility (focus rings, ARIA labels, contrast ratios, reduced motion)
-
 Done when:
 
 - UI work is improving a stable product rather than compensating for core instability
@@ -280,13 +276,6 @@ Done when:
 
 Goal: support phone + tablet usage with a real mobile app after the bridge contract and browser experience are stable.
 
-Tasks:
-
-- Decide whether the mobile consumer should reuse `@webmux/client` directly or require a smaller consumer-safe SDK layer
-- Design touch-first session switching, pane focus, and ownership handoff flows
-- Support phone and tablet layouts without changing bridge semantics
-- Preserve the same single-owner tmux model across web and mobile consumers
-
 Done when:
 
 - A user can connect from a phone or tablet app, monitor sessions, and intentionally take control without changing tmux semantics
@@ -294,13 +283,6 @@ Done when:
 ## Phase 10: Add AI agent workflows
 
 Goal: make switching between AI agents a first-class workflow after the tmux foundation is dependable.
-
-Tasks:
-
-- Define how agent switching maps onto tmux-native concepts without breaking the core terminal model
-- Integrate with external tooling such as `agentscan` while keeping bridge and client contracts generic
-- Decide which pieces belong in plain tmux panes versus richer browser-side surfaces
-- Validate that agent workflows still degrade cleanly to a normal tmux session when integrations are absent
 
 Done when:
 
@@ -320,6 +302,14 @@ Done when:
 10. UI refinement and polish. (Phase 8)
 11. Add a dedicated mobile consumer. (Phase 9)
 12. Add AI agent workflows. (Phase 10)
+
+Current detailed execution is organized in Linear milestones:
+
+- `V0 Core Completion`
+- `Browser Ergonomics`
+- `Release Readiness`
+- `Mobile Consumer`
+- `AI Workflows`
 
 ## Explicit non-goals for the first working version
 
