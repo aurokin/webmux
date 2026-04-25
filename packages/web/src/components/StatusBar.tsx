@@ -40,6 +40,7 @@ export function StatusBar({
       {/* Session badge */}
       <Segment>
         <button
+          data-testid="session-switcher-button"
           onClick={onOpenSwitcher}
           className="bg-accent-green text-bg-deep font-semibold px-2 py-0.5 rounded-[3px] text-[10px] tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all"
         >
@@ -78,10 +79,10 @@ export function StatusBar({
         <span className="text-accent-blue">◼</span>
         <span>
           {activeSession
-            ? activeSession.windows
+            ? (activeSession.windows
                 .find((w) => w.active)
                 ?.panes.map((p) => p.currentCommand || 'zsh')
-                .join(' · ') ?? ''
+                .join(' · ') ?? '')
             : ''}
         </span>
       </Segment>
@@ -98,6 +99,7 @@ export function StatusBar({
         {/* Ownership */}
         <Segment>
           <span
+            data-testid="ownership-mode"
             className={cn(
               ownership.mode === 'active'
                 ? 'text-accent-green'
@@ -110,6 +112,7 @@ export function StatusBar({
           </span>
           {ownership.mode === 'unclaimed' && activeSession && (
             <button
+              data-testid="claim-control-button"
               onClick={() => client.takeControl(activeSession.id)}
               className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
@@ -118,6 +121,7 @@ export function StatusBar({
           )}
           {ownership.mode === 'active' && activeSession && (
             <button
+              data-testid="release-control-button"
               onClick={() => client.releaseControl(activeSession.id)}
               className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
@@ -152,13 +156,7 @@ export function StatusBar({
   )
 }
 
-function Segment({
-  children,
-  last = false,
-}: {
-  children: React.ReactNode
-  last?: boolean
-}) {
+function Segment({ children, last = false }: { children: React.ReactNode; last?: boolean }) {
   return (
     <div
       className={cn(
@@ -206,7 +204,8 @@ function formatTimeFrom(date: Date) {
 }
 
 function msToMidnight(now: Date): number {
-  const ms = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime()
+  const ms =
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime()
   // Clamp to 1s to guard against near-zero delay from floating-point rounding
   // at the exact midnight boundary, while still allowing timely date updates.
   return Math.max(ms, 1_000)

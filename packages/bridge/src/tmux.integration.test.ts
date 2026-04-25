@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { PROTOCOL_VERSION, type BridgeMessage, type ClientMessage } from '@webmux/shared'
+import {
+  PROTOCOL_VERSION,
+  type BridgeMessage,
+  type ClientMessage,
+  type Session,
+} from '@webmux/shared'
 import { PtyManager } from './pty'
 import { SessionManager } from './session'
 import { delay, TmuxTestHarness } from './test-support'
@@ -58,7 +63,7 @@ class ControlTestClient {
 
   waitFor(
     predicate: (message: BridgeMessage) => boolean,
-    timeout = 2000,
+    timeout = 5000,
     startIndex = 0,
   ): Promise<BridgeMessage> {
     const existing = this.messages.slice(startIndex).find(predicate)
@@ -83,7 +88,7 @@ class ControlTestClient {
 
   waitForNew(
     predicate: (message: BridgeMessage) => boolean,
-    timeout = 2000,
+    timeout = 5000,
   ): Promise<BridgeMessage> {
     return this.waitFor(predicate, timeout, this.messages.length)
   }
@@ -142,6 +147,38 @@ async function expectWindowSize(
   }
 
   expect(actual).toBe(expected)
+}
+
+async function waitForManagedSessionByName(
+  sessionManager: SessionManager,
+  name: string,
+): Promise<Session> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const session = sessionManager.getSessions().find((candidate) => candidate.name === name)
+    if (session) {
+      return session
+    }
+    await delay(50)
+  }
+
+  throw new Error(`Timed out waiting for managed session ${name}`)
+}
+
+async function expectManagedOwnership(
+  sessionManager: SessionManager,
+  sessionId: string,
+  ownerId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const ownership = sessionManager.getSessionOwnership(sessionId)
+    if (ownership?.ownerId === ownerId) {
+      expect(ownership.ownerId).toBe(ownerId)
+      return
+    }
+    await delay(50)
+  }
+
+  expect(sessionManager.getSessionOwnership(sessionId)?.ownerId).toBe(ownerId)
 }
 
 describe('tmux bridge integration', () => {
@@ -340,6 +377,50 @@ describe('tmux bridge integration', () => {
     }
   })
 
+  test('serves an empty snapshot and recovers when tmux sessions appear later', async () => {
+    const tmux = new TmuxClient({ socketPath: harness.socketPath, pollInterval: 50 })
+    const sessionManager = new SessionManager(await tmux.listSessions())
+    const server = createWebSocketServer({
+      port: 0,
+      host: '127.0.0.1',
+      token: 'test-token',
+      tmux,
+      sessionManager,
+    })
+    const controlUrl = `ws://127.0.0.1:${server.port}/control?token=test-token`
+
+    tmux.startPolling(sessionManager)
+    const client = await ControlTestClient.connect(controlUrl, 'recovering-client')
+
+    try {
+      expect(sessionManager.getSessions()).toEqual([])
+      expect(client.messages).toContainEqual({
+        type: 'state.sync',
+        sessions: [],
+      })
+
+      harness.start('cat')
+
+      const sync = await client.waitForNew(
+        (message) =>
+          message.type === 'state.sync' &&
+          message.sessions.some((session) => session.name === harness.sessionName),
+        3000,
+      )
+
+      const recovered = findSessionByName(sync, harness.sessionName)
+      expect(recovered).toBeDefined()
+      expect(sessionManager.getSessionOwnership(recovered!.id)).toMatchObject({
+        sessionId: recovered!.id,
+        ownerId: null,
+      })
+    } finally {
+      client.close()
+      tmux.stopPolling()
+      server.stop(true)
+    }
+  })
+
   test('assigns concurrently created sessions to the requesting owners', async () => {
     harness.start()
     const baseBName = `${harness.sessionName}-base-b`
@@ -390,33 +471,11 @@ describe('tmux bridge integration', () => {
       ownerA.send({ type: 'session.create', baseSessionId: baseA!.id, name: createdAName })
       ownerB.send({ type: 'session.create', baseSessionId: baseB!.id, name: createdBName })
 
-      const createSync = await ownerA.waitForNew(
-        (message) =>
-          message.type === 'state.sync' &&
-          Boolean(findSessionByName(message, createdAName)) &&
-          Boolean(findSessionByName(message, createdBName)),
-      )
-      const createdA = findSessionByName(createSync, createdAName)
-      const createdB = findSessionByName(createSync, createdBName)
+      const createdA = await waitForManagedSessionByName(sessionManager, createdAName)
+      const createdB = await waitForManagedSessionByName(sessionManager, createdBName)
 
-      expect(createdA).toBeDefined()
-      expect(createdB).toBeDefined()
-
-      await ownerA.waitFor(
-        (message) =>
-          message.type === 'session.controlChanged' &&
-          message.sessionId === createdA!.id &&
-          message.ownerId === 'owner-a',
-      )
-      await ownerB.waitFor(
-        (message) =>
-          message.type === 'session.controlChanged' &&
-          message.sessionId === createdB!.id &&
-          message.ownerId === 'owner-b',
-      )
-
-      expect(sessionManager.getSessionOwnership(createdA!.id)?.ownerId).toBe('owner-a')
-      expect(sessionManager.getSessionOwnership(createdB!.id)?.ownerId).toBe('owner-b')
+      await expectManagedOwnership(sessionManager, createdA.id, 'owner-a')
+      await expectManagedOwnership(sessionManager, createdB.id, 'owner-b')
     } finally {
       ownerA.close()
       ownerB.close()

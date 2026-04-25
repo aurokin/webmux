@@ -15,6 +15,9 @@ DISCONNECTED → CONNECTING → CONNECTED → DISCONNECTED
 - **CONNECTED:** Control channel is open, `hello`/`welcome` handshake complete, state synced. Data channels can be opened.
 - **RECONNECTING:** Control channel dropped unexpectedly. Attempting to reconnect with exponential backoff.
 
+`CONNECTED` means the bridge is reachable and has sent a fresh snapshot. The
+snapshot may still be empty if tmux has no sessions yet.
+
 ## Reconnection
 
 When the control channel drops:
@@ -38,6 +41,25 @@ When the control channel reconnects, all data channels are closed. The consumer 
 2. On connect, token is passed as a query parameter on the WebSocket URL.
 3. If the bridge rejects the token (WebSocket close code 4001), the client does NOT retry — it emits `connection:status` → `'disconnected'` immediately. Auth failures are not transient.
 4. Consumers can read `client.connectionIssue` to distinguish auth failure from a generic offline/disconnected state.
+
+## Runtime recovery states
+
+The web app classifies common runtime failures from client state instead of
+adding separate bridge-specific error messages:
+
+- **Bridge offline:** `connectionStatus === 'reconnecting'`. The control channel
+  is retrying, and stale session data must not imply the current tmux state is
+  usable.
+- **Tmux unavailable:** `connectionStatus === 'connected'` and the latest
+  `state.sync` contains no sessions. The bridge is reachable and should keep
+  polling until sessions appear.
+- **Session ended:** the selected session existed in a previous snapshot but is
+  absent from the latest connected snapshot. Consumers should clear the selected
+  session and focused pane instead of silently falling through to another
+  session.
+
+When `state.sync` removes sessions, the SDK prunes ownership records and emits
+`ownership:sync` so consumers can clear stale active/passive state.
 
 ## Heartbeat
 

@@ -324,7 +324,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       case 'state.sync':
         this.receivedInitialStateSync = true
         this._sessions = msg.sessions
-        this.pruneOwnership(this._sessions)
+        if (this.pruneOwnership(this._sessions)) {
+          this.emit('ownership:sync', Array.from(this._ownership.values()))
+        }
         this.emit('state:sync', msg.sessions)
         this.promoteToConnectedIfReady()
         break
@@ -360,13 +362,18 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
   }
 
-  private pruneOwnership(sessions: Session[]): void {
+  private pruneOwnership(sessions: Session[]): boolean {
     const activeSessionIds = new Set(sessions.map((session) => session.id))
+    let pruned = false
+
     for (const sessionId of this._ownership.keys()) {
       if (!activeSessionIds.has(sessionId)) {
         this._ownership.delete(sessionId)
+        pruned = true
       }
     }
+
+    return pruned
   }
 
   private findSessionByPaneId(paneId: string): Session | null {

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { WebmuxClient, type ConnectionIssue, type ConnectionStatus } from '@webmux/client'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { WebmuxClient } from '@webmux/client'
 import type { LayoutNode, Session, Window } from '@webmux/shared'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TabBar } from './components/TabBar'
@@ -10,7 +10,12 @@ import { CommandPalette } from './components/CommandPalette'
 import { HandoffBanner } from './components/HandoffBanner'
 import { Settings } from './components/Settings'
 import { TokenPrompt } from './components/TokenPrompt'
-import { useConnectionStatus, useConnectionIssue, useLatency, useSessions } from './hooks/useSession'
+import {
+  useConnectionStatus,
+  useConnectionIssue,
+  useLatency,
+  useSessions,
+} from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
 import { usePreferences, readPreferences } from './hooks/usePreferences'
 import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
@@ -24,6 +29,13 @@ import {
 } from './lib/bridgeToken'
 import { shouldSubmitToken } from './lib/tokenSubmission'
 import { readSessionStorage, removeSessionStorage, writeSessionStorage } from './lib/sessionStorage'
+import {
+  getActiveSession,
+  getActiveWindow,
+  getDefaultSelectedSessionId,
+  getWorkspaceState,
+  type DestroyedSession,
+} from './lib/workspaceState'
 
 // Read config and strip token from URL immediately — before React renders —
 // to minimize the window where the token is visible in the address bar,
@@ -32,31 +44,34 @@ import { readSessionStorage, removeSessionStorage, writeSessionStorage } from '.
 // known-good token.
 // Stored tokens are still cleared on auth-failed.
 // Guard for non-browser environments (SSR, Node test runners).
-const _initConfig = typeof window !== 'undefined'
-  ? (() => {
-      const auth = resolveInitialBridgeAuth({
-        locationHref: window.location.href,
-        search: window.location.search,
-        readStorage: readSessionStorage,
-        replaceUrl: (url) => history.replaceState(null, '', url),
-      })
-      const config = {
-        ...auth,
-        clientId: `web-${
-          typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID().slice(0, 8)
-            : Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')
-        }`,
+const _initConfig =
+  typeof window !== 'undefined'
+    ? (() => {
+        const auth = resolveInitialBridgeAuth({
+          locationHref: window.location.href,
+          search: window.location.search,
+          readStorage: readSessionStorage,
+          replaceUrl: (url) => history.replaceState(null, '', url),
+        })
+        const config = {
+          ...auth,
+          clientId: `web-${
+            typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID().slice(0, 8)
+              : Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) =>
+                  b.toString(16).padStart(2, '0'),
+                ).join('')
+          }`,
+        }
+        return config
+      })()
+    : {
+        bridgeUrl: DEFAULT_BRIDGE_URL,
+        storageKey: getBridgeTokenStorageKey(DEFAULT_BRIDGE_URL),
+        token: '',
+        tokenSource: 'none' as TokenSource,
+        clientId: 'web-test',
       }
-      return config
-    })()
-  : {
-      bridgeUrl: DEFAULT_BRIDGE_URL,
-      storageKey: getBridgeTokenStorageKey(DEFAULT_BRIDGE_URL),
-      token: '',
-      tokenSource: 'none' as TokenSource,
-      clientId: 'web-test',
-    }
 
 function createClient(token: string): WebmuxClient {
   return new WebmuxClient({
@@ -78,6 +93,8 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
+  const [destroyedSession, setDestroyedSession] = useState<DestroyedSession | null>(null)
+  const previousSessionsRef = useRef<Session[]>([])
 
   const sessions = useSessions(client)
   const connectionStatus = useConnectionStatus(client)
@@ -126,22 +143,67 @@ export function App() {
     })
   }, [client, token])
 
-  const handleSubmitToken = useCallback((newToken: string) => {
-    if (!shouldSubmitToken({
-      nextToken: newToken,
-      currentToken: token,
-      connectionIssue,
-      connectionStatus,
-    })) return
-    setToken(newToken)
-    setTokenSource('user')
-    setClient(createClient(newToken))
-  }, [connectionIssue, connectionStatus, token])
+  const handleSubmitToken = useCallback(
+    (newToken: string) => {
+      if (
+        !shouldSubmitToken({
+          nextToken: newToken,
+          currentToken: token,
+          connectionIssue,
+          connectionStatus,
+        })
+      )
+        return
+      setToken(newToken)
+      setTokenSource('user')
+      setSelectedSessionId(null)
+      setFocusedPaneId(null)
+      setDestroyedSession(null)
+      setClient(createClient(newToken))
+    },
+    [connectionIssue, connectionStatus, token],
+  )
 
-  // Auto-select session
+  // Keep selected session state explicit. A destroyed selected session should
+  // render a recovery state instead of silently falling through to another one.
   useEffect(() => {
-    setSelectedSessionId((current) => getNextSelectedSessionId(sessions, current))
-  }, [sessions])
+    if (connectionStatus !== 'connected') {
+      previousSessionsRef.current = sessions
+      return
+    }
+
+    if (selectedSessionId) {
+      const selectedStillExists = sessions.some((session) => session.id === selectedSessionId)
+      if (!selectedStillExists) {
+        const previousSession = previousSessionsRef.current.find(
+          (session) => session.id === selectedSessionId,
+        )
+        setDestroyedSession({
+          id: selectedSessionId,
+          name: previousSession?.name ?? selectedSessionId,
+        })
+        setSelectedSessionId(null)
+        setFocusedPaneId(null)
+        previousSessionsRef.current = sessions
+        return
+      }
+
+      if (destroyedSession?.id === selectedSessionId) {
+        setDestroyedSession(null)
+      }
+      previousSessionsRef.current = sessions
+      return
+    }
+
+    if (!destroyedSession) {
+      const nextSessionId = getDefaultSelectedSessionId(sessions)
+      if (nextSessionId) {
+        setSelectedSessionId(nextSessionId)
+      }
+    }
+
+    previousSessionsRef.current = sessions
+  }, [connectionStatus, destroyedSession, selectedSessionId, sessions])
 
   const activeSession = getActiveSession(sessions, selectedSessionId)
   const activeWindow = getActiveWindow(activeSession)
@@ -166,6 +228,7 @@ export function App() {
       jumpToSession: (index: number) => {
         const session = sessions[index]
         if (!session) return
+        setDestroyedSession(null)
         setSelectedSessionId(session.id)
         const targetWindow = session.windows.find((w) => w.active) ?? null
         const paneIds = targetWindow ? collectPaneIds(targetWindow.layout) : []
@@ -206,6 +269,7 @@ export function App() {
         client.disconnect()
         setSelectedSessionId(null)
         setFocusedPaneId(null)
+        setDestroyedSession(null)
       },
       openSettings: () => {
         setSettingsOpen(true)
@@ -231,15 +295,14 @@ export function App() {
     sessions,
     activeSession,
     activeWindow,
+    destroyedSession,
   })
 
-  const handleSelectSession = useCallback(
-    (sessionId: string) => {
-      setSelectedSessionId(sessionId)
-      setFocusedPaneId(null)
-    },
-    [],
-  )
+  const handleSelectSession = useCallback((sessionId: string) => {
+    setDestroyedSession(null)
+    setSelectedSessionId(sessionId)
+    setFocusedPaneId(null)
+  }, [])
 
   return (
     <div className="flex h-screen w-screen bg-bg-deep text-text-primary">
@@ -312,42 +375,11 @@ export function App() {
         />
       )}
 
-      {paletteOpen && (
-        <CommandPalette
-          onClose={() => setPaletteOpen(false)}
-          onExecute={dispatch}
-        />
-      )}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onExecute={dispatch} />}
 
-      {settingsOpen && (
-        <Settings
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
-}
-
-function getNextSelectedSessionId(sessions: Session[], current: string | null): string | null {
-  if (current && sessions.some((session) => session.id === current)) {
-    return current
-  }
-  return sessions.find((session) => session.attached)?.id ?? sessions[0]?.id ?? null
-}
-
-function getActiveSession(sessions: Session[], selectedSessionId: string | null): Session | null {
-  if (selectedSessionId) {
-    const found = sessions.find((session) => session.id === selectedSessionId)
-    if (found) return found
-  }
-  // Fallback when selectedSessionId is null or stale (e.g. session was destroyed,
-  // but setSelectedSessionId effect hasn't fired yet)
-  return sessions.find((session) => session.attached) ?? sessions[0] ?? null
-}
-
-function getActiveWindow(session: Session | null): Window | null {
-  if (!session) return null
-  return session.windows.find((window) => window.active) ?? null
 }
 
 function getPaneCommands(window: Window | null): Record<string, string> {
@@ -360,72 +392,4 @@ function collectPaneIds(node: LayoutNode): string[] {
     return [node.paneId]
   }
   return node.children.flatMap(collectPaneIds)
-}
-
-interface WorkspaceStateInput {
-  connectionIssue: ConnectionIssue
-  connectionStatus: ConnectionStatus
-  sessions: Session[]
-  activeSession: Session | null
-  activeWindow: Window | null
-}
-
-function getWorkspaceState({
-  connectionIssue,
-  connectionStatus,
-  sessions,
-  activeSession,
-  activeWindow,
-}: WorkspaceStateInput) {
-  if (connectionIssue === 'protocol-error') {
-    return {
-      title: 'Protocol mismatch',
-      detail: 'The client and bridge disagree about the protocol version.',
-      tone: 'error' as const,
-    }
-  }
-  // Connection status checks run regardless of stale session data
-  if (connectionStatus === 'connecting') {
-    return {
-      title: 'Connecting to bridge',
-      detail: 'Waiting for the bridge handshake to complete.',
-      tone: 'neutral' as const,
-    }
-  }
-  if (connectionStatus === 'reconnecting') {
-    return {
-      title: 'Bridge offline',
-      detail: 'The client is retrying the control connection.',
-      tone: 'warning' as const,
-    }
-  }
-  if (connectionStatus === 'disconnected') {
-    return {
-      title: 'Disconnected from bridge',
-      detail: 'The connection was closed. Refresh the page to reconnect.',
-      tone: 'warning' as const,
-    }
-  }
-  if (sessions.length === 0) {
-    return {
-      title: 'No tmux sessions available',
-      detail: 'Start tmux on the target socket or bring the bridge back online.',
-      tone: 'warning' as const,
-    }
-  }
-  if (!activeSession) {
-    return {
-      title: 'No session selected',
-      detail: 'Choose a live tmux session to start.',
-      tone: 'neutral' as const,
-    }
-  }
-  if (!activeWindow) {
-    return {
-      title: 'No active window',
-      detail: 'The selected session does not currently expose a renderable tmux window.',
-      tone: 'warning' as const,
-    }
-  }
-  return null
 }

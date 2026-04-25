@@ -156,6 +156,7 @@ Status:
 - Browser-backed end-to-end validation now exists against an isolated tmux socket.
 - The current web app can render a live tmux pane, switch between live sessions, forward browser input into tmux, and recover pane/control channels after a bridge restart.
 - The validation client now exposes explicit token-required and auth-failure states, plus a deliberate selected-session and focused-pane model.
+- Runtime recovery states now distinguish bridge offline, tmux unavailable, and destroyed selected sessions. The bridge can stay online with an empty tmux snapshot and recover when sessions appear later.
 - Phase 4 completed on 2026-03-28.
 
 Tasks:

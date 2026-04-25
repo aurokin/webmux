@@ -203,6 +203,10 @@ export class WebmuxE2EStack {
     return runTmux(this.tmuxSocketPath, ['capture-pane', '-p', '-t', `${sessionName}:1`])
   }
 
+  killSession(sessionName: string): void {
+    runTmux(this.tmuxSocketPath, ['kill-session', '-t', sessionName])
+  }
+
   activeWindowName(sessionName = this.sessionName): string {
     const output = runTmux(this.tmuxSocketPath, [
       'list-windows',

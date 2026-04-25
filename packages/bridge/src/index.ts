@@ -22,8 +22,7 @@ const tmux = new TmuxClient({
 const initialSessions = await tmux.listSessions()
 
 if (initialSessions.length === 0) {
-  console.error('No tmux sessions found. Start a tmux session first.')
-  process.exit(1)
+  console.warn('No tmux sessions found. Waiting for tmux sessions to appear.')
 }
 
 // Session manager tracks state and ownership

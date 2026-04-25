@@ -443,7 +443,7 @@ async function runOwnedPaneMutation({
   paneId: string
   sessionManager: SessionManager
   action: () => Promise<void>
-  refreshState?: () => Promise<void>
+  refreshState?: () => Promise<unknown>
 }): Promise<void> {
   const sessionId = sessionManager.getSessionIdByPaneId(paneId)
   if (!sessionId) {
@@ -519,7 +519,7 @@ async function runOwnedTmuxMutation({
   sessionManager: SessionManager
   sessionId: string
   action: () => Promise<void>
-  refreshState?: () => Promise<void>
+  refreshState?: () => Promise<unknown>
 }): Promise<void> {
   const clientId = ws.data.clientId
   if (!clientId) {

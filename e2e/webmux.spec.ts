@@ -133,6 +133,31 @@ test.describe.serial('webmux browser validation', () => {
     await ownerPage.close()
     await observerPage.close()
   })
+
+  test('shows a destroyed-session state and recovers by selecting another session', async ({
+    page,
+  }) => {
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+
+    stack.killSession(stack.sessionName)
+
+    await expect(page.locator('body')).toContainText(`Session ended: ${stack.sessionName}`)
+    await expect(page.locator('body')).toContainText('Select another live tmux session')
+
+    await selectSession(page, stack.secondarySessionName)
+    await expect(page.locator('body')).not.toContainText(`Session ended: ${stack.sessionName}`)
+    await page.waitForSelector('.xterm')
+    await takeControl(page)
+
+    await page.locator('.xterm').first().click()
+    await page.keyboard.type('after-destroyed-session')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(800)
+
+    expect(stack.capturePane(stack.secondarySessionName)).toContain('after-destroyed-session')
+  })
 })
 
 function captureEither(stack: WebmuxE2EStack, text: string): boolean {

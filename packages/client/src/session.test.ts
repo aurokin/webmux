@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { PROTOCOL_VERSION, WS_CLOSE, type BridgeMessage, type ClientMessage } from '@webmux/shared'
+import {
+  PROTOCOL_VERSION,
+  WS_CLOSE,
+  type BridgeMessage,
+  type ClientMessage,
+  type Session,
+} from '@webmux/shared'
 import { WebmuxClient } from './session'
 
 type FakeMessageEvent = { data: string | ArrayBuffer }
@@ -60,6 +66,42 @@ class FakeWebSocket {
 
   static reset() {
     FakeWebSocket.instances = []
+  }
+}
+
+function createSession(id: string): Session {
+  return {
+    id,
+    name: id,
+    attached: false,
+    windowCount: 1,
+    windows: [
+      {
+        id: `${id}:1`,
+        index: 1,
+        name: 'shell',
+        active: true,
+        paneCount: 1,
+        panes: [
+          {
+            id: `%${id}`,
+            index: 0,
+            cols: 80,
+            rows: 24,
+            currentCommand: 'sh',
+            pid: 123,
+            ttyPath: '/dev/ttys001',
+            zoomed: false,
+          },
+        ],
+        layout: {
+          type: 'pane',
+          paneId: `%${id}`,
+          cols: 80,
+          rows: 24,
+        },
+      },
+    ],
   }
 }
 
@@ -221,6 +263,60 @@ describe('WebmuxClient connection handshake', () => {
 
     expect(client.connectionStatus).toBe('connected')
     expect(statuses).toEqual(['connecting', 'connected', 'reconnecting', 'connected'])
+  })
+
+  test('emits ownership sync when state sync prunes a destroyed session', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const ownershipSyncs: unknown[] = []
+
+    client.on('ownership:sync', (ownership) => ownershipSyncs.push(ownership))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [
+        {
+          sessionId: '$1',
+          ownerId: 'web-test',
+          ownerType: 'web',
+          acquiredAt: 100,
+        },
+      ],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('$1')],
+    })
+
+    expect(client.getOwnership('$1')?.ownerId).toBe('web-test')
+
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [],
+    })
+
+    expect(client.getOwnership('$1')).toBeNull()
+    expect(ownershipSyncs).toEqual([
+      [
+        {
+          sessionId: '$1',
+          ownerId: 'web-test',
+          ownerType: 'web',
+          acquiredAt: 100,
+        },
+      ],
+      [],
+    ])
   })
 
   test('does not report connected before an auth failure close', async () => {
