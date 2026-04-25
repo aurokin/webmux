@@ -212,15 +212,15 @@ What shipped:
 - **Tailwind CSS v4 migration:** Replaced all inline styles with Tailwind utility classes. CSS custom properties define the full theme token set, consumed via `@theme` block. Tokyo Night is the default (and currently only) theme.
 - **Component architecture redesign:** New Sidebar (cmux-style session/pane nav), TabBar (top window tabs), StatusBar (segmented, ownership/connection/latency/clock), Workspace (flex pane layout with optional headers), SessionSwitcher (fuzzy search modal), CommandPalette (grouped commands with keybind display), Settings (General + Keybinds tabs), HandoffBanner.
 - **User preferences system:** `usePreferences` hook backed by localStorage with cross-tab sync via `useSyncExternalStore`. Controls tab position, pane headers, sidebar, font, font size, theme, background style.
-- **Frontend action wiring:** Split, close, new window, next/prev window, select window, and detach are wired to real `WebmuxClient` methods. Zoom pane, create session, and kill session remain stubs (need protocol extensions).
+- **Frontend action wiring:** Split, close, new window, next/prev window, select window, and detach are wired to real `WebmuxClient` methods. Zoom pane, create session, and kill session remain web UI stubs until the AUR-72 browser workflow wiring.
 - **Keybind customization:** Full per-action rebinding with configurable prefix key. `lib/keybinds.ts` provides the config layer (defaults, localStorage overrides, `buildKeyMap` for reverse lookup). `useKeybinds` hook consumes the config. Settings panel has click-to-record UI for rebinding, per-action and global reset. Command palette dynamically reflects current keybind config.
 - **Typography and fonts:** Curated list of 8 monospace fonts selectable in Settings. Font size slider (10-20px). Google Fonts loaded in index.html.
 - **Background options:** Solid (default), gradient, pattern, and custom color backgrounds independent of theme.
 
 What remains for later phases:
 
-- Zoom pane (needs `zoomPane` protocol message)
-- Session create/kill from sidebar/switcher (needs `createSession`/`killSession` protocol messages)
+- Zoom pane web UI wiring
+- Session create/kill from sidebar/switcher
 - Additional themes beyond Tokyo Night
 - Resize handles on pane gaps
 - Responsive/mobile layout
@@ -297,11 +297,16 @@ Done when:
 5. ~~Add the minimum web client needed to validate one real session.~~ (Phase 4 — done)
 6. ~~Add ownership handoff.~~ (Phase 5 — done)
 7. ~~Redesign web app, wire frontend actions, build keybind system.~~ (Phase 5b — done)
-8. Add rich-pane features. (Phase 6)
-9. Production hardening. (Phase 7)
-10. UI refinement and polish. (Phase 8)
-11. Add a dedicated mobile consumer. (Phase 9)
-12. Add AI agent workflows. (Phase 10)
+8. Complete the remaining core tmux surface. (Linear parent `AUR-96`)
+9. Add rich-pane primitives. (Phase 6 / Linear parent `AUR-97`)
+10. Harden the bridge. (Phase 7 / Linear parent `AUR-98`)
+11. Refine browser ergonomics. (Phase 8 / Linear parents `AUR-99`, `AUR-100`, `AUR-101`)
+12. Define release readiness. (Linear parent `AUR-102`)
+13. Add a dedicated mobile consumer. (Phase 9 / Linear parent `AUR-103`)
+14. Add AI agent workflows. (Phase 10 / Linear parent `AUR-104`)
+
+For issue-scale execution, follow Linear dependency relationships rather than
+duplicating child issue order here.
 
 Current detailed execution is organized in Linear milestones:
 

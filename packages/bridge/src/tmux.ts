@@ -34,6 +34,11 @@ function parseInteger(value: string, field: string): number {
   return parsed
 }
 
+function normalizeSessionName(name: string | undefined): string | null {
+  const normalized = name?.trim()
+  return normalized ? normalized : null
+}
+
 function isNoTmuxServerError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -258,12 +263,30 @@ export class TmuxClient {
     await this.exec(['new-window', '-t', sessionId])
   }
 
+  async createSession(name?: string): Promise<string> {
+    const args = ['new-session', '-d', '-P', '-F', '#{session_id}']
+    const normalizedName = normalizeSessionName(name)
+    if (normalizedName) {
+      args.push('-s', normalizedName)
+    }
+
+    return this.exec(args)
+  }
+
+  async killSession(sessionId: string): Promise<void> {
+    await this.exec(['kill-session', '-t', sessionId])
+  }
+
   async selectWindow(windowId: string): Promise<void> {
     await this.exec(['select-window', '-t', windowId])
   }
 
   async closePane(paneId: string): Promise<void> {
     await this.exec(['kill-pane', '-t', paneId])
+  }
+
+  async toggleZoomPane(paneId: string): Promise<void> {
+    await this.exec(['resize-pane', '-Z', '-t', paneId])
   }
 
   async resizePane(paneId: string, cols: number, rows: number): Promise<void> {

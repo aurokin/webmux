@@ -178,7 +178,7 @@ export function App() {
         if (focusedPaneId) client.splitPane(focusedPaneId, 'vertical')
       },
       zoomPane: () => {
-        // zoomPane not yet in client API — needs protocol extension
+        // AUR-72 wires this protocol-backed client method into the browser workflow.
       },
       closePane: () => {
         if (focusedPaneId) client.closePane(focusedPaneId)

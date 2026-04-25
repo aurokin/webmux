@@ -7,6 +7,7 @@ import {
   type ClientMessage,
   type BridgeMessage,
   type ClientType,
+  type Session,
 } from '@webmux/shared'
 import type { TmuxClient } from './tmux'
 import type { SessionManager } from './session'
@@ -261,6 +262,7 @@ async function handleControlMessage({
         sessionManager,
         sessionId: msg.sessionId,
         action: () => tmux.selectWindow(msg.sessionId + ':' + msg.windowIndex),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
 
@@ -270,6 +272,27 @@ async function handleControlMessage({
         sessionManager,
         sessionId: msg.sessionId,
         action: () => tmux.createWindow(msg.sessionId),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
+      })
+      break
+
+    case 'session.create':
+      await runCreateSessionMutation({
+        ws,
+        tmux,
+        sessionManager,
+        baseSessionId: msg.baseSessionId,
+        name: msg.name,
+      })
+      break
+
+    case 'session.kill':
+      await runOwnedTmuxMutation({
+        ws,
+        sessionManager,
+        sessionId: msg.sessionId,
+        action: () => tmux.killSession(msg.sessionId),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
 
@@ -279,6 +302,17 @@ async function handleControlMessage({
         paneId: msg.paneId,
         sessionManager,
         action: () => tmux.splitPane(msg.paneId, msg.direction),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
+      })
+      break
+
+    case 'pane.zoom':
+      await runOwnedPaneMutation({
+        ws,
+        paneId: msg.paneId,
+        sessionManager,
+        action: () => tmux.toggleZoomPane(msg.paneId),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
 
@@ -288,6 +322,7 @@ async function handleControlMessage({
         paneId: msg.paneId,
         sessionManager,
         action: () => tmux.resizePane(msg.paneId, msg.cols, msg.rows),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
 
@@ -297,6 +332,7 @@ async function handleControlMessage({
         paneId: msg.paneId,
         sessionManager,
         action: () => tmux.closePane(msg.paneId),
+        refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
 
@@ -401,11 +437,13 @@ async function runOwnedPaneMutation({
   paneId,
   sessionManager,
   action,
+  refreshState,
 }: {
   ws: ServerWebSocket<ControlSocketData>
   paneId: string
   sessionManager: SessionManager
   action: () => Promise<void>
+  refreshState?: () => Promise<void>
 }): Promise<void> {
   const sessionId = sessionManager.getSessionIdByPaneId(paneId)
   if (!sessionId) {
@@ -413,7 +451,61 @@ async function runOwnedPaneMutation({
     return
   }
 
-  await runOwnedTmuxMutation({ ws, sessionManager, sessionId, action })
+  await runOwnedTmuxMutation({ ws, sessionManager, sessionId, action, refreshState })
+}
+
+async function runCreateSessionMutation({
+  ws,
+  tmux,
+  sessionManager,
+  baseSessionId,
+  name,
+}: {
+  ws: ServerWebSocket<ControlSocketData>
+  tmux: TmuxClient
+  sessionManager: SessionManager
+  baseSessionId: string | undefined
+  name: string | undefined
+}): Promise<void> {
+  const clientId = ws.data.clientId
+  if (!clientId) {
+    sendBridgeError(ws, 'INVALID_MESSAGE', 'Client identity is not established')
+    return
+  }
+
+  const existingSessions = sessionManager.getSessions()
+  if (existingSessions.length > 0) {
+    if (!baseSessionId) {
+      sendBridgeError(ws, 'INVALID_MESSAGE', 'Base session id is required')
+      return
+    }
+
+    if (!sessionManager.getSessionOwnership(baseSessionId)) {
+      sendBridgeError(ws, 'SESSION_NOT_FOUND', `Session not found: ${baseSessionId}`)
+      return
+    }
+
+    if (!sessionManager.canMutateSession(baseSessionId, clientId)) {
+      sendBridgeError(ws, 'NOT_OWNER', 'Take control before mutating this session')
+      return
+    }
+  }
+
+  try {
+    const createdSessionId = await tmux.createSession(name)
+    const sessions = await refreshTmuxState(tmux, sessionManager)
+    const createdSession = sessions.find((session) => session.id === createdSessionId)
+    if (createdSession) {
+      sessionManager.takeControl(createdSession.id, clientId, ws.data.clientType ?? undefined)
+      resizeOwnedSessions(tmux, sessionManager, clientId, [createdSession.id])
+    }
+  } catch (error) {
+    sendBridgeError(
+      ws,
+      mapTmuxErrorCode(error),
+      error instanceof Error ? error.message : 'tmux command failed',
+    )
+  }
 }
 
 async function runOwnedTmuxMutation({
@@ -421,11 +513,13 @@ async function runOwnedTmuxMutation({
   sessionManager,
   sessionId,
   action,
+  refreshState,
 }: {
   ws: ServerWebSocket<ControlSocketData>
   sessionManager: SessionManager
   sessionId: string
   action: () => Promise<void>
+  refreshState?: () => Promise<void>
 }): Promise<void> {
   const clientId = ws.data.clientId
   if (!clientId) {
@@ -445,6 +539,7 @@ async function runOwnedTmuxMutation({
 
   try {
     await action()
+    await refreshState?.()
   } catch (error) {
     sendBridgeError(
       ws,
@@ -452,6 +547,15 @@ async function runOwnedTmuxMutation({
       error instanceof Error ? error.message : 'tmux command failed',
     )
   }
+}
+
+async function refreshTmuxState(
+  tmux: TmuxClient,
+  sessionManager: SessionManager,
+): Promise<Session[]> {
+  const sessions = await tmux.listSessions()
+  sessionManager.applyState(sessions)
+  return sessions
 }
 
 function resizeOwnedSessions(
@@ -498,13 +602,15 @@ function mapTmuxErrorCode(error: unknown): ErrorCode {
     return 'TMUX_ERROR'
   }
 
-  if (error.message.includes('can not find pane')) {
+  if (error.message.includes('can not find pane') || error.message.includes("can't find pane")) {
     return 'PANE_NOT_FOUND'
   }
 
   if (
     error.message.includes('can not find session') ||
-    error.message.includes('can not find window')
+    error.message.includes("can't find session") ||
+    error.message.includes('can not find window') ||
+    error.message.includes("can't find window")
   ) {
     return 'SESSION_NOT_FOUND'
   }

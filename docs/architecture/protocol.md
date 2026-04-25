@@ -85,13 +85,13 @@ The control channel handshake includes a version field:
 
 ```typescript
 // First message from client after connect
-{ type: 'hello', protocolVersion: 1, clientId: string, clientType: 'web' | 'electron' | 'mobile' | 'cli' }
+{ type: 'hello', protocolVersion: 2, clientId: string, clientType: 'web' | 'electron' | 'mobile' | 'cli' }
 
 // Heartbeat
 { type: 'ping', t: number }
 
 // Bridge responds
-{ type: 'welcome', protocolVersion: 1, bridgeVersion: string, ownership: SessionOwnership[] }
+{ type: 'welcome', protocolVersion: 2, bridgeVersion: string, ownership: SessionOwnership[] }
 
 // Heartbeat response
 { type: 'pong', t: number }

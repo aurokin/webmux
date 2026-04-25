@@ -2,7 +2,7 @@ import type { Session, Pane, ClientType, SessionOwnership } from './types'
 
 // ── Protocol version ──
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 
 // ── Client → Bridge (control channel) ──
 
@@ -10,9 +10,12 @@ export type ClientMessage =
   | { type: 'hello'; protocolVersion: number; clientId: string; clientType: ClientType }
   | { type: 'ping'; t: number }
   | { type: 'session.list' }
+  | { type: 'session.create'; baseSessionId?: string; name?: string }
+  | { type: 'session.kill'; sessionId: string }
   | { type: 'window.select'; sessionId: string; windowIndex: number }
   | { type: 'window.create'; sessionId: string }
   | { type: 'pane.split'; paneId: string; direction: 'horizontal' | 'vertical' }
+  | { type: 'pane.zoom'; paneId: string }
   | { type: 'pane.resize'; paneId: string; cols: number; rows: number }
   | { type: 'pane.close'; paneId: string }
   | { type: 'session.takeControl'; sessionId: string }

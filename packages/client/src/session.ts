@@ -132,7 +132,8 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this._connectionStatus === 'connecting' ||
       this._connectionStatus === 'connected' ||
       this._connectionStatus === 'reconnecting'
-    ) return
+    )
+      return
     this.resetHandshake()
     this.setConnectionStatus('connecting')
     this.controlConnection.connect()
@@ -176,8 +177,20 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     this.sendControl({ type: 'window.create', sessionId })
   }
 
+  createSession(baseSessionId?: string, name?: string): void {
+    this.sendControl({ type: 'session.create', baseSessionId, name })
+  }
+
+  killSession(sessionId: string): void {
+    this.sendControl({ type: 'session.kill', sessionId })
+  }
+
   splitPane(paneId: string, direction: 'horizontal' | 'vertical'): void {
     this.sendControl({ type: 'pane.split', paneId, direction })
+  }
+
+  zoomPane(paneId: string): void {
+    this.sendControl({ type: 'pane.zoom', paneId })
   }
 
   closePane(paneId: string): void {
