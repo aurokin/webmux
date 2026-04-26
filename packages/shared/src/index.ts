@@ -1,4 +1,5 @@
 export * from './types'
 export * from './protocol'
 export * from './constants'
+export * from './richPane'
 export * from './version'

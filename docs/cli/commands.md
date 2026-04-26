@@ -33,6 +33,8 @@ webmux open <resource>
   webmux open preview:localhost:3000        # Dev server preview
 ```
 
+Supported v0 resources resolve to `http` or `https` URLs only. Bare hosts are treated as `https://` URLs, and `preview:` resources default to `http://` for local dev servers. Invalid resources exit with a clear error and do not emit a rich-pane escape sequence.
+
 See `docs/cli/stub-protocol.md` for how this works.
 
 ## `webmux status`

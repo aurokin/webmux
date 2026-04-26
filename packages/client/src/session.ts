@@ -7,7 +7,7 @@ import type {
   SessionOwnership,
 } from '@webmux/shared'
 import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS, WS_CLOSE } from '@webmux/shared'
-import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue, type BridgeError } from './events'
+import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue } from './events'
 import { Connection } from './connection'
 import { InputHandler, type InputMode } from './input'
 

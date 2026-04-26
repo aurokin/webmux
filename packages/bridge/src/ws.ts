@@ -236,7 +236,7 @@ async function handleControlMessage({
   switch (msg.type) {
     case 'hello':
       handleHelloMessage(ws, msg, sessionManager)
-      break
+      return
 
     case 'ping':
       ws.send(
@@ -245,7 +245,7 @@ async function handleControlMessage({
           t: msg.t,
         } satisfies BridgeMessage),
       )
-      break
+      return
 
     case 'session.list':
       ws.send(
@@ -254,8 +254,47 @@ async function handleControlMessage({
           sessions: sessionManager.getSessions(),
         } satisfies BridgeMessage),
       )
-      break
+      return
 
+    case 'window.select':
+    case 'window.create':
+      await handleWindowControlMessage({ ws, msg, tmux, sessionManager })
+      return
+
+    case 'session.create':
+    case 'session.kill':
+      await handleSessionMutationMessage({ ws, msg, tmux, sessionManager })
+      return
+
+    case 'pane.split':
+    case 'pane.zoom':
+    case 'pane.resize':
+    case 'pane.close':
+      await handlePaneControlMessage({ ws, msg, tmux, sessionManager })
+      return
+
+    case 'session.takeControl':
+    case 'session.release':
+      handleSessionOwnershipMessage(ws, msg, tmux, sessionManager)
+      return
+
+    case 'client.dimensions':
+      handleClientDimensions(ws, msg, sessionManager, (clientId, sessionIds) =>
+        resizeOwnedSessions(tmux, sessionManager, clientId, sessionIds),
+      )
+      return
+  }
+}
+
+async function handleWindowControlMessage({
+  ws,
+  msg,
+  tmux,
+  sessionManager,
+}: ControlMessageContext & {
+  msg: Extract<ClientMessage, { type: 'window.select' | 'window.create' }>
+}): Promise<void> {
+  switch (msg.type) {
     case 'window.select':
       await runOwnedTmuxMutation({
         ws,
@@ -275,7 +314,18 @@ async function handleControlMessage({
         refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
+  }
+}
 
+async function handleSessionMutationMessage({
+  ws,
+  msg,
+  tmux,
+  sessionManager,
+}: ControlMessageContext & {
+  msg: Extract<ClientMessage, { type: 'session.create' | 'session.kill' }>
+}): Promise<void> {
+  switch (msg.type) {
     case 'session.create':
       await runCreateSessionMutation({
         ws,
@@ -295,7 +345,18 @@ async function handleControlMessage({
         refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
+  }
+}
 
+async function handlePaneControlMessage({
+  ws,
+  msg,
+  tmux,
+  sessionManager,
+}: ControlMessageContext & {
+  msg: Extract<ClientMessage, { type: 'pane.split' | 'pane.zoom' | 'pane.resize' | 'pane.close' }>
+}): Promise<void> {
+  switch (msg.type) {
     case 'pane.split':
       await runOwnedPaneMutation({
         ws,
@@ -335,7 +396,16 @@ async function handleControlMessage({
         refreshState: () => refreshTmuxState(tmux, sessionManager),
       })
       break
+  }
+}
 
+function handleSessionOwnershipMessage(
+  ws: ServerWebSocket<ControlSocketData>,
+  msg: Extract<ClientMessage, { type: 'session.takeControl' | 'session.release' }>,
+  tmux: TmuxClient,
+  sessionManager: SessionManager,
+): void {
+  switch (msg.type) {
     case 'session.takeControl':
       if (!ws.data.clientId) {
         sendBridgeError(ws, 'INVALID_MESSAGE', 'Client identity is not established')
@@ -368,12 +438,6 @@ async function handleControlMessage({
       }
 
       sessionManager.releaseControl(msg.sessionId, ws.data.clientId)
-      break
-
-    case 'client.dimensions':
-      handleClientDimensions(ws, msg, sessionManager, (clientId, sessionIds) =>
-        resizeOwnedSessions(tmux, sessionManager, clientId, sessionIds),
-      )
       break
   }
 }

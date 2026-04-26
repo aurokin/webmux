@@ -7,16 +7,20 @@ The stub protocol allows CLI tools to signal that rich content is available for 
 1. User runs `webmux open gh:owner/repo/pull/123` in a tmux pane.
 2. The `webmux open` command checks the `WEBMUX_RICH_CLIENT` environment variable.
 3. If set (meaning a webmux web client is proxying this pane):
-   - Emit a special escape sequence with the resource URL.
+   - Resolve the resource to a validated `http` or `https` URL.
+   - Emit a special escape sequence with the percent-encoded resource URL.
    - Keep the process running (the pane stays alive as long as the resource is open).
 4. If not set (regular terminal):
-   - Print a text fallback (PR title, status, changed files, URL).
+   - Resolve the resource to the same validated URL.
+   - Print a text fallback with the URL.
    - Exit.
+
+Invalid resources fail clearly and do not emit an upgrade signal.
 
 ## Escape sequence format
 
 ```
-\033]webmux;type=webview;url=https://github.com/owner/repo/pull/123\007
+\033]webmux;type=webview;url=https%3A%2F%2Fgithub.com%2Fowner%2Frepo%2Fpull%2F123\007
 ```
 
 This uses OSC (Operating System Command) escape sequence format:
@@ -24,8 +28,10 @@ This uses OSC (Operating System Command) escape sequence format:
 - `\033]` — OSC start
 - `webmux;` — namespace prefix so other tools don't conflict
 - `type=webview` — the upgrade type (currently only `webview`)
-- `;url=...` — the URL to render
+- `;url=...` — the percent-encoded `http` or `https` URL to render
 - `\007` — ST (String Terminator)
+
+The URL is percent-encoded so URLs containing semicolons, spaces, or query parameters do not conflict with the stub parameter delimiter. The bridge must decode and validate the URL before notifying clients.
 
 Regular terminals either:
 
@@ -73,7 +79,7 @@ The stub protocol is intentionally simple. Third-party tools can emit the same e
 
 ```bash
 # In any script running in a webmux-proxied pane
-printf '\033]webmux;type=webview;url=https://my-dashboard.com\007'
+printf '\033]webmux;type=webview;url=https%%3A%%2F%%2Fmy-dashboard.com%%2F\007'
 ```
 
 Future stub types beyond `webview` could include:
