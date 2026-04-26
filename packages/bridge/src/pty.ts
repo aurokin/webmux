@@ -2,8 +2,9 @@ import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { PTY_READ_BUFFER_SIZE } from '@webmux/shared'
+import { PTY_READ_BUFFER_SIZE, type RichPaneStub } from '@webmux/shared'
 import type { TmuxClient } from './tmux'
+import { RichPaneStubScanner } from './richPaneStub'
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
@@ -33,6 +34,7 @@ export class PaneStream {
   private closed = false
   private outputPipePath: string | null = null
   private outputPipeAttached = false
+  private stubScanner = new RichPaneStubScanner()
 
   constructor(
     paneId: string,
@@ -48,10 +50,16 @@ export class PaneStream {
    * @param onData - Called with each chunk of pane output
    * @param onClose - Called when the pane stream is closed/destroyed
    */
-  open(ttyPath: string, onData: (data: Buffer) => void, onClose: () => void): void {
+  open(
+    ttyPath: string,
+    onData: (data: Buffer) => void,
+    onClose: () => void,
+    onStubUpgrade?: (stub: RichPaneStub) => void,
+  ): void {
     this.closed = false
     this.onData = onData
     this.onClose = onClose
+    this.stubScanner = new RichPaneStubScanner()
 
     try {
       this.inputFd = fs.openSync(ttyPath, fs.constants.O_RDWR | fs.constants.O_NOCTTY)
@@ -79,9 +87,13 @@ export class PaneStream {
     })
 
     this.readStream.on('data', (chunk: Buffer) => {
-      // TODO: Scan for stub protocol escape sequences before forwarding
-      // See docs/cli/stub-protocol.md
-      this.onData?.(chunk)
+      const result = this.stubScanner.push(chunk)
+      if (result.data.length > 0) {
+        this.onData?.(result.data)
+      }
+      for (const stub of result.upgrades) {
+        onStubUpgrade?.(stub)
+      }
     })
 
     this.readStream.on('error', (err: NodeJS.ErrnoException) => {
@@ -180,7 +192,10 @@ export class PaneStream {
  * One PTY stream may fan out to multiple pane WebSocket subscribers.
  */
 export class PtyManager {
-  constructor(private readonly tmux: TmuxClient) {}
+  constructor(
+    private readonly tmux: TmuxClient,
+    private readonly onStubUpgrade?: (paneId: string, stub: RichPaneStub) => void,
+  ) {}
 
   private streams = new Map<
     string,
@@ -242,6 +257,7 @@ export class PtyManager {
           }
           current.subscribers.clear()
         },
+        (stub) => this.onStubUpgrade?.(paneId, stub),
       )
       return
     }

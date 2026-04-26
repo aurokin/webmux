@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   PROTOCOL_VERSION,
+  encodeRichPaneStub,
   type BridgeMessage,
   type ClientMessage,
   type Session,
@@ -102,6 +103,59 @@ class ControlTestClient {
       this.waiters = this.waiters.filter((candidate) => candidate !== waiter)
       waiter.resolve(message)
     }
+  }
+}
+
+class DataTestClient {
+  private chunks: string[] = []
+
+  constructor(readonly socket: WebSocket) {
+    socket.binaryType = 'arraybuffer'
+    socket.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        this.chunks.push(event.data)
+        return
+      }
+
+      this.chunks.push(Buffer.from(event.data as ArrayBuffer).toString('utf8'))
+    }
+  }
+
+  static async connect(url: string): Promise<DataTestClient> {
+    const socket = new WebSocket(url)
+    const client = new DataTestClient(socket)
+
+    await new Promise<void>((resolve, reject) => {
+      socket.onopen = () => resolve()
+      socket.onerror = () => reject(new Error('Data WebSocket failed'))
+    })
+
+    return client
+  }
+
+  send(data: Buffer): void {
+    this.socket.send(data)
+  }
+
+  close(): void {
+    this.socket.close()
+  }
+
+  output(): string {
+    return this.chunks.join('')
+  }
+
+  async waitForOutput(predicate: (output: string) => boolean, timeout = 5000): Promise<string> {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const output = this.output()
+      if (predicate(output)) {
+        return output
+      }
+      await delay(50)
+    }
+
+    throw new Error('Timed out waiting for pane output')
   }
 }
 
@@ -511,6 +565,106 @@ describe('tmux bridge integration', () => {
       expect(second).toContain('webmux-test\r\n')
     } finally {
       manager.closeAll()
+    }
+  })
+
+  test('strips rich-pane stubs from PTY fan-out and emits one upgrade', async () => {
+    harness.start('cat')
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessions = await tmux.listSessions()
+    const pane = sessions[0]?.windows[0]?.panes[0]
+    const upgrades: Array<{ paneId: string; url: string }> = []
+    const manager = new PtyManager(tmux, (paneId, stub) => {
+      upgrades.push({ paneId, url: stub.url })
+    })
+    let first = ''
+    let second = ''
+
+    expect(pane).toBeDefined()
+
+    try {
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-a', (data) => {
+        first += Buffer.from(data).toString('utf8')
+      })
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-b', (data) => {
+        second += Buffer.from(data).toString('utf8')
+      })
+
+      const stub = encodeRichPaneStub({ type: 'webview', url: 'http://localhost:3000/' })
+
+      await delay(200)
+      manager.writeInput(pane!.id, Buffer.from(`before${stub}after\n`))
+      await delay(800)
+
+      expect(first).toContain('beforeafter\r\n')
+      expect(second).toContain('beforeafter\r\n')
+      expect(first).not.toContain('\x1b]webmux;')
+      expect(second).not.toContain('\x1b]webmux;')
+      expect(upgrades).toEqual([{ paneId: pane!.id, url: 'http://localhost:3000/' }])
+    } finally {
+      manager.closeAll()
+    }
+  })
+
+  test('broadcasts rich-pane stub upgrades over the control channel', async () => {
+    harness.start('cat')
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessionManager = new SessionManager(await tmux.listSessions())
+    const server = createWebSocketServer({
+      port: 0,
+      host: '127.0.0.1',
+      token: 'test-token',
+      tmux,
+      sessionManager,
+    })
+    const controlUrl = `ws://127.0.0.1:${server.port}/control?token=test-token`
+
+    const control = await ControlTestClient.connect(controlUrl, 'observer')
+    const session = sessionManager.getSessions()[0]
+    const pane = sessionManager.getSessions()[0]?.windows[0]?.panes[0]
+    expect(session).toBeDefined()
+    expect(pane).toBeDefined()
+
+    control.send({ type: 'session.takeControl', sessionId: session!.id })
+    await control.waitForNew(
+      (message) =>
+        message.type === 'session.controlChanged' &&
+        message.sessionId === session!.id &&
+        message.ownerId === 'observer',
+    )
+
+    const data = await DataTestClient.connect(
+      `ws://127.0.0.1:${server.port}/pane/${pane!.id}?token=test-token&clientId=observer`,
+    )
+
+    try {
+      const stub = encodeRichPaneStub({ type: 'webview', url: 'http://localhost:3000/' })
+
+      data.send(Buffer.from(`before${stub}after\n`))
+
+      await expect(
+        control.waitForNew(
+          (message) =>
+            message.type === 'pane.stubUpgrade' &&
+            message.paneId === pane!.id &&
+            message.stubType === 'webview' &&
+            message.url === 'http://localhost:3000/',
+        ),
+      ).resolves.toMatchObject({
+        type: 'pane.stubUpgrade',
+        paneId: pane!.id,
+        stubType: 'webview',
+        url: 'http://localhost:3000/',
+      })
+
+      const output = await data.waitForOutput((candidate) => candidate.includes('beforeafter'))
+      expect(output).not.toContain('\x1b]webmux;')
+    } finally {
+      data.close()
+      control.close()
+      server.stop(true)
     }
   })
 

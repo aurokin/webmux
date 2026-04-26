@@ -43,7 +43,6 @@ interface ServerOptions {
 
 export function createWebSocketServer(options: ServerOptions) {
   const { port, host, token, tmux, sessionManager } = options
-  const ptyManager = new PtyManager(tmux)
 
   // Track connected control clients for broadcasting
   const controlClients = new Set<ServerWebSocket<ControlSocketData>>()
@@ -59,6 +58,15 @@ export function createWebSocketServer(options: ServerOptions) {
       }
     }
   }
+
+  const ptyManager = new PtyManager(tmux, (paneId, stub) => {
+    broadcast({
+      type: 'pane.stubUpgrade',
+      paneId,
+      stubType: stub.type,
+      url: stub.url,
+    })
+  })
 
   // Wire up session manager to broadcast state changes
   sessionManager.onUpdate = (message: BridgeMessage) => broadcast(message)
