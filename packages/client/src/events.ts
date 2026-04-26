@@ -1,7 +1,12 @@
-import type { Session, Pane, ClientType, ConnectionStatus } from '@webmux/shared'
+import type { Session, Pane, ClientType, ConnectionStatus, ErrorCode } from '@webmux/shared'
 import type { SessionOwnership } from '@webmux/shared'
 
 export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
+
+export interface BridgeError {
+  code: ErrorCode
+  message: string
+}
 
 /**
  * Event map for the WebmuxClient.
@@ -21,6 +26,7 @@ export interface WebmuxEventMap {
   ) => void
   'connection:status': (status: ConnectionStatus) => void
   'connection:issue': (issue: ConnectionIssue) => void
+  'bridge:error': (error: BridgeError) => void
   'latency:measured': (rtt: number) => void
   'latency:high': (rtt: number) => void
 }

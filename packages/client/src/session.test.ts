@@ -343,4 +343,33 @@ describe('WebmuxClient connection handshake', () => {
     expect(statuses).toEqual(['connecting', 'disconnected'])
     expect(issues).toEqual(['auth-failed'])
   })
+
+  test('emits bridge errors as typed client events', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const errors: unknown[] = []
+
+    client.on('bridge:error', (error) => errors.push(error))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'error',
+      code: 'NOT_OWNER',
+      message: 'Take control before mutating this session',
+    })
+
+    expect(errors).toEqual([
+      {
+        code: 'NOT_OWNER',
+        message: 'Take control before mutating this session',
+      },
+    ])
+  })
 })

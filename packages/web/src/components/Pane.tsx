@@ -11,8 +11,14 @@ interface PaneProps {
   cols: number
   rows: number
   mode: TerminalMode
+  canMutate: boolean
   focused: boolean
   onFocus: () => void
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
   showHeader: boolean
 }
 
@@ -23,8 +29,10 @@ export function Pane({
   cols,
   rows,
   mode,
+  canMutate,
   focused,
   onFocus,
+  onMutationUnavailable,
   showHeader,
 }: PaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -53,7 +61,16 @@ export function Pane({
       )}
     >
       {showHeader && (
-        <PaneChrome client={client} paneId={paneId} currentCommand={currentCommand} focused={focused} />
+        <PaneChrome
+          paneId={paneId}
+          currentCommand={currentCommand}
+          focused={focused}
+          canMutate={canMutate}
+          onSplit={(direction) => client.splitPane(paneId, direction)}
+          onZoom={() => client.zoomPane(paneId)}
+          onClose={() => client.closePane(paneId)}
+          onMutationUnavailable={onMutationUnavailable}
+        />
       )}
       <PaneViewport letterboxRef={letterboxRef} xtermHostRef={xtermHostRef} mode={mode} />
     </div>
@@ -106,9 +123,7 @@ function PaneViewport({ letterboxRef, xtermHostRef, mode }: PaneViewportProps) {
       ref={letterboxRef}
       className={cn(
         'flex-1 min-h-0 min-w-0 overflow-hidden',
-        mode === 'active'
-          ? 'px-2 py-1'
-          : 'bg-bg-deep flex items-center justify-center',
+        mode === 'active' ? 'px-2 py-1' : 'bg-bg-deep flex items-center justify-center',
       )}
     >
       <div

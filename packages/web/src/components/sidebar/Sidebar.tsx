@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { Session, Window } from '@webmux/shared'
 import { cn } from '../../lib/cn'
 import { ChevronLeft, Plus, Trash2 } from 'lucide-react'
@@ -7,10 +8,19 @@ interface SidebarProps {
   selectedSessionId: string | null
   activeWindow: Window | null
   focusedPaneId: string | null
+  canCreateSession: boolean
+  canKillSession: boolean
   isOpen: boolean
   onToggle: () => void
   onSelectSession: (sessionId: string) => void
   onFocusPane: (paneId: string) => void
+  onCreateSession: () => void
+  onKillSession: () => void
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
 }
 
 export function Sidebar({
@@ -18,11 +28,22 @@ export function Sidebar({
   selectedSessionId,
   activeWindow,
   focusedPaneId,
+  canCreateSession,
+  canKillSession,
   isOpen,
   onToggle,
   onSelectSession,
   onFocusPane,
+  onCreateSession,
+  onKillSession,
+  onMutationUnavailable,
 }: SidebarProps) {
+  const [killArmed, setKillArmed] = useState(false)
+
+  useEffect(() => {
+    setKillArmed(false)
+  }, [selectedSessionId])
+
   if (!isOpen) return null
 
   return (
@@ -54,9 +75,7 @@ export function Sidebar({
             onClick={() => onSelectSession(session.id)}
             className={cn(
               'w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-left transition-colors mb-0.5',
-              session.id === selectedSessionId
-                ? 'bg-accent-green-dim'
-                : 'hover:bg-bg-hover',
+              session.id === selectedSessionId ? 'bg-accent-green-dim' : 'hover:bg-bg-hover',
             )}
           >
             <SessionDot attached={session.attached} />
@@ -110,18 +129,62 @@ export function Sidebar({
       {/* Footer actions */}
       <div className="flex items-center gap-1 px-2 py-2 border-t border-border-subtle">
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors font-ui"
+          data-testid="new-session-button"
+          onClick={() => {
+            if (!canCreateSession) {
+              onMutationUnavailable({
+                title: 'Take control first',
+                detail: 'Creating a session from an existing tmux server requires ownership.',
+                tone: 'warning',
+              })
+              return
+            }
+            onCreateSession()
+          }}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] hover:bg-bg-hover transition-colors font-ui',
+            canCreateSession
+              ? 'text-text-tertiary hover:text-text-secondary'
+              : 'text-text-ghost/60 hover:text-accent-yellow',
+          )}
           title="New session (Ctrl+N in switcher)"
         >
           <Plus size={12} />
           New
         </button>
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] text-text-tertiary hover:text-accent-red hover:bg-bg-hover transition-colors font-ui"
+          data-testid="kill-session-button"
+          onClick={() => {
+            if (!canKillSession) {
+              onMutationUnavailable({
+                title: 'Take control first',
+                detail: 'Killing the selected session requires ownership.',
+                tone: 'warning',
+              })
+              return
+            }
+
+            if (!killArmed) {
+              setKillArmed(true)
+              window.setTimeout(() => setKillArmed(false), 2500)
+              return
+            }
+
+            setKillArmed(false)
+            onKillSession()
+          }}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] hover:bg-bg-hover transition-colors font-ui',
+            killArmed
+              ? 'text-accent-red bg-bg-hover'
+              : canKillSession
+                ? 'text-text-tertiary hover:text-accent-red'
+                : 'text-text-ghost/60 hover:text-accent-yellow',
+          )}
           title="Kill session (Ctrl+K in switcher)"
         >
           <Trash2 size={12} />
-          Kill
+          {killArmed ? 'Confirm' : 'Kill'}
         </button>
       </div>
     </div>

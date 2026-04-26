@@ -213,15 +213,13 @@ What shipped:
 - **Tailwind CSS v4 migration:** Replaced all inline styles with Tailwind utility classes. CSS custom properties define the full theme token set, consumed via `@theme` block. Tokyo Night is the default (and currently only) theme.
 - **Component architecture redesign:** New Sidebar (cmux-style session/pane nav), TabBar (top window tabs), StatusBar (segmented, ownership/connection/latency/clock), Workspace (flex pane layout with optional headers), SessionSwitcher (fuzzy search modal), CommandPalette (grouped commands with keybind display), Settings (General + Keybinds tabs), HandoffBanner.
 - **User preferences system:** `usePreferences` hook backed by localStorage with cross-tab sync via `useSyncExternalStore`. Controls tab position, pane headers, sidebar, font, font size, theme, background style.
-- **Frontend action wiring:** Split, close, new window, next/prev window, select window, and detach are wired to real `WebmuxClient` methods. Zoom pane, create session, and kill session remain web UI stubs until the AUR-72 browser workflow wiring.
+- **Frontend action wiring:** Split, close, zoom, new window, next/prev window, select window, detach, create session, and kill session are wired to real `WebmuxClient` methods with visible mutation feedback for rejected actions.
 - **Keybind customization:** Full per-action rebinding with configurable prefix key. `lib/keybinds.ts` provides the config layer (defaults, localStorage overrides, `buildKeyMap` for reverse lookup). `useKeybinds` hook consumes the config. Settings panel has click-to-record UI for rebinding, per-action and global reset. Command palette dynamically reflects current keybind config.
 - **Typography and fonts:** Curated list of 8 monospace fonts selectable in Settings. Font size slider (10-20px). Google Fonts loaded in index.html.
 - **Background options:** Solid (default), gradient, pattern, and custom color backgrounds independent of theme.
 
 What remains for later phases:
 
-- Zoom pane web UI wiring
-- Session create/kill from sidebar/switcher
 - Additional themes beyond Tokyo Night
 - Resize handles on pane gaps
 - Responsive/mobile layout

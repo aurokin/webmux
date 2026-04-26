@@ -8,6 +8,7 @@ interface SessionSwitcherProps {
   selectedSessionId: string | null
   onClose: () => void
   onSelectSession: (sessionId: string) => void
+  onCreateSession: (name: string) => void
 }
 
 export function SessionSwitcher({
@@ -15,6 +16,7 @@ export function SessionSwitcher({
   selectedSessionId,
   onClose,
   onSelectSession,
+  onCreateSession,
 }: SessionSwitcherProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(() =>
@@ -27,8 +29,8 @@ export function SessionSwitcher({
 
   // Read keybind hint once at mount and subscribe to changes, avoiding
   // localStorage parsing on every keystroke/render.
-  const [keybindHint, setKeybindHint] = useState(
-    () => formatKeybind(getPrefix(), getKeybinds().toggleSwitcher),
+  const [keybindHint, setKeybindHint] = useState(() =>
+    formatKeybind(getPrefix(), getKeybinds().toggleSwitcher),
   )
   useEffect(() => {
     return onKeybindsChanged(() => {
@@ -70,8 +72,9 @@ export function SessionSwitcher({
       case 'Enter':
         if (filtered.length > 0) {
           onSelectSession(filtered[safeIndex].id)
+        } else if (query.trim()) {
+          onCreateSession(query)
         }
-        // TODO: if no match and query is non-empty, create new session with query as name
         break
       case 'Escape':
         onClose()
@@ -148,9 +151,22 @@ export function SessionSwitcher({
           ))}
 
           {filtered.length === 0 && (
-            <div className="py-4 text-center text-text-ghost text-[13px]">
-              No sessions match "{query}"
-            </div>
+            <button
+              data-testid="create-session-from-switcher"
+              onClick={() => {
+                if (query.trim()) {
+                  onCreateSession(query)
+                }
+              }}
+              className={cn(
+                'w-full rounded-md border border-transparent px-3 py-4 text-center text-[13px] transition-colors',
+                query.trim()
+                  ? 'text-text-secondary hover:bg-bg-hover hover:border-border-default'
+                  : 'text-text-ghost',
+              )}
+            >
+              {query.trim() ? `Create session "${query.trim()}"` : 'No sessions match'}
+            </button>
           )}
         </div>
 

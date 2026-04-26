@@ -199,27 +199,73 @@ export class WebmuxE2EStack {
     return `http://127.0.0.1:${this.webPort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${token}`
   }
 
+  activeWindowTarget(sessionName = this.sessionName): string {
+    return `${sessionName}:${this.activeWindowIndex(sessionName)}`
+  }
+
   capturePane(sessionName = this.sessionName): string {
-    return runTmux(this.tmuxSocketPath, ['capture-pane', '-p', '-t', `${sessionName}:1`])
+    return runTmux(this.tmuxSocketPath, [
+      'capture-pane',
+      '-p',
+      '-t',
+      this.activeWindowTarget(sessionName),
+    ])
   }
 
   killSession(sessionName: string): void {
     runTmux(this.tmuxSocketPath, ['kill-session', '-t', sessionName])
   }
 
+  sessionExists(sessionName: string): boolean {
+    return runTmux(this.tmuxSocketPath, ['list-sessions', '-F', '#{session_name}'])
+      .split('\n')
+      .includes(sessionName)
+  }
+
+  windowZoomedFlag(sessionName = this.sessionName): string {
+    return runTmux(this.tmuxSocketPath, [
+      'display-message',
+      '-p',
+      '-t',
+      this.activeWindowTarget(sessionName),
+      '#{window_zoomed_flag}',
+    ])
+  }
+
+  paneCount(sessionName = this.sessionName): number {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-panes',
+      '-t',
+      this.activeWindowTarget(sessionName),
+      '-F',
+      '#{pane_id}',
+    ])
+    return output ? output.split('\n').length : 0
+  }
+
   activeWindowName(sessionName = this.sessionName): string {
+    const { name } = this.activeWindow(sessionName)
+    return name
+  }
+
+  activeWindowIndex(sessionName = this.sessionName): string {
+    const { index } = this.activeWindow(sessionName)
+    return index
+  }
+
+  private activeWindow(sessionName = this.sessionName): { index: string; name: string } {
     const output = runTmux(this.tmuxSocketPath, [
       'list-windows',
       '-t',
       sessionName,
       '-F',
-      '#{window_name}\t#{window_active}',
+      '#{window_index}\t#{window_name}\t#{window_active}',
     ])
 
     for (const line of output.split('\n')) {
-      const [name, active] = line.split('\t')
+      const [index, name, active] = line.split('\t')
       if (active === '1') {
-        return name
+        return { index, name }
       }
     }
 

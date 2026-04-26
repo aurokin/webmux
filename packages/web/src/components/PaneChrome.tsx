@@ -1,14 +1,31 @@
-import type { WebmuxClient } from '@webmux/client'
+import { Maximize2, PanelLeft, PanelTop, X } from 'lucide-react'
 import { cn } from '../lib/cn'
 
 interface PaneChromeProps {
-  client: WebmuxClient
   paneId: string
   currentCommand: string
   focused: boolean
+  canMutate: boolean
+  onSplit: (direction: 'horizontal' | 'vertical') => void
+  onZoom: () => void
+  onClose: () => void
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
 }
 
-export function PaneChrome({ client, paneId, currentCommand, focused }: PaneChromeProps) {
+export function PaneChrome({
+  paneId,
+  currentCommand,
+  focused,
+  canMutate,
+  onSplit,
+  onZoom,
+  onClose,
+  onMutationUnavailable,
+}: PaneChromeProps) {
   return (
     <div className="group h-[var(--pane-header-h)] flex items-center px-2.5 bg-bg-surface border-b border-border-subtle text-[11px] text-text-tertiary gap-2 shrink-0 select-none">
       {/* Focus dot */}
@@ -29,19 +46,39 @@ export function PaneChrome({ client, paneId, currentCommand, focused }: PaneChro
       <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <PaneAction
           title="Split horizontal"
-          icon="◨"
-          onClick={() => client.splitPane(paneId, 'horizontal')}
-        />
+          testId={`split-horizontal-${paneId}`}
+          canMutate={canMutate}
+          onUnavailable={onMutationUnavailable}
+          onClick={() => onSplit('horizontal')}
+        >
+          <PanelLeft size={12} />
+        </PaneAction>
         <PaneAction
           title="Split vertical"
-          icon="◧"
-          onClick={() => client.splitPane(paneId, 'vertical')}
-        />
+          testId={`split-vertical-${paneId}`}
+          canMutate={canMutate}
+          onUnavailable={onMutationUnavailable}
+          onClick={() => onSplit('vertical')}
+        >
+          <PanelTop size={12} />
+        </PaneAction>
+        <PaneAction
+          title="Zoom pane"
+          testId={`zoom-pane-${paneId}`}
+          canMutate={canMutate}
+          onUnavailable={onMutationUnavailable}
+          onClick={onZoom}
+        >
+          <Maximize2 size={12} />
+        </PaneAction>
         <PaneAction
           title="Close pane"
-          icon="×"
-          onClick={() => client.closePane(paneId)}
-        />
+          canMutate={canMutate}
+          onUnavailable={onMutationUnavailable}
+          onClick={onClose}
+        >
+          <X size={12} />
+        </PaneAction>
       </div>
     </div>
   )
@@ -49,23 +86,43 @@ export function PaneChrome({ client, paneId, currentCommand, focused }: PaneChro
 
 function PaneAction({
   title,
-  icon,
+  testId,
+  canMutate,
+  onUnavailable,
   onClick,
+  children,
 }: {
   title: string
-  icon: string
+  testId?: string
+  canMutate: boolean
+  onUnavailable: (notice: { title: string; detail: string; tone: 'warning' | 'error' }) => void
   onClick: () => void
+  children: React.ReactNode
 }) {
   return (
     <button
+      data-testid={testId}
       title={title}
       onClick={(e) => {
         e.stopPropagation()
+        if (!canMutate) {
+          onUnavailable({
+            title: 'Take control first',
+            detail: `${title} requires ownership of this session.`,
+            tone: 'warning',
+          })
+          return
+        }
         onClick()
       }}
-      className="w-5 h-5 flex items-center justify-center rounded-[3px] text-text-ghost hover:text-text-secondary hover:bg-bg-hover transition-colors text-[10px]"
+      className={cn(
+        'w-5 h-5 flex items-center justify-center rounded-[3px] transition-colors',
+        canMutate
+          ? 'text-text-ghost hover:text-text-secondary hover:bg-bg-hover'
+          : 'text-text-ghost/50 hover:text-accent-yellow hover:bg-bg-hover',
+      )}
     >
-      {icon}
+      {children}
     </button>
   )
 }

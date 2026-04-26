@@ -7,6 +7,11 @@ interface TabBarProps {
   client: WebmuxClient
   activeSession: Session
   canMutate: boolean
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
   onToggleSidebar: () => void
   onOpenPalette: () => void
 }
@@ -15,9 +20,21 @@ export function TabBar({
   client,
   activeSession,
   canMutate,
+  onMutationUnavailable,
   onToggleSidebar,
   onOpenPalette,
 }: TabBarProps) {
+  const requireMutation = (title: string) => {
+    if (canMutate) return true
+
+    onMutationUnavailable({
+      title: 'Take control first',
+      detail: `${title} requires ownership of this session.`,
+      tone: 'warning',
+    })
+    return false
+  }
+
   return (
     <div className="flex items-stretch h-[var(--tab-h)] bg-bg-deep border-b border-border-subtle shrink-0 select-none">
       {/* Logo */}
@@ -40,7 +57,7 @@ export function TabBar({
           <button
             key={win.id}
             onClick={() => {
-              if (canMutate) {
+              if (requireMutation('Select window')) {
                 client.selectWindow(activeSession.id, win.index)
               }
             }}
@@ -60,6 +77,12 @@ export function TabBar({
           </button>
         ))}
         <button
+          data-testid="new-window-button"
+          onClick={() => {
+            if (requireMutation('Create window')) {
+              client.createWindow(activeSession.id)
+            }
+          }}
           className="flex items-center justify-center w-[34px] text-text-ghost hover:text-text-secondary text-[16px] transition-colors"
           title="New window"
         >
@@ -70,7 +93,11 @@ export function TabBar({
       {/* Right actions */}
       <div className="ml-auto flex items-center pr-3 gap-1">
         <TabBarButton icon={<Menu size={13} />} title="Sessions" onClick={onToggleSidebar} />
-        <TabBarButton icon={<Command size={13} />} title="Command Palette" onClick={onOpenPalette} />
+        <TabBarButton
+          icon={<Command size={13} />}
+          title="Command Palette"
+          onClick={onOpenPalette}
+        />
         <TabBarButton icon={<LayoutGrid size={13} />} title="Cycle layout" onClick={() => {}} />
       </div>
     </div>

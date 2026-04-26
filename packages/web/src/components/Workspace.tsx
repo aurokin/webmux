@@ -9,8 +9,14 @@ interface WorkspaceProps {
   layout: LayoutNode | null
   paneCommands: Record<string, string>
   paneMode: TerminalMode
+  canMutate: boolean
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
   showPaneHeaders: boolean
   state: {
     title: string
@@ -24,8 +30,10 @@ export function Workspace({
   layout,
   paneCommands,
   paneMode,
+  canMutate,
   focusedPaneId,
   onFocusPane,
+  onMutationUnavailable,
   showPaneHeaders,
   state,
 }: WorkspaceProps) {
@@ -44,7 +52,9 @@ export function Workspace({
         <div className="text-[15px] font-semibold text-text-primary">
           {state?.title ?? 'No active window'}
         </div>
-        <div className="max-w-[480px] leading-relaxed">{state?.detail ?? 'Connect to a tmux session.'}</div>
+        <div className="max-w-[480px] leading-relaxed">
+          {state?.detail ?? 'Connect to a tmux session.'}
+        </div>
       </div>
     )
   }
@@ -56,8 +66,10 @@ export function Workspace({
         client={client}
         paneCommands={paneCommands}
         paneMode={paneMode}
+        canMutate={canMutate}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
+        onMutationUnavailable={onMutationUnavailable}
         showPaneHeaders={showPaneHeaders}
       />
     </div>
@@ -69,8 +81,14 @@ interface LayoutRendererProps {
   client: WebmuxClient
   paneCommands: Record<string, string>
   paneMode: TerminalMode
+  canMutate: boolean
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  onMutationUnavailable: (notice: {
+    title: string
+    detail: string
+    tone: 'warning' | 'error'
+  }) => void
   showPaneHeaders: boolean
 }
 
@@ -79,8 +97,10 @@ function LayoutRenderer({
   client,
   paneCommands,
   paneMode,
+  canMutate,
   focusedPaneId,
   onFocusPane,
+  onMutationUnavailable,
   showPaneHeaders,
 }: LayoutRendererProps) {
   if (node.type === 'pane') {
@@ -92,8 +112,10 @@ function LayoutRenderer({
         cols={node.cols}
         rows={node.rows}
         mode={paneMode}
+        canMutate={canMutate}
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
+        onMutationUnavailable={onMutationUnavailable}
         showHeader={showPaneHeaders}
       />
     )
@@ -109,18 +131,16 @@ function LayoutRenderer({
       )}
     >
       {node.children.map((child, i) => (
-        <div
-          key={i}
-          className="flex min-h-0 min-w-0"
-          style={{ flex: node.ratios[i] }}
-        >
+        <div key={i} className="flex min-h-0 min-w-0" style={{ flex: node.ratios[i] }}>
           <LayoutRenderer
             node={child}
             client={client}
             paneCommands={paneCommands}
             paneMode={paneMode}
+            canMutate={canMutate}
             focusedPaneId={focusedPaneId}
             onFocusPane={onFocusPane}
+            onMutationUnavailable={onMutationUnavailable}
             showPaneHeaders={showPaneHeaders}
           />
         </div>

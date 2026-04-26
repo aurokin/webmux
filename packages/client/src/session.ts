@@ -7,7 +7,7 @@ import type {
   SessionOwnership,
 } from '@webmux/shared'
 import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS, WS_CLOSE } from '@webmux/shared'
-import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue } from './events'
+import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue, type BridgeError } from './events'
 import { Connection } from './connection'
 import { InputHandler, type InputMode } from './input'
 
@@ -19,7 +19,7 @@ export interface WebmuxClientOptions {
   latencyThreshold?: number
 }
 
-export type { ConnectionIssue } from './events'
+export type { BridgeError, ConnectionIssue } from './events'
 
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
@@ -278,6 +278,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this.on('control:changed', callback),
       this.on('connection:status', callback),
       this.on('connection:issue', callback),
+      this.on('bridge:error', callback),
     ]
     return () => unsubs.forEach((u) => u())
   }
@@ -358,6 +359,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
       case 'error':
         console.error(`[webmux] bridge error: ${msg.code} — ${msg.message}`)
+        this.emit('bridge:error', { code: msg.code, message: msg.message })
         break
     }
   }

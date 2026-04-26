@@ -134,6 +134,91 @@ test.describe.serial('webmux browser validation', () => {
     await observerPage.close()
   })
 
+  test('wires pane zoom from the browser to tmux state', async ({ page }) => {
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+
+    expect(stack.windowZoomedFlag(stack.sessionName)).toBe('0')
+
+    await page.locator('[data-testid^="split-horizontal-"]').first().click({ force: true })
+    await expect.poll(() => stack.paneCount(stack.sessionName)).toBeGreaterThan(1)
+    await expect(page.locator('[data-testid^="zoom-pane-"]')).toHaveCount(2)
+
+    await page.locator('[data-testid^="zoom-pane-"]').first().click({ force: true })
+
+    await expect.poll(() => stack.windowZoomedFlag(stack.sessionName)).toBe('1')
+  })
+
+  test('creates a named session from the session switcher and selects it', async ({ page }) => {
+    const sessionName = `webmux-ui-create-${crypto.randomUUID().slice(0, 8)}`
+
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+
+    await createNamedSessionFromSwitcher(page, sessionName)
+
+    await expect(page.locator('body')).toContainText(sessionName)
+    await expect(page.getByTestId('ownership-mode')).toContainText('active')
+    expect(stack.sessionExists(sessionName)).toBe(true)
+  })
+
+  test('kills the selected session from the sidebar and refreshes visible state', async ({
+    page,
+  }) => {
+    const sessionName = `webmux-ui-kill-${crypto.randomUUID().slice(0, 8)}`
+
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+    await createNamedSessionFromSwitcher(page, sessionName)
+
+    await page.getByTestId('kill-session-button').click()
+    await expect(page.getByTestId('kill-session-button')).toContainText('Confirm')
+    await page.getByTestId('kill-session-button').click()
+
+    await expect.poll(() => stack.sessionExists(sessionName)).toBe(false)
+    await expect(page.locator('body')).not.toContainText(sessionName)
+  })
+
+  test('shows visible mutation feedback when a passive client tries to mutate', async ({
+    browser,
+  }) => {
+    const ownerPage = await browser.newPage()
+    const observerPage = await browser.newPage()
+
+    await ownerPage.addInitScript(() => {
+      localStorage.setItem('webmux:preferences', JSON.stringify({ tabPosition: 'top' }))
+    })
+    await observerPage.addInitScript(() => {
+      localStorage.setItem('webmux:preferences', JSON.stringify({ tabPosition: 'top' }))
+    })
+
+    await ownerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await observerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await ownerPage.waitForSelector('.xterm')
+    await observerPage.waitForSelector('.xterm')
+
+    await selectSession(ownerPage, stack.sessionName)
+    await selectSession(observerPage, stack.sessionName)
+    await takeControl(ownerPage)
+
+    await observerPage.locator('[data-testid^="zoom-pane-"]').first().click({ force: true })
+
+    await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
+
+    await observerPage.getByTestId('new-window-button').click()
+
+    await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
+
+    await ownerPage.close()
+    await observerPage.close()
+  })
+
   test('shows a destroyed-session state and recovers by selecting another session', async ({
     page,
   }) => {
@@ -170,6 +255,13 @@ async function selectSession(page: Page, sessionName: string): Promise<void> {
   await page.getByTestId('session-switcher-button').click()
   await page.getByPlaceholder('Filter sessions...').fill(sessionName)
   await page.getByTestId(`session-option-${sessionName}`).click()
+  await expect(page.locator('body')).toContainText(sessionName)
+}
+
+async function createNamedSessionFromSwitcher(page: Page, sessionName: string): Promise<void> {
+  await page.getByTestId('session-switcher-button').click()
+  await page.getByPlaceholder('Filter sessions...').fill(sessionName)
+  await page.getByTestId('create-session-from-switcher').click()
   await expect(page.locator('body')).toContainText(sessionName)
 }
 

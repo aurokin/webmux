@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { WebmuxClient } from '@webmux/client'
+import { WebmuxClient, type BridgeError } from '@webmux/client'
 import type { LayoutNode, Session, Window } from '@webmux/shared'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TabBar } from './components/TabBar'
@@ -94,7 +94,9 @@ export function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
   const [destroyedSession, setDestroyedSession] = useState<DestroyedSession | null>(null)
+  const [mutationNotice, setMutationNotice] = useState<MutationNotice | null>(null)
   const previousSessionsRef = useRef<Session[]>([])
+  const pendingCreatedSessionNameRef = useRef<string | null>(null)
 
   const sessions = useSessions(client)
   const connectionStatus = useConnectionStatus(client)
@@ -142,6 +144,23 @@ export function App() {
       )
     })
   }, [client, token])
+
+  const showMutationNotice = useCallback((notice: Omit<MutationNotice, 'id'>) => {
+    const id = Date.now()
+    setMutationNotice({ id, ...notice })
+    window.setTimeout(() => {
+      setMutationNotice((current) => (current?.id === id ? null : current))
+    }, 3500)
+  }, [])
+
+  useEffect(() => {
+    return client.on('bridge:error', (error) => {
+      showMutationNotice(formatBridgeError(error))
+      if (pendingCreatedSessionNameRef.current) {
+        pendingCreatedSessionNameRef.current = null
+      }
+    })
+  }, [client, showMutationNotice])
 
   const handleSubmitToken = useCallback(
     (newToken: string) => {
@@ -205,6 +224,20 @@ export function App() {
     previousSessionsRef.current = sessions
   }, [connectionStatus, destroyedSession, selectedSessionId, sessions])
 
+  useEffect(() => {
+    const pendingName = pendingCreatedSessionNameRef.current
+    if (!pendingName) return
+
+    const createdSession = sessions.find((session) => session.name === pendingName)
+    if (!createdSession) return
+
+    pendingCreatedSessionNameRef.current = null
+    setDestroyedSession(null)
+    setSelectedSessionId(createdSession.id)
+    const createdWindow = createdSession.windows.find((window) => window.active) ?? null
+    setFocusedPaneId(createdWindow ? (collectPaneIds(createdWindow.layout)[0] ?? null) : null)
+  }, [sessions])
+
   const activeSession = getActiveSession(sessions, selectedSessionId)
   const activeWindow = getActiveWindow(activeSession)
   const ownership = useSessionOwnership(client, activeSession?.id ?? null)
@@ -220,6 +253,58 @@ export function App() {
   }, [activeWindow])
 
   // Keybind actions
+  const requireActiveOwnership = useCallback(
+    (action: string): boolean => {
+      if (!activeSession) {
+        showMutationNotice({
+          title: 'No active session',
+          detail: `${action} needs a selected tmux session.`,
+          tone: 'warning',
+        })
+        return false
+      }
+
+      if (ownership.mode !== 'active') {
+        showMutationNotice({
+          title: 'Take control first',
+          detail: `${action} requires ownership of ${activeSession.name}.`,
+          tone: 'warning',
+        })
+        return false
+      }
+
+      return true
+    },
+    [activeSession, ownership.mode, showMutationNotice],
+  )
+
+  const createSession = useCallback(
+    (requestedName?: string) => {
+      const name = normalizeSessionName(requestedName) ?? createDefaultSessionName()
+      const hasSessions = sessions.length > 0
+
+      if (hasSessions && !requireActiveOwnership('Create session')) {
+        return
+      }
+
+      pendingCreatedSessionNameRef.current = name
+      setDestroyedSession(null)
+      client.createSession(activeSession?.id, name)
+    },
+    [activeSession?.id, client, requireActiveOwnership, sessions.length],
+  )
+
+  const killSelectedSession = useCallback(() => {
+    if (!activeSession || !requireActiveOwnership('Kill session')) {
+      return
+    }
+
+    client.killSession(activeSession.id)
+    setSelectedSessionId(null)
+    setFocusedPaneId(null)
+    setDestroyedSession(null)
+  }, [activeSession, client, requireActiveOwnership])
+
   const keybindActions: KeybindActions = useMemo(
     () => ({
       toggleSwitcher: () => setSwitcherOpen((o) => !o),
@@ -235,19 +320,29 @@ export function App() {
         setFocusedPaneId(paneIds[0] ?? null)
       },
       splitHorizontal: () => {
-        if (focusedPaneId) client.splitPane(focusedPaneId, 'horizontal')
+        if (focusedPaneId && requireActiveOwnership('Split pane')) {
+          client.splitPane(focusedPaneId, 'horizontal')
+        }
       },
       splitVertical: () => {
-        if (focusedPaneId) client.splitPane(focusedPaneId, 'vertical')
+        if (focusedPaneId && requireActiveOwnership('Split pane')) {
+          client.splitPane(focusedPaneId, 'vertical')
+        }
       },
       zoomPane: () => {
-        // AUR-72 wires this protocol-backed client method into the browser workflow.
+        if (focusedPaneId && requireActiveOwnership('Zoom pane')) {
+          client.zoomPane(focusedPaneId)
+        }
       },
       closePane: () => {
-        if (focusedPaneId) client.closePane(focusedPaneId)
+        if (focusedPaneId && requireActiveOwnership('Close pane')) {
+          client.closePane(focusedPaneId)
+        }
       },
       newWindow: () => {
-        if (activeSession) client.createWindow(activeSession.id)
+        if (activeSession && requireActiveOwnership('Create window')) {
+          client.createWindow(activeSession.id)
+        }
       },
       nextWindow: () => {
         if (!activeSession || activeSession.windows.length < 2) return
@@ -255,7 +350,9 @@ export function App() {
         const currentIdx = windows.findIndex((w) => w.active)
         if (currentIdx === -1) return
         const nextIdx = (currentIdx + 1) % windows.length
-        client.selectWindow(activeSession.id, windows[nextIdx].index)
+        if (requireActiveOwnership('Select window')) {
+          client.selectWindow(activeSession.id, windows[nextIdx].index)
+        }
       },
       prevWindow: () => {
         if (!activeSession || activeSession.windows.length < 2) return
@@ -263,7 +360,9 @@ export function App() {
         const currentIdx = windows.findIndex((w) => w.active)
         if (currentIdx === -1) return
         const prevIdx = (currentIdx - 1 + windows.length) % windows.length
-        client.selectWindow(activeSession.id, windows[prevIdx].index)
+        if (requireActiveOwnership('Select window')) {
+          client.selectWindow(activeSession.id, windows[prevIdx].index)
+        }
       },
       detach: () => {
         client.disconnect()
@@ -275,7 +374,7 @@ export function App() {
         setSettingsOpen(true)
       },
     }),
-    [sessions, activeSession, focusedPaneId, setPreference, client],
+    [sessions, activeSession, focusedPaneId, setPreference, client, requireActiveOwnership],
   )
 
   // dispatch is stable (reads from actionsRef internally), so
@@ -312,10 +411,15 @@ export function App() {
         selectedSessionId={selectedSessionId}
         activeWindow={activeWindow}
         focusedPaneId={focusedPaneId}
+        canCreateSession={sessions.length === 0 || ownership.mode === 'active'}
+        canKillSession={ownership.mode === 'active' && Boolean(activeSession)}
         isOpen={preferences.sidebarOpen}
         onToggle={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
         onSelectSession={handleSelectSession}
         onFocusPane={setFocusedPaneId}
+        onCreateSession={() => createSession()}
+        onKillSession={killSelectedSession}
+        onMutationUnavailable={showMutationNotice}
       />
 
       {/* Main area */}
@@ -326,6 +430,7 @@ export function App() {
             client={client}
             activeSession={activeSession}
             canMutate={ownership.mode === 'active'}
+            onMutationUnavailable={showMutationNotice}
             onToggleSidebar={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
             onOpenPalette={() => setPaletteOpen(true)}
           />
@@ -333,6 +438,7 @@ export function App() {
 
         {/* Handoff banner */}
         <HandoffBanner client={client} activeSession={activeSession} ownership={ownership} />
+        {mutationNotice && <MutationNoticeView notice={mutationNotice} />}
 
         {/* Pane area */}
         {showTokenPrompt ? (
@@ -343,8 +449,10 @@ export function App() {
             layout={activeWindow?.layout ?? null}
             paneCommands={paneCommands}
             paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
+            canMutate={ownership.mode === 'active'}
             focusedPaneId={focusedPaneId}
             onFocusPane={setFocusedPaneId}
+            onMutationUnavailable={showMutationNotice}
             state={workspaceState}
             showPaneHeaders={preferences.paneHeaders}
           />
@@ -372,6 +480,10 @@ export function App() {
             handleSelectSession(sessionId)
             setSwitcherOpen(false)
           }}
+          onCreateSession={(name) => {
+            createSession(name)
+            setSwitcherOpen(false)
+          }}
         />
       )}
 
@@ -392,4 +504,81 @@ function collectPaneIds(node: LayoutNode): string[] {
     return [node.paneId]
   }
   return node.children.flatMap(collectPaneIds)
+}
+
+interface MutationNotice {
+  id: number
+  title: string
+  detail: string
+  tone: 'warning' | 'error'
+}
+
+function formatBridgeError(error: BridgeError): Omit<MutationNotice, 'id'> {
+  switch (error.code) {
+    case 'NOT_OWNER':
+      return {
+        title: 'Take control first',
+        detail: 'This tmux mutation requires ownership of the selected session.',
+        tone: 'warning',
+      }
+    case 'SESSION_NOT_FOUND':
+      return {
+        title: 'Session no longer exists',
+        detail: 'The session changed before the mutation could run.',
+        tone: 'warning',
+      }
+    case 'PANE_NOT_FOUND':
+      return {
+        title: 'Pane no longer exists',
+        detail: 'The pane changed before the mutation could run.',
+        tone: 'warning',
+      }
+    case 'TMUX_ERROR':
+      return {
+        title: 'tmux rejected the mutation',
+        detail: error.message,
+        tone: 'error',
+      }
+    default:
+      return {
+        title: 'Mutation failed',
+        detail: error.message,
+        tone: 'error',
+      }
+  }
+}
+
+function normalizeSessionName(name: string | undefined): string | null {
+  const normalized = name?.trim().replace(/\s+/g, '-')
+  return normalized ? normalized : null
+}
+
+function createDefaultSessionName(): string {
+  const suffix =
+    typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().slice(0, 8)
+      : Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) =>
+          b.toString(16).padStart(2, '0'),
+        ).join('')
+  return `webmux-${suffix}`
+}
+
+function MutationNoticeView({ notice }: { notice: MutationNotice }) {
+  return (
+    <div
+      data-testid="mutation-notice"
+      className="absolute top-3 right-3 z-[220] w-[300px] rounded-md border border-border-default bg-bg-elevated/95 px-3 py-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.35)] backdrop-blur-md font-ui"
+    >
+      <div
+        className={
+          notice.tone === 'error'
+            ? 'text-[12px] font-semibold text-accent-red'
+            : 'text-[12px] font-semibold text-accent-yellow'
+        }
+      >
+        {notice.title}
+      </div>
+      <div className="mt-1 text-[11px] leading-relaxed text-text-secondary">{notice.detail}</div>
+    </div>
+  )
 }
