@@ -7,7 +7,12 @@ import type {
   SessionOwnership,
 } from '@webmux/shared'
 import { PROTOCOL_VERSION, LATENCY_THRESHOLD_BUFFERED_MS, WS_CLOSE } from '@webmux/shared'
-import { TypedEmitter, type WebmuxEventMap, type ConnectionIssue } from './events'
+import {
+  TypedEmitter,
+  type WebmuxEventMap,
+  type ConnectionIssue,
+  type RichPaneState,
+} from './events'
 import { Connection } from './connection'
 import { InputHandler, type InputMode } from './input'
 
@@ -19,7 +24,7 @@ export interface WebmuxClientOptions {
   latencyThreshold?: number
 }
 
-export type { BridgeError, ConnectionIssue } from './events'
+export type { BridgeError, ConnectionIssue, RichPaneState } from './events'
 
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
@@ -38,6 +43,8 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   private _sessions: Session[] = []
   private _ownership = new Map<string, SessionOwnership>()
+  private _richPanes = new Map<string, RichPaneState>()
+  private _richPaneSnapshot: RichPaneState[] = []
   private _connectionStatus: ConnectionStatus = 'disconnected'
   private _connectionIssue: ConnectionIssue = null
   private _latency = 0
@@ -167,6 +174,15 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     return this._ownership.get(sessionId) ?? null
   }
 
+  getRichPaneState(paneId: string): RichPaneState | null {
+    const state = this._richPanes.get(paneId)
+    return state ? { ...state } : null
+  }
+
+  getRichPaneStates(): RichPaneState[] {
+    return this._richPaneSnapshot
+  }
+
   // ── Session commands ──
 
   selectWindow(sessionId: string, windowIndex: number): void {
@@ -287,6 +303,14 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     return this._sessions
   }
 
+  subscribeRichPanes = (callback: () => void): (() => void) => {
+    return this.on('richPane:sync', callback)
+  }
+
+  getRichPaneSnapshot = (): RichPaneState[] => {
+    return this._richPaneSnapshot
+  }
+
   // ── Internal ──
 
   private sendControl(msg: ClientMessage): void {
@@ -328,6 +352,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         if (this.pruneOwnership(this._sessions)) {
           this.emit('ownership:sync', Array.from(this._ownership.values()))
         }
+        if (this.pruneRichPaneStates(this._sessions)) {
+          this.emitRichPaneSync()
+        }
         this.emit('state:sync', msg.sessions)
         this.promoteToConnectedIfReady()
         break
@@ -340,10 +367,20 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         this.emit('pane:removed', msg.paneId)
         // Clean up data channel if connected
         this.disconnectPane(msg.paneId)
+        if (this._richPanes.delete(msg.paneId)) {
+          this.emitRichPaneSync()
+        }
         break
 
       case 'pane.stubUpgrade':
+        this._richPanes.set(msg.paneId, {
+          paneId: msg.paneId,
+          type: msg.stubType,
+          url: msg.url,
+          upgradedAt: Date.now(),
+        })
         this.emit('pane:stubUpgrade', msg.paneId, msg.stubType, msg.url)
+        this.emitRichPaneSync()
         break
 
       case 'session.controlChanged':
@@ -376,6 +413,32 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
 
     return pruned
+  }
+
+  private pruneRichPaneStates(sessions: Session[]): boolean {
+    const activePaneIds = new Set<string>()
+    for (const session of sessions) {
+      for (const window of session.windows) {
+        for (const pane of window.panes) {
+          activePaneIds.add(pane.id)
+        }
+      }
+    }
+
+    let pruned = false
+    for (const paneId of this._richPanes.keys()) {
+      if (!activePaneIds.has(paneId)) {
+        this._richPanes.delete(paneId)
+        pruned = true
+      }
+    }
+
+    return pruned
+  }
+
+  private emitRichPaneSync(): void {
+    this._richPaneSnapshot = Array.from(this._richPanes.values(), (state) => ({ ...state }))
+    this.emit('richPane:sync', this._richPaneSnapshot)
   }
 
   private findSessionByPaneId(paneId: string): Session | null {

@@ -3,6 +3,7 @@ export {
   type WebmuxClientOptions,
   type BridgeError,
   type ConnectionIssue,
+  type RichPaneState,
 } from './session'
 export { type WebmuxEventMap } from './events'
 export { type InputMode } from './input'

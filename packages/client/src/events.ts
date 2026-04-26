@@ -1,4 +1,12 @@
-import type { Session, Pane, ClientType, ConnectionStatus, ErrorCode } from '@webmux/shared'
+import type {
+  Session,
+  Pane,
+  ClientType,
+  ConnectionStatus,
+  ErrorCode,
+  RichPaneStub,
+  RichPaneStubType,
+} from '@webmux/shared'
 import type { SessionOwnership } from '@webmux/shared'
 
 export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
@@ -6,6 +14,11 @@ export type ConnectionIssue = 'auth-failed' | 'protocol-error' | null
 export interface BridgeError {
   code: ErrorCode
   message: string
+}
+
+export interface RichPaneState extends RichPaneStub {
+  paneId: string
+  upgradedAt: number
 }
 
 /**
@@ -17,7 +30,8 @@ export interface WebmuxEventMap {
   'pane:output': (paneId: string, data: Uint8Array) => void
   'pane:added': (pane: Pane) => void
   'pane:removed': (paneId: string) => void
-  'pane:stubUpgrade': (paneId: string, stubType: string, url: string) => void
+  'pane:stubUpgrade': (paneId: string, stubType: RichPaneStubType, url: string) => void
+  'richPane:sync': (states: RichPaneState[]) => void
   'ownership:sync': (ownership: SessionOwnership[]) => void
   'control:changed': (
     sessionId: string,

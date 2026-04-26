@@ -372,4 +372,202 @@ describe('WebmuxClient connection handshake', () => {
       },
     ])
   })
+
+  test('stores rich pane state and emits upgrade and sync events', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const upgrades: unknown[] = []
+    const syncs: unknown[] = []
+
+    client.on('pane:stubUpgrade', (paneId, stubType, url) => {
+      upgrades.push({ paneId, stubType, url })
+    })
+    client.on('richPane:sync', (states) => syncs.push(states))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    const beforeUpgrade = Date.now()
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/',
+    })
+
+    const state = client.getRichPaneState('%1')
+    expect(state).toMatchObject({
+      paneId: '%1',
+      type: 'webview',
+      url: 'http://localhost:3000/',
+    })
+    expect(state?.upgradedAt).toBeGreaterThanOrEqual(beforeUpgrade)
+    expect(client.getRichPaneStates()).toEqual([state])
+    expect(upgrades).toEqual([
+      {
+        paneId: '%1',
+        stubType: 'webview',
+        url: 'http://localhost:3000/',
+      },
+    ])
+    expect(syncs).toEqual([[state]])
+  })
+
+  test('replaces rich pane state on repeated upgrades', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const syncs: unknown[] = []
+
+    client.on('richPane:sync', (states) => syncs.push(states))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/first',
+    })
+    const firstState = client.getRichPaneState('%1')
+
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/second',
+    })
+
+    const secondState = client.getRichPaneState('%1')
+    expect(client.getRichPaneStates()).toHaveLength(1)
+    expect(secondState).toMatchObject({
+      paneId: '%1',
+      type: 'webview',
+      url: 'http://localhost:3000/second',
+    })
+    expect(secondState?.upgradedAt).toBeGreaterThanOrEqual(firstState?.upgradedAt ?? 0)
+    expect(syncs).toHaveLength(2)
+    expect(syncs[1]).toEqual([secondState])
+  })
+
+  test('clears rich pane state when a pane is removed', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const syncs: unknown[] = []
+
+    client.on('richPane:sync', (states) => syncs.push(states))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/',
+    })
+    controlSocket.simulateMessage({
+      type: 'pane.removed',
+      paneId: '%1',
+    })
+
+    expect(client.getRichPaneState('%1')).toBeNull()
+    expect(client.getRichPaneStates()).toEqual([])
+    expect(syncs).toHaveLength(2)
+    expect(syncs[1]).toEqual([])
+  })
+
+  test('prunes rich pane state when state sync omits a pane', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const syncs: unknown[] = []
+
+    client.on('richPane:sync', (states) => syncs.push(states))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/',
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    expect(client.getRichPaneState('%1')).not.toBeNull()
+    expect(syncs).toHaveLength(1)
+
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [],
+    })
+
+    expect(client.getRichPaneState('%1')).toBeNull()
+    expect(syncs).toHaveLength(2)
+    expect(syncs[1]).toEqual([])
+  })
+
+  test('rich pane external-store snapshot changes on sync and can unsubscribe', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    let callbackCount = 0
+    const unsubscribe = client.subscribeRichPanes(() => callbackCount++)
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    const initialSnapshot = client.getRichPaneSnapshot()
+
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/',
+    })
+
+    expect(callbackCount).toBe(1)
+    expect(client.getRichPaneSnapshot()).not.toBe(initialSnapshot)
+    expect(client.getRichPaneSnapshot()).toEqual(client.getRichPaneStates())
+
+    unsubscribe()
+    const snapshotAfterUnsubscribe = client.getRichPaneSnapshot()
+    controlSocket.simulateMessage({
+      type: 'pane.stubUpgrade',
+      paneId: '%1',
+      stubType: 'webview',
+      url: 'http://localhost:3000/next',
+    })
+
+    expect(callbackCount).toBe(1)
+    expect(client.getRichPaneSnapshot()).not.toBe(snapshotAfterUnsubscribe)
+  })
 })
