@@ -218,6 +218,18 @@ async function waitForManagedSessionByName(
   throw new Error(`Timed out waiting for managed session ${name}`)
 }
 
+async function waitForCondition(predicate: () => boolean, timeout = 5000): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return
+    }
+    await delay(50)
+  }
+
+  expect(predicate()).toBe(true)
+}
+
 async function expectManagedOwnership(
   sessionManager: SessionManager,
   sessionId: string,
@@ -503,21 +515,24 @@ describe('tmux bridge integration', () => {
       expect(baseA).toBeDefined()
       expect(baseB).toBeDefined()
 
-      ownerA.send({ type: 'session.takeControl', sessionId: baseA!.id })
-      ownerB.send({ type: 'session.takeControl', sessionId: baseB!.id })
-
-      await ownerA.waitForNew(
+      const ownerAControlChanged = ownerA.waitForNew(
         (message) =>
           message.type === 'session.controlChanged' &&
           message.sessionId === baseA!.id &&
           message.ownerId === 'owner-a',
       )
-      await ownerB.waitForNew(
+      const ownerBControlChanged = ownerB.waitForNew(
         (message) =>
           message.type === 'session.controlChanged' &&
           message.sessionId === baseB!.id &&
           message.ownerId === 'owner-b',
       )
+
+      ownerA.send({ type: 'session.takeControl', sessionId: baseA!.id })
+      ownerB.send({ type: 'session.takeControl', sessionId: baseB!.id })
+
+      await ownerAControlChanged
+      await ownerBControlChanged
 
       const createdAName = `${harness.sessionName}-created-a`
       const createdBName = `${harness.sessionName}-created-b`
@@ -563,6 +578,89 @@ describe('tmux bridge integration', () => {
 
       expect(first).toContain('webmux-test\r\n')
       expect(second).toContain('webmux-test\r\n')
+    } finally {
+      manager.closeAll()
+    }
+  })
+
+  test('keeps a noisy pane responsive to follow-up input', async () => {
+    harness.start('cat')
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessions = await tmux.listSessions()
+    const pane = sessions[0]?.windows[0]?.panes[0]
+    const manager = new PtyManager(tmux)
+    let output = ''
+
+    expect(pane).toBeDefined()
+
+    try {
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-a', (data) => {
+        output += Buffer.from(data).toString('utf8')
+      })
+
+      await delay(200)
+      const noisyPayload = Array.from(
+        { length: 1000 },
+        (_, i) => `noise-${String(i).padStart(4, '0')}`,
+      ).join('\n')
+      manager.writeInput(pane!.id, Buffer.from(`${noisyPayload}\n`))
+
+      await waitForCondition(() => output.includes('noise-0999'))
+
+      manager.writeInput(pane!.id, Buffer.from('after-noise\n'))
+
+      await waitForCondition(() => output.includes('after-noise'))
+      expect(manager.getPaneStreamState(pane!.id)).toEqual({
+        active: true,
+        draining: false,
+        subscriberCount: 1,
+      })
+    } finally {
+      manager.closeAll()
+    }
+  })
+
+  test('drains and discards pane output while no subscribers are attached', async () => {
+    harness.start('cat')
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessions = await tmux.listSessions()
+    const pane = sessions[0]?.windows[0]?.panes[0]
+    const manager = new PtyManager(tmux, undefined, { drainIdleMs: 2000 })
+    let output = ''
+
+    expect(pane).toBeDefined()
+
+    try {
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-a', (data) => {
+        output += Buffer.from(data).toString('utf8')
+      })
+
+      await delay(200)
+      manager.closePaneSubscriber(pane!.id, 'sub-a')
+
+      expect(manager.getPaneStreamState(pane!.id)).toEqual({
+        active: true,
+        draining: true,
+        subscriberCount: 0,
+      })
+
+      manager.writeInput(pane!.id, Buffer.from('drained-without-subscriber\n'))
+      await delay(500)
+
+      manager.openPane(pane!.id, pane!.ttyPath, 'sub-b', (data) => {
+        output += Buffer.from(data).toString('utf8')
+      })
+      manager.writeInput(pane!.id, Buffer.from('fresh-after-reconnect\n'))
+
+      await waitForCondition(() => output.includes('fresh-after-reconnect'))
+      expect(output).not.toContain('drained-without-subscriber')
+      expect(manager.getPaneStreamState(pane!.id)).toEqual({
+        active: true,
+        draining: false,
+        subscriberCount: 1,
+      })
     } finally {
       manager.closeAll()
     }

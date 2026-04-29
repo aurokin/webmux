@@ -188,36 +188,54 @@ export class PaneStream {
   }
 }
 
+type PaneSubscriberResult = boolean | void
+export type PaneSubscriberCloseReason = 'subscriberDropped' | 'streamClosed'
+
+interface PaneSubscriber {
+  onData: (data: Buffer) => PaneSubscriberResult
+  onClose?: (reason: PaneSubscriberCloseReason) => void
+}
+
+interface PaneRuntime {
+  ttyPath: string
+  stream: PaneStream
+  subscribers: Map<string, PaneSubscriber>
+  drainTimer: ReturnType<typeof setTimeout> | null
+}
+
+export interface PtyManagerOptions {
+  drainIdleMs?: number
+}
+
+export interface PaneStreamState {
+  active: boolean
+  draining: boolean
+  subscriberCount: number
+}
+
+const DEFAULT_DRAIN_IDLE_MS = 1000
+
 /**
  * One PTY stream may fan out to multiple pane WebSocket subscribers.
  */
 export class PtyManager {
+  private readonly drainIdleMs: number
+  private streams = new Map<string, PaneRuntime>()
+
   constructor(
     private readonly tmux: TmuxClient,
     private readonly onStubUpgrade?: (paneId: string, stub: RichPaneStub) => void,
-  ) {}
-
-  private streams = new Map<
-    string,
-    {
-      ttyPath: string
-      stream: PaneStream
-      subscribers: Map<
-        string,
-        {
-          onData: (data: Buffer) => void
-          onClose?: () => void
-        }
-      >
-    }
-  >()
+    options?: PtyManagerOptions,
+  ) {
+    this.drainIdleMs = options?.drainIdleMs ?? DEFAULT_DRAIN_IDLE_MS
+  }
 
   openPane(
     paneId: string,
     ttyPath: string,
     subscriberId: string,
-    onData: (data: Buffer) => void,
-    onClose?: () => void,
+    onData: (data: Buffer) => PaneSubscriberResult,
+    onClose?: (reason: PaneSubscriberCloseReason) => void,
   ): void {
     const existing = this.streams.get(paneId)
     if (existing && existing.ttyPath !== ttyPath) {
@@ -231,6 +249,7 @@ export class PtyManager {
         ttyPath,
         stream,
         subscribers: new Map(),
+        drainTimer: null,
       }
       this.streams.set(paneId, runtime)
       runtime.subscribers.set(subscriberId, { onData, onClose })
@@ -242,8 +261,23 @@ export class PtyManager {
           if (!current) {
             return
           }
-          for (const subscriber of current.subscribers.values()) {
-            subscriber.onData(data)
+          for (const [id, subscriber] of [...current.subscribers]) {
+            let result: PaneSubscriberResult
+            try {
+              result = subscriber.onData(data)
+            } catch (error) {
+              console.error(`[pty] subscriber ${id} failed for pane ${paneId}:`, error)
+              result = false
+            }
+
+            if (result === false) {
+              current.subscribers.delete(id)
+              subscriber.onClose?.('subscriberDropped')
+            }
+          }
+
+          if (current.subscribers.size === 0) {
+            this.scheduleDrainClose(paneId, current)
           }
         },
         () => {
@@ -251,9 +285,13 @@ export class PtyManager {
           if (!current || current.stream !== stream) {
             return
           }
+          if (current.drainTimer) {
+            clearTimeout(current.drainTimer)
+            current.drainTimer = null
+          }
           this.streams.delete(paneId)
           for (const subscriber of current.subscribers.values()) {
-            subscriber.onClose?.()
+            subscriber.onClose?.('streamClosed')
           }
           current.subscribers.clear()
         },
@@ -262,6 +300,7 @@ export class PtyManager {
       return
     }
 
+    this.cancelDrainClose(runtime)
     runtime.subscribers.set(subscriberId, { onData, onClose })
   }
 
@@ -271,7 +310,7 @@ export class PtyManager {
 
     runtime.subscribers.delete(subscriberId)
     if (runtime.subscribers.size === 0) {
-      runtime.stream.close()
+      this.scheduleDrainClose(paneId, runtime)
     }
   }
 
@@ -290,5 +329,47 @@ export class PtyManager {
     for (const runtime of [...this.streams.values()]) {
       runtime.stream.close()
     }
+  }
+
+  getActiveStreamCount(): number {
+    return this.streams.size
+  }
+
+  getPaneStreamState(paneId: string): PaneStreamState {
+    const runtime = this.streams.get(paneId)
+    if (!runtime) {
+      return { active: false, draining: false, subscriberCount: 0 }
+    }
+
+    return {
+      active: true,
+      draining: runtime.subscribers.size === 0,
+      subscriberCount: runtime.subscribers.size,
+    }
+  }
+
+  private scheduleDrainClose(paneId: string, runtime: PaneRuntime): void {
+    if (runtime.drainTimer || runtime.subscribers.size > 0) {
+      return
+    }
+
+    runtime.drainTimer = setTimeout(() => {
+      runtime.drainTimer = null
+      const current = this.streams.get(paneId)
+      if (!current || current !== runtime || current.subscribers.size > 0) {
+        return
+      }
+
+      runtime.stream.close()
+    }, this.drainIdleMs)
+  }
+
+  private cancelDrainClose(runtime: PaneRuntime): void {
+    if (!runtime.drainTimer) {
+      return
+    }
+
+    clearTimeout(runtime.drainTimer)
+    runtime.drainTimer = null
   }
 }

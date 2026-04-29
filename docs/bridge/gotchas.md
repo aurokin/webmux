@@ -34,6 +34,18 @@ stream.on('data', (chunk) => {
 
 Artificial batching adds up to one batch interval of latency to every output frame. Let the OS and network stack do their own buffering.
 
+## Drop failed output subscribers deliberately
+
+Pane output fan-out should stay live and bounded. If a data-channel subscriber cannot accept output because its socket is closed, `send()` fails, or the socket reports backpressure, remove that subscriber and keep draining/fanning out for the remaining subscribers.
+
+Do not queue unbounded pane output for a slow or dead browser. The bridge can drop the failed subscriber and close that data socket with a retryable close code; the client SDK can reconnect and receive live bytes from that point forward. This policy applies only to output fan-out. It must not change the synchronous PTY input path.
+
+## Drain briefly after the last subscriber leaves
+
+When the last data-channel subscriber disconnects, keep the tmux `pipe-pane` output stream open for the configured drain window and discard bytes. If a browser reconnects quickly, reuse the live stream. If nobody reconnects, close the FIFO and detach `pipe-pane`.
+
+This is intentionally not replay. A late subscriber receives new output only.
+
 ## tmux format strings change between versions
 
 The `#{...}` format variables are mostly stable, but edge cases exist:

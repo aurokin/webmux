@@ -154,12 +154,25 @@ export function createWebSocketServer(options: ServerOptions) {
             ttyPath,
             ws.data.connectionId,
             (data) => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(data)
+              if (ws.readyState !== WebSocket.OPEN) {
+                return false
+              }
+
+              try {
+                const result = ws.send(data)
+                return result > 0
+              } catch (error) {
+                console.error(`[ws] failed to send pane output for ${paneId}:`, error)
+                return false
               }
             },
-            () => {
+            (reason) => {
               if (ws.readyState === WebSocket.OPEN) {
+                if (reason === 'subscriberDropped') {
+                  ws.close(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+                  return
+                }
+
                 ws.close(WS_CLOSE.PANE_DESTROYED, 'PANE_CLOSED')
               }
             },
@@ -224,6 +237,12 @@ export function createWebSocketServer(options: ServerOptions) {
       },
     },
   })
+
+  const stopServer = server.stop.bind(server)
+  server.stop = ((closeActiveConnections?: boolean) => {
+    ptyManager.closeAll()
+    return stopServer(closeActiveConnections)
+  }) as typeof server.stop
 
   return server
 }

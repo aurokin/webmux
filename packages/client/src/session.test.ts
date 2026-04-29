@@ -265,6 +265,31 @@ describe('WebmuxClient connection handshake', () => {
     expect(statuses).toEqual(['connecting', 'connected', 'reconnecting', 'connected'])
   })
 
+  test('reconnects pane data channels after retryable close codes', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    client.connectPane('pane-1')
+
+    const paneSocket = FakeWebSocket.instances[0]
+    expect(paneSocket).toBeDefined()
+    paneSocket.simulateOpen()
+
+    paneSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const reconnectedSocket = FakeWebSocket.instances[1]
+    expect(reconnectedSocket).toBeDefined()
+    expect(reconnectedSocket.url).toBe(paneSocket.url)
+
+    client.disconnectPane('pane-1')
+  })
+
   test('emits ownership sync when state sync prunes a destroyed session', async () => {
     const client = new WebmuxClient({
       url: 'ws://bridge.test',

@@ -58,9 +58,11 @@ stream.on('data', (chunk: Buffer) => {
 
 ### What if no client is connected?
 
-Target behavior: if no client is connected for a pane's data channel, the bridge should still keep the tmux output pipe drained so the producer cannot stall. Read and discard.
+The bridge opens a pane stream when the first pane data socket connects and fans output out to every subscriber on that pane.
 
-Current implementation: the bridge opens a pane stream when the first pane data socket connects, fans output out to every subscriber on that pane, and closes the FIFO and tmux pipe when the last subscriber disconnects. Read-and-discard behavior with no subscriber has not been implemented yet.
+When the last subscriber disconnects, the bridge keeps the tmux output pipe open for a short drain window. During that window it continues reading from the FIFO and discards output. This keeps noisy producers from stalling immediately if a browser reconnects, and it avoids replaying historical bytes to a later subscriber.
+
+If a subscriber reconnects during the drain window, the bridge reuses the existing stream. If no subscriber reconnects before the drain window expires, the bridge detaches `pipe-pane`, closes the FIFO and PTY fd, and removes the stream.
 
 ## Write path (input)
 
@@ -79,8 +81,10 @@ This is the most latency-sensitive line in the entire codebase. See `docs/archit
 1. **Pane discovered:** Bridge finds a new pane in poll results and records its tty path and metadata.
 2. **Client connects:** Client opens WebSocket to `/pane/:paneId`. Bridge opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes to that socket.
 3. **Additional clients connect to the same pane:** The bridge reuses the same pane stream and fans output out to each subscriber.
-4. **Last client disconnects:** Current implementation closes the pane stream, detaches the tmux output pipe, and removes the FIFO.
-5. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
+4. **Last client disconnects:** Bridge enters a bounded drain window. Output is read and discarded while there are no subscribers.
+5. **Client reconnects during drain:** Bridge reuses the live stream and resumes fan-out with only new output.
+6. **Drain window expires:** Bridge closes the pane stream, detaches the tmux output pipe, and removes the FIFO.
+7. **Pane destroyed:** Bridge detects pane removal in poll results. It should close any connected data channel WebSocket and remove the pane endpoint.
 
 Current behavior is live-only. A newly attached subscriber receives bytes produced after it joins the shared stream; the bridge does not replay `capture-pane` output on the data channel.
 
