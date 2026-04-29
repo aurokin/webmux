@@ -1,13 +1,23 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { WebmuxClient } from '@webmux/client'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import type { WebmuxClient, RichPaneState } from '@webmux/client'
 import { useTerminal, type TerminalMode } from '../hooks/useTerminal'
 import { PaneChrome } from './PaneChrome'
+import { RichPaneView } from './RichPaneView'
 import { cn } from '../lib/cn'
+import { classifyRichPane } from '../lib/richPaneSafety'
 
 interface PaneProps {
   client: WebmuxClient
   paneId: string
   currentCommand: string
+  richPane: RichPaneState | null
   cols: number
   rows: number
   mode: TerminalMode
@@ -26,6 +36,7 @@ export function Pane({
   client,
   paneId,
   currentCommand,
+  richPane,
   cols,
   rows,
   mode,
@@ -36,19 +47,15 @@ export function Pane({
   showHeader,
 }: PaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const letterboxRef = useRef<HTMLDivElement>(null)
-  const xtermHostRef = useRef<HTMLDivElement>(null)
-  const { focus } = useTerminal(client, paneId, xtermHostRef, mode, { cols, rows })
-
-  useEffect(() => {
-    if (focused) {
-      focus()
-    }
-  }, [focus, focused])
+  const terminalViewportRef = useRef<TerminalPaneViewportHandle>(null)
+  const richPaneSafety = richPane ? classifyRichPane(richPane) : null
+  const chromeTitle = richPaneSafety ? `webview:${richPaneSafety.label}` : currentCommand
 
   const handleClick = () => {
     onFocus()
-    focus()
+    if (!richPane) {
+      terminalViewportRef.current?.focus()
+    }
   }
 
   return (
@@ -63,7 +70,7 @@ export function Pane({
       {showHeader && (
         <PaneChrome
           paneId={paneId}
-          currentCommand={currentCommand}
+          currentCommand={chromeTitle}
           focused={focused}
           canMutate={canMutate}
           onSplit={(direction) => client.splitPane(paneId, direction)}
@@ -72,18 +79,81 @@ export function Pane({
           onMutationUnavailable={onMutationUnavailable}
         />
       )}
-      <PaneViewport letterboxRef={letterboxRef} xtermHostRef={xtermHostRef} mode={mode} />
+      <TerminalPaneViewport
+        ref={terminalViewportRef}
+        client={client}
+        paneId={paneId}
+        cols={cols}
+        rows={rows}
+        mode={mode}
+        focused={focused && !richPane}
+        hidden={Boolean(richPane)}
+      />
+      {richPane && richPaneSafety && (
+        <RichPaneView
+          state={richPane}
+          safety={richPaneSafety}
+          focused={focused}
+          onFocus={onFocus}
+        />
+      )}
     </div>
   )
 }
+
+interface TerminalPaneViewportProps {
+  client: WebmuxClient
+  paneId: string
+  cols: number
+  rows: number
+  mode: TerminalMode
+  focused: boolean
+  hidden: boolean
+}
+
+interface TerminalPaneViewportHandle {
+  focus: () => void
+}
+
+const TerminalPaneViewport = forwardRef<TerminalPaneViewportHandle, TerminalPaneViewportProps>(
+  function TerminalPaneViewport({ client, paneId, cols, rows, mode, focused, hidden }, ref) {
+    const letterboxRef = useRef<HTMLDivElement>(null)
+    const xtermHostRef = useRef<HTMLDivElement>(null)
+    const { focus, blur } = useTerminal(client, paneId, xtermHostRef, mode, { cols, rows })
+
+    useImperativeHandle(ref, () => ({ focus }), [focus])
+
+    useEffect(() => {
+      if (focused) {
+        focus()
+      }
+    }, [focus, focused])
+
+    useEffect(() => {
+      if (hidden) {
+        blur()
+      }
+    }, [blur, hidden])
+
+    return (
+      <PaneViewport
+        letterboxRef={letterboxRef}
+        xtermHostRef={xtermHostRef}
+        mode={mode}
+        hidden={hidden}
+      />
+    )
+  },
+)
 
 interface PaneViewportProps {
   letterboxRef: React.RefObject<HTMLDivElement | null>
   xtermHostRef: React.RefObject<HTMLDivElement | null>
   mode: TerminalMode
+  hidden: boolean
 }
 
-function PaneViewport({ letterboxRef, xtermHostRef, mode }: PaneViewportProps) {
+function PaneViewport({ letterboxRef, xtermHostRef, mode, hidden }: PaneViewportProps) {
   const [scale, setScale] = useState(1)
 
   useLayoutEffect(() => {
@@ -123,8 +193,10 @@ function PaneViewport({ letterboxRef, xtermHostRef, mode }: PaneViewportProps) {
       ref={letterboxRef}
       className={cn(
         'flex-1 min-h-0 min-w-0 overflow-hidden',
+        hidden && 'pointer-events-none absolute inset-0 opacity-0',
         mode === 'active' ? 'px-2 py-1' : 'bg-bg-deep flex items-center justify-center',
       )}
+      aria-hidden={hidden}
     >
       <div
         ref={xtermHostRef}

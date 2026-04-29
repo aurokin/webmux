@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { WebmuxClient, type BridgeError } from '@webmux/client'
+import { WebmuxClient, type BridgeError, type RichPaneState } from '@webmux/client'
 import type { LayoutNode, Session, Window } from '@webmux/shared'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TabBar } from './components/TabBar'
@@ -14,6 +14,7 @@ import {
   useConnectionStatus,
   useConnectionIssue,
   useLatency,
+  useRichPaneStates,
   useSessions,
 } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
@@ -99,6 +100,7 @@ export function App() {
   const pendingCreatedSessionNameRef = useRef<string | null>(null)
 
   const sessions = useSessions(client)
+  const richPaneStates = useRichPaneStates(client)
   const connectionStatus = useConnectionStatus(client)
   const connectionIssue = useConnectionIssue(client)
   const latency = useLatency(client)
@@ -242,6 +244,7 @@ export function App() {
   const activeWindow = getActiveWindow(activeSession)
   const ownership = useSessionOwnership(client, activeSession?.id ?? null)
   const paneCommands = getPaneCommands(activeWindow)
+  const richPanes = useMemo(() => getRichPanesById(richPaneStates), [richPaneStates])
 
   // Auto-focus first pane when window changes
   useEffect(() => {
@@ -448,6 +451,7 @@ export function App() {
             client={client}
             layout={activeWindow?.layout ?? null}
             paneCommands={paneCommands}
+            richPanes={richPanes}
             paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
             canMutate={ownership.mode === 'active'}
             focusedPaneId={focusedPaneId}
@@ -497,6 +501,10 @@ export function App() {
 function getPaneCommands(window: Window | null): Record<string, string> {
   if (!window) return {}
   return Object.fromEntries(window.panes.map((pane) => [pane.id, pane.currentCommand]))
+}
+
+function getRichPanesById(states: RichPaneState[]): Record<string, RichPaneState> {
+  return Object.fromEntries(states.map((state) => [state.paneId, state]))
 }
 
 function collectPaneIds(node: LayoutNode): string[] {

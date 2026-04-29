@@ -1,4 +1,4 @@
-import type { WebmuxClient } from '@webmux/client'
+import type { WebmuxClient, RichPaneState } from '@webmux/client'
 import type { LayoutNode } from '@webmux/shared'
 import { Pane } from './Pane'
 import type { TerminalMode } from '../hooks/useTerminal'
@@ -8,6 +8,7 @@ interface WorkspaceProps {
   client: WebmuxClient
   layout: LayoutNode | null
   paneCommands: Record<string, string>
+  richPanes: Record<string, RichPaneState>
   paneMode: TerminalMode
   canMutate: boolean
   focusedPaneId: string | null
@@ -29,6 +30,7 @@ export function Workspace({
   client,
   layout,
   paneCommands,
+  richPanes,
   paneMode,
   canMutate,
   focusedPaneId,
@@ -65,6 +67,7 @@ export function Workspace({
         node={layout}
         client={client}
         paneCommands={paneCommands}
+        richPanes={richPanes}
         paneMode={paneMode}
         canMutate={canMutate}
         focusedPaneId={focusedPaneId}
@@ -80,6 +83,7 @@ interface LayoutRendererProps {
   node: LayoutNode
   client: WebmuxClient
   paneCommands: Record<string, string>
+  richPanes: Record<string, RichPaneState>
   paneMode: TerminalMode
   canMutate: boolean
   focusedPaneId: string | null
@@ -96,6 +100,7 @@ function LayoutRenderer({
   node,
   client,
   paneCommands,
+  richPanes,
   paneMode,
   canMutate,
   focusedPaneId,
@@ -109,6 +114,7 @@ function LayoutRenderer({
         client={client}
         paneId={node.paneId}
         currentCommand={paneCommands[node.paneId] ?? ''}
+        richPane={richPanes[node.paneId] ?? null}
         cols={node.cols}
         rows={node.rows}
         mode={paneMode}
@@ -136,6 +142,7 @@ function LayoutRenderer({
             node={child}
             client={client}
             paneCommands={paneCommands}
+            richPanes={richPanes}
             paneMode={paneMode}
             canMutate={canMutate}
             focusedPaneId={focusedPaneId}

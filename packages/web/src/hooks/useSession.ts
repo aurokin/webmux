@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore, useEffect, useState } from 'react'
-import type { WebmuxClient, ConnectionStatus, ConnectionIssue } from '@webmux/client'
+import type { WebmuxClient, ConnectionStatus, ConnectionIssue, RichPaneState } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 
 /**
@@ -8,6 +8,14 @@ import type { Session } from '@webmux/shared'
  */
 export function useSessions(client: WebmuxClient): Session[] {
   return useSyncExternalStore(client.subscribe, client.getSnapshot)
+}
+
+/**
+ * Subscribe to rich-pane state.
+ * Re-renders when a pane upgrades, changes resource, or clears rich state.
+ */
+export function useRichPaneStates(client: WebmuxClient): RichPaneState[] {
+  return useSyncExternalStore(client.subscribeRichPanes, client.getRichPaneSnapshot)
 }
 
 /**
