@@ -68,6 +68,85 @@ test.describe.serial('webmux browser validation', () => {
     await expect(page.locator('body')).toContainText('valid token')
   })
 
+  test('upgrades a tmux pane to a local rich pane and clears it when closed', async ({ page }) => {
+    const sessionName = `webmux-rich-${crypto.randomUUID().slice(0, 8)}`
+    const windowName = `rich-local-${crypto.randomUUID().slice(0, 8)}`
+    const fixturePath = `/aur-138-${crypto.randomUUID().slice(0, 8)}`
+    const fixtureUrl = stack.richFixtureUrl(fixturePath)
+    stack.createSession(sessionName)
+    const { paneId, gatePath, readyMarker } = stack.createGatedCommandWindow(
+      sessionName,
+      windowName,
+      `env WEBMUX_RICH_CLIENT=1 bun packages/cli/src/index.ts open preview:127.0.0.1:${stack.richFixturePort}${fixturePath}`,
+    )
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+      await selectSession(page, sessionName)
+      await takeControl(page)
+
+      stack.selectWindowByName(sessionName, windowName)
+      await expect(page.locator(`[data-testid="split-horizontal-${paneId}"]`)).toBeAttached()
+      await expect(page.locator('.xterm')).toContainText(readyMarker, { timeout: 15_000 })
+      stack.releaseGatedCommand(gatePath)
+
+      const richFrame = page.locator(`[data-testid="rich-pane-frame-${paneId}"]`)
+      await expect(richFrame).toHaveAttribute('src', fixtureUrl)
+      await expect(
+        page.frameLocator(`[data-testid="rich-pane-frame-${paneId}"]`).locator('body'),
+      ).toContainText(`webmux rich fixture ${fixturePath}`)
+      await expect(page.locator('.xterm')).not.toContainText('webmux;type=webview')
+
+      await page.getByTitle('Close pane').click({ force: true })
+
+      await expect.poll(() => stack.windowExists(sessionName, windowName)).toBe(false)
+      await expect(richFrame).toHaveCount(0)
+      await expect(page.locator('.xterm').first()).toBeVisible()
+    } finally {
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
+  test('renders external HTTPS rich panes as open-in-browser fallbacks', async ({ page }) => {
+    const sessionName = `webmux-rich-${crypto.randomUUID().slice(0, 8)}`
+    const windowName = `rich-external-${crypto.randomUUID().slice(0, 8)}`
+    const resource = 'gh:openai/codex/pull/1'
+    const resolvedUrl = 'https://github.com/openai/codex/pull/1'
+    stack.createSession(sessionName)
+    const { paneId, gatePath, readyMarker } = stack.createGatedCommandWindow(
+      sessionName,
+      windowName,
+      `env WEBMUX_RICH_CLIENT=1 bun packages/cli/src/index.ts open ${resource}`,
+    )
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+      await selectSession(page, sessionName)
+      await takeControl(page)
+
+      stack.selectWindowByName(sessionName, windowName)
+      await expect(page.locator(`[data-testid="split-horizontal-${paneId}"]`)).toBeAttached()
+      await expect(page.locator('.xterm')).toContainText(readyMarker, { timeout: 15_000 })
+      stack.releaseGatedCommand(gatePath)
+
+      await expect(page.locator(`[data-testid="rich-pane-external-${paneId}"]`)).toBeVisible()
+      await expect(page.locator(`[data-testid="rich-pane-open-${paneId}"]`)).toHaveAttribute(
+        'href',
+        resolvedUrl,
+      )
+      await expect(page.locator(`[data-testid="rich-pane-frame-${paneId}"]`)).toHaveCount(0)
+      await expect(page.locator('.xterm')).not.toContainText('webmux;type=webview')
+    } finally {
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
   test('transfers control and release between two browser clients', async ({ browser }) => {
     const ownerPage = await browser.newPage()
     const observerPage = await browser.newPage()

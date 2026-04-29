@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { appendFileSync, closeSync, mkdtempSync, mkdirSync, openSync, rmSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { createServer, type Server } from 'node:http'
 import * as net from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -86,6 +87,10 @@ function runTmux(socketPath: string, args: string[], allowFailure = false): stri
   return result.stdout.trim()
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 export class WebmuxE2EStack {
   readonly rootDir: string
   readonly runtimeDir = mkdtempSync(path.join(os.tmpdir(), 'webmux-e2e-'))
@@ -98,8 +103,10 @@ export class WebmuxE2EStack {
 
   bridgePort = 0
   webPort = 0
+  richFixturePort = 0
   bridgeProcess: ChildProcessWithoutNullStreams | null = null
   webProcess: ChildProcessWithoutNullStreams | null = null
+  richFixtureServer: Server | null = null
 
   constructor(rootDir: string) {
     this.rootDir = rootDir
@@ -114,8 +121,35 @@ export class WebmuxE2EStack {
     this.bridgePort = await getFreePort()
     this.webPort = await getFreePort()
 
+    await this.startRichFixture()
     await this.startBridge()
     await this.startWeb()
+  }
+
+  async startRichFixture(): Promise<void> {
+    this.richFixturePort = await getFreePort()
+    this.richFixtureServer = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
+      res.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+      })
+      res.end(`<!doctype html>
+<html>
+  <head><title>webmux rich fixture</title></head>
+  <body>
+    <main id="fixture">webmux rich fixture ${url.pathname}</main>
+  </body>
+</html>`)
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      this.richFixtureServer?.once('error', reject)
+      this.richFixtureServer?.listen(this.richFixturePort, '127.0.0.1', () => {
+        this.richFixtureServer?.off('error', reject)
+        resolve()
+      })
+    })
   }
 
   async startBridge(): Promise<void> {
@@ -191,12 +225,30 @@ export class WebmuxE2EStack {
       await new Promise((resolve) => processToStop.once('exit', resolve))
     }
 
+    if (this.richFixtureServer) {
+      const serverToStop = this.richFixtureServer
+      this.richFixtureServer = null
+      await new Promise<void>((resolve, reject) => {
+        serverToStop.close((error) => {
+          if (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
+      })
+    }
+
     runTmux(this.tmuxSocketPath, ['kill-server'], true)
     rmSync(this.runtimeDir, { recursive: true, force: true })
   }
 
   appUrl(token = this.token): string {
     return `http://127.0.0.1:${this.webPort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${token}`
+  }
+
+  richFixtureUrl(pathname: string): string {
+    return `http://127.0.0.1:${this.richFixturePort}${pathname}`
   }
 
   activeWindowTarget(sessionName = this.sessionName): string {
@@ -212,8 +264,51 @@ export class WebmuxE2EStack {
     ])
   }
 
-  killSession(sessionName: string): void {
-    runTmux(this.tmuxSocketPath, ['kill-session', '-t', sessionName])
+  createGatedCommandWindow(
+    sessionName: string,
+    windowName: string,
+    command: string,
+  ): { paneId: string; gatePath: string; readyMarker: string } {
+    const gatePath = path.join(this.runtimeDir, `${windowName}.gate`)
+    const readyMarker = `webmux-ready-${crypto.randomUUID().slice(0, 8)}`
+    const script = `while [ ! -f ${shellQuote(gatePath)} ]; do printf '${readyMarker}\\n'; sleep 0.2; done; exec ${command}`
+    runTmux(this.tmuxSocketPath, [
+      'new-window',
+      '-d',
+      '-t',
+      sessionName,
+      '-n',
+      windowName,
+      `sh -lc ${shellQuote(script)}`,
+    ])
+
+    return {
+      paneId: this.singlePaneId(`${sessionName}:${windowName}`),
+      gatePath,
+      readyMarker,
+    }
+  }
+
+  releaseGatedCommand(gatePath: string): void {
+    closeSync(openSync(gatePath, 'w'))
+  }
+
+  createSession(sessionName: string): void {
+    runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', sessionName, 'cat'])
+  }
+
+  selectWindowByName(sessionName: string, windowName: string): void {
+    runTmux(this.tmuxSocketPath, ['select-window', '-t', `${sessionName}:${windowName}`])
+  }
+
+  windowExists(sessionName: string, windowName: string): boolean {
+    return runTmux(this.tmuxSocketPath, ['list-windows', '-t', sessionName, '-F', '#{window_name}'])
+      .split('\n')
+      .includes(windowName)
+  }
+
+  killSession(sessionName: string, allowFailure = false): void {
+    runTmux(this.tmuxSocketPath, ['kill-session', '-t', sessionName], allowFailure)
   }
 
   sessionExists(sessionName: string): boolean {
@@ -270,5 +365,14 @@ export class WebmuxE2EStack {
     }
 
     throw new Error(`No active window found for session ${sessionName}`)
+  }
+
+  private singlePaneId(target: string): string {
+    const output = runTmux(this.tmuxSocketPath, ['list-panes', '-t', target, '-F', '#{pane_id}'])
+    const paneIds = output.split('\n').filter(Boolean)
+    if (paneIds.length !== 1) {
+      throw new Error(`Expected one pane for ${target}, found ${paneIds.length}`)
+    }
+    return paneIds[0]
   }
 }

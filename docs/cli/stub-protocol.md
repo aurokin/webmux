@@ -1,12 +1,12 @@
-# Stub Protocol
+# Rich-Pane Stub Protocol
 
-The stub protocol allows CLI tools to signal that rich content is available for a pane. The webmux web client detects this signal and upgrades the pane from a terminal to a webview. Regular terminals ignore it.
+The stub protocol allows CLI tools to signal that rich content is available for a pane. The bridge detects the signal in PTY output, strips it before xterm.js sees it, and the web client renders a rich-pane surface while keeping the underlying PTY stream connected.
 
 ## How it works
 
 1. User runs `webmux open gh:owner/repo/pull/123` in a tmux pane.
 2. The `webmux open` command checks the `WEBMUX_RICH_CLIENT` environment variable.
-3. If set (meaning a webmux web client is proxying this pane):
+3. If set:
    - Resolve the resource to a validated `http` or `https` URL.
    - Emit a special escape sequence with the percent-encoded resource URL.
    - Keep the process running (the pane stays alive as long as the resource is open).
@@ -16,6 +16,8 @@ The stub protocol allows CLI tools to signal that rich content is available for 
    - Exit.
 
 Invalid resources fail clearly and do not emit an upgrade signal.
+
+Current limitation: the bridge does not inject `WEBMUX_RICH_CLIENT=1` into already-running tmux shells. The environment variable must be present when the command runs, or the CLI uses the regular-terminal fallback. Future bridge-owned pane creation can make this automatic for panes it launches.
 
 ## Escape sequence format
 
@@ -50,28 +52,33 @@ The bridge's PTY read loop scans output for the `\033]webmux;` prefix. When dete
 { type: 'pane.stubUpgrade', paneId: string, stubType: 'webview', url: string }
 ```
 
-4. The web client receives this and replaces the xterm.js terminal in that pane with an iframe or custom renderer showing the URL.
+4. The client stores rich-pane state for that pane and emits rich-pane sync events for React consumers.
+5. The web client renders the rich-pane surface for the URL.
 
 ## Web client rendering
 
-When a pane receives a `stubUpgrade` event, the `Pane` component switches its renderer:
+When a pane receives a `stubUpgrade` event, the `Pane` component switches its visible renderer:
 
 - **Terminal mode** (default): xterm.js instance, fed by PTY data channel.
-- **Webview mode**: an iframe with sandboxing, showing the stub URL. The PTY data channel stays connected (the `webmux open` process is still running) but output is not displayed.
+- **Local webview mode**: a sandboxed iframe for local or loopback URLs.
+- **External link mode**: an open-in-browser fallback for external HTTPS URLs such as GitHub and Linear, because those sites commonly block iframe embedding.
+- **Blocked mode**: a visible rejection state for unsafe URLs, including embedded credentials, unsupported schemes, and external HTTP.
+
+The hidden terminal stays mounted while the rich pane is visible. The PTY data channel remains connected so later output and lifecycle changes are still observed, but terminal output is not shown over the rich-pane surface.
 
 The pane chrome updates to show the stub resource (e.g., "github.com/owner/repo/pull/123") instead of the shell command.
 
-Closing the webview pane kills the `webmux open` process (which closes the tmux pane) and the pane disappears from the layout.
+Closing the pane kills the underlying tmux pane and clears the rich-pane state from the browser.
 
 ## `WEBMUX_RICH_CLIENT` environment variable
 
-The bridge sets this variable on all PTY sessions it proxies:
+`webmux open` emits the OSC upgrade only when this variable is set:
 
 ```bash
 WEBMUX_RICH_CLIENT=1
 ```
 
-This is set in the environment when the bridge opens the PTY fd. Any process running in that pane (or its children) can check this variable to decide whether to emit stub escape sequences.
+Without it, the command prints a text fallback URL and exits. The current bridge observes existing tmux panes through their TTYs; it cannot change the environment of already-running shell processes.
 
 ## Extensibility
 
@@ -92,14 +99,14 @@ Each type would need a corresponding renderer in the web client.
 
 ## Security
 
-The webview iframe must be sandboxed:
+Local webview iframes are sandboxed:
 
 ```html
 <iframe
   src="{url}"
-  sandbox="allow-scripts allow-same-origin allow-popups"
+  sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-same-origin"
   referrerpolicy="no-referrer"
 />
 ```
 
-The webmux web client should warn before loading URLs from untrusted sources. The stub protocol is powerful — a malicious process in a pane could emit a stub sequence pointing to a phishing page. Consider a whitelist or user confirmation for non-localhost URLs.
+The shipped web client only auto-loads local and loopback hosts (`localhost`, `*.localhost`, `127.0.0.0/8`, and `::1`). External HTTPS resources are shown as open-in-browser links instead of iframes. External HTTP resources and credential-bearing URLs are blocked.

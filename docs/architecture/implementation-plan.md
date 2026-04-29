@@ -246,6 +246,18 @@ Use Linear for:
 
 Goal: the project-specific differentiator exists after the core tmux client is solid.
 
+Status:
+
+- `webmux open <resource>` resolves supported URL, GitHub, Linear, and local preview resources.
+- The CLI emits a namespaced OSC rich-pane signal when `WEBMUX_RICH_CLIENT=1` is present and prints a regular-terminal fallback otherwise.
+- The bridge scans PTY output for rich-pane OSC signals, strips those signals from terminal fan-out, and broadcasts pane upgrades over the control channel.
+- The client stores per-pane rich-pane state, exposes subscription snapshots, and clears stale rich-pane state when panes disappear.
+- The web app keeps the underlying terminal stream mounted while rendering rich panes. Local and loopback URLs load in sandboxed iframes; external HTTPS resources render as open-in-browser links; unsafe URLs are blocked.
+
+Known limitation:
+
+- The bridge does not inject `WEBMUX_RICH_CLIENT` into already-running tmux shells. Rich-pane-aware commands must currently run with that environment variable already set.
+
 Done when:
 
 - `webmux open <resource>` produces useful behavior both inside and outside the web client

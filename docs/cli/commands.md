@@ -23,7 +23,7 @@ The daemon runs until killed. It does not daemonize itself — use systemd, laun
 
 ## `webmux open` (stub CLI)
 
-Opens rich content in a pane. In the webmux web client, upgrades the pane to a webview. In a regular terminal, prints a text fallback.
+Opens rich content in a pane. When `WEBMUX_RICH_CLIENT=1` is present, emits the rich-pane OSC signal and keeps the command alive so the pane can stay open. In a regular terminal, prints a text fallback URL and exits.
 
 ```bash
 webmux open <resource>
@@ -35,7 +35,9 @@ webmux open <resource>
 
 Supported v0 resources resolve to `http` or `https` URLs only. Bare hosts are treated as `https://` URLs, and `preview:` resources default to `http://` for local dev servers. Invalid resources exit with a clear error and do not emit a rich-pane escape sequence.
 
-See `docs/cli/stub-protocol.md` for how this works.
+The web client auto-loads local and loopback resources in a sandboxed iframe. External HTTPS resources, including GitHub and Linear shortcuts, render as open-in-browser links because those sites usually block iframe embedding. External HTTP and credential-bearing URLs are blocked.
+
+Current limitation: the bridge observes existing tmux panes but does not inject `WEBMUX_RICH_CLIENT` into already-running shells. For now, tools that want rich-pane behavior must run with that environment variable set. See `docs/cli/stub-protocol.md` for the protocol details.
 
 ## `webmux status`
 
