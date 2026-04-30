@@ -56,6 +56,15 @@ The `#{...}` format variables are mostly stable, but edge cases exist:
 
 Always parse defensively. If a field is missing, skip that entity and log a warning. Don't crash.
 
+tmux command failures should be categorized in bridge logs:
+
+- `no-server` — tmux is not reachable yet; the bridge may keep serving an empty snapshot.
+- `not-found` — a pane/window/session disappeared during churn.
+- `format-error` — discovery output could not be parsed as expected.
+- `command-failed` — tmux returned another non-zero command result.
+
+For polling, avoid log spam. Repeated identical poll failures should log once, and the bridge should log recovery when tmux discovery starts succeeding again.
+
 ## PTY devices can disappear
 
 If tmux kills a pane while the bridge has its PTY fd open, the next read/write will fail with `EIO` or `ENOENT`. The bridge must handle this gracefully:

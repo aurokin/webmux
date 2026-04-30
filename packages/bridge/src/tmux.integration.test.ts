@@ -287,6 +287,16 @@ describe('tmux bridge integration', () => {
     harness.stop()
   })
 
+  test('reads live tmux version diagnostics', async () => {
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const version = await tmux.getVersion()
+
+    expect(version.raw).toStartWith('tmux ')
+    if (version.supported !== null) {
+      expect(typeof version.major).toBe('number')
+    }
+  })
+
   test('discovers sessions, panes, and normalized layout ids from a live tmux server', async () => {
     harness.start('cat')
     harness.run(['split-window', '-h', '-t', `${harness.sessionName}:1`])

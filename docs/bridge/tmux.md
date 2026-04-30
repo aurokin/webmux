@@ -76,7 +76,11 @@ See `docs/bridge/pty.md` for PTY lifecycle details.
 
 ## tmux version compatibility
 
-The `-F` format strings used above are stable across tmux versions 2.6+. The bridge should parse defensively — if a format field is missing or unexpected, log a warning and skip that entity rather than crashing. tmux format string output can vary slightly between versions (e.g., session_id prefix characters).
+The active support assumption for v0 is tmux 2.6 or newer. On startup, the bridge runs `tmux -V`, logs the raw version, and warns if the parsed version is below that supported floor or cannot be parsed.
+
+The `-F` format strings used above are stable across tmux versions 2.6+. The bridge parses discovery defensively: malformed session, window, and pane rows are skipped with a warning, and entities that disappear during discovery are skipped rather than crashing the process. tmux format string output can vary slightly between versions (e.g., session_id prefix characters), so diagnostics include the failing command/category when tmux itself returns an error.
+
+Polling diagnostics are deduplicated. A repeated tmux polling failure logs once until the error category/message changes, and the bridge logs a recovery message once discovery succeeds again.
 
 ## Future: tmux control mode
 

@@ -5,6 +5,108 @@ import type { SessionManager } from './session'
 import { bindLayoutToPanes, buildFallbackLayout, parseTmuxLayout } from './layout'
 
 const FIELD_SEPARATOR = '\x1f'
+export const MIN_SUPPORTED_TMUX_VERSION = { major: 2, minor: 6 } as const
+
+export type TmuxErrorCategory = 'no-server' | 'not-found' | 'format-error' | 'command-failed'
+
+export interface TmuxVersion {
+  raw: string
+  major: number | null
+  minor: number | null
+  patch: number | null
+  supported: boolean | null
+}
+
+interface TmuxLogger {
+  warn: (...args: unknown[]) => void
+  error: (...args: unknown[]) => void
+}
+
+export class TmuxCommandError extends Error {
+  readonly category: TmuxErrorCategory
+  readonly command: string
+  readonly args: string[]
+  readonly exitCode: number | null
+  readonly stderr: string
+
+  constructor({
+    command,
+    args,
+    exitCode,
+    stderr,
+    cause,
+  }: {
+    command: string
+    args: string[]
+    exitCode: number | null
+    stderr: string
+    cause?: unknown
+  }) {
+    const category = categorizeTmuxFailure(command, stderr)
+    super(`tmux ${command} failed${exitCode === null ? '' : ` (${exitCode})`}: ${stderr}`, {
+      cause,
+    })
+    this.name = 'TmuxCommandError'
+    this.category = category
+    this.command = command
+    this.args = args
+    this.exitCode = exitCode
+    this.stderr = stderr
+  }
+}
+
+function categorizeTmuxFailure(command: string, stderr: string): TmuxErrorCategory {
+  if (
+    stderr.includes('no server running') ||
+    stderr.includes('failed to connect to server') ||
+    stderr.includes('No such file or directory')
+  ) {
+    return 'no-server'
+  }
+
+  if (
+    stderr.includes('can not find pane') ||
+    stderr.includes("can't find pane") ||
+    stderr.includes('can not find session') ||
+    stderr.includes("can't find session") ||
+    stderr.includes('can not find window') ||
+    stderr.includes("can't find window")
+  ) {
+    return 'not-found'
+  }
+
+  return 'command-failed'
+}
+
+export function parseTmuxVersion(raw: string): TmuxVersion {
+  const match = raw.trim().match(/^tmux\s+(\d+)(?:\.(\d+))?(?:\.(\d+))?/)
+  const major = match?.[1] ? Number.parseInt(match[1], 10) : null
+  const minor = match?.[2] ? Number.parseInt(match[2], 10) : null
+  const patch = match?.[3] ? Number.parseInt(match[3], 10) : null
+
+  return {
+    raw: raw.trim(),
+    major,
+    minor,
+    patch,
+    supported:
+      major === null
+        ? null
+        : major > MIN_SUPPORTED_TMUX_VERSION.major ||
+          (major === MIN_SUPPORTED_TMUX_VERSION.major &&
+            (minor ?? 0) >= MIN_SUPPORTED_TMUX_VERSION.minor),
+  }
+}
+
+export function formatTmuxDiagnostic(error: unknown): string {
+  if (error instanceof TmuxCommandError) {
+    return `${error.category}: tmux ${error.command} failed${
+      error.exitCode === null ? '' : ` (${error.exitCode})`
+    }: ${error.stderr || 'no stderr'}`
+  }
+
+  return error instanceof Error ? error.message : String(error)
+}
 
 function splitFields(line: string, expectedFields: number): string[] {
   const fields = line.split(FIELD_SEPARATOR)
@@ -40,12 +142,7 @@ function normalizeSessionName(name: string | undefined): string | null {
 }
 
 function isNoTmuxServerError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (error.message.includes('no server running') ||
-      error.message.includes('failed to connect to server') ||
-      error.message.includes('No such file or directory'))
-  )
+  return error instanceof TmuxCommandError && error.category === 'no-server'
 }
 
 /**
@@ -59,10 +156,13 @@ export class TmuxClient {
   private pollTimer: ReturnType<typeof setTimeout> | null = null
   private polling = false
   private socketPath: string | null = null
+  private lastPollErrorKey: string | null = null
+  private readonly logger: TmuxLogger
 
-  constructor(options?: { socketPath?: string; pollInterval?: number }) {
+  constructor(options?: { socketPath?: string; pollInterval?: number; logger?: TmuxLogger }) {
     this.socketPath = options?.socketPath ?? null
     this.pollInterval = options?.pollInterval ?? DEFAULT_POLL_INTERVAL_MS
+    this.logger = options?.logger ?? console
   }
 
   /**
@@ -74,13 +174,29 @@ export class TmuxClient {
     if (this.socketPath) cmd.push('-S', this.socketPath)
     cmd.push(...args)
 
-    const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+    let proc: Bun.Subprocess<'ignore', 'pipe', 'pipe'>
+    try {
+      proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+    } catch (error) {
+      throw new TmuxCommandError({
+        command: args[0] ?? '',
+        args,
+        exitCode: null,
+        stderr: error instanceof Error ? error.message : String(error),
+        cause: error,
+      })
+    }
     const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
     const exitCode = await proc.exited
 
     if (exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text()
-      throw new Error(`tmux ${args[0]} failed (${exitCode}): ${stderr.trim()}`)
+      throw new TmuxCommandError({
+        command: args[0] ?? '',
+        args,
+        exitCode,
+        stderr: stderr.trim(),
+      })
     }
 
     return stdout.trim()
@@ -104,8 +220,22 @@ export class TmuxClient {
     } catch (error) {
       const stderr =
         error instanceof Error && 'stderr' in error ? String(error.stderr ?? '').trim() : ''
-      throw new Error(`tmux ${args[0]} failed: ${stderr || String(error)}`, { cause: error })
+      const exitCode =
+        error instanceof Error && 'status' in error && typeof error.status === 'number'
+          ? error.status
+          : null
+      throw new TmuxCommandError({
+        command: args[0] ?? '',
+        args,
+        exitCode,
+        stderr: stderr || String(error),
+        cause: error,
+      })
     }
+  }
+
+  async getVersion(): Promise<TmuxVersion> {
+    return parseTmuxVersion(await this.exec(['-V']))
   }
 
   /**
@@ -137,8 +267,24 @@ export class TmuxClient {
     for (const line of output.split('\n')) {
       if (!line.trim()) continue
 
-      const [id, name] = splitFields(line, 4)
-      const windows = await this.listWindows(id)
+      let fields: string[]
+      try {
+        fields = splitFields(line, 4)
+      } catch (error) {
+        this.warnMalformed('session', line, error)
+        continue
+      }
+      const [id, name] = fields
+      let windows: Window[]
+      try {
+        windows = await this.listWindows(id)
+      } catch (error) {
+        if (error instanceof TmuxCommandError && error.category === 'not-found') {
+          this.logger.warn(`[tmux] session disappeared during discovery: ${id}`)
+          continue
+        }
+        throw error
+      }
 
       sessions.push({
         id,
@@ -179,26 +325,46 @@ export class TmuxClient {
     for (const line of output.split('\n')) {
       if (!line.trim()) continue
 
-      const [id, indexValue, name, activeValue, _paneCountValue, layoutValue] = splitFields(line, 6)
-      const panes = await this.listPanes(id)
+      let fields: string[]
+      try {
+        fields = splitFields(line, 6)
+      } catch (error) {
+        this.warnMalformed('window', line, error)
+        continue
+      }
+      const [id, indexValue, name, activeValue, _paneCountValue, layoutValue] = fields
+      let panes: Pane[]
+      try {
+        panes = await this.listPanes(id)
+      } catch (error) {
+        if (error instanceof TmuxCommandError && error.category === 'not-found') {
+          this.logger.warn(`[tmux] window disappeared during discovery: ${id}`)
+          continue
+        }
+        throw error
+      }
 
       let layout
       try {
         layout = bindLayoutToPanes(parseTmuxLayout(layoutValue), panes)
       } catch (error) {
-        console.warn(`[tmux] failed to parse layout for ${id}:`, error)
+        this.logger.warn(`[tmux] failed to parse layout for ${id}:`, error)
         layout = buildFallbackLayout(panes)
       }
 
-      windows.push({
-        id,
-        index: parseInteger(indexValue, 'window index'),
-        name,
-        active: parseBoolean(activeValue),
-        paneCount: panes.length,
-        panes,
-        layout,
-      })
+      try {
+        windows.push({
+          id,
+          index: parseInteger(indexValue, 'window index'),
+          name,
+          active: parseBoolean(activeValue),
+          paneCount: panes.length,
+          panes,
+          layout,
+        })
+      } catch (error) {
+        this.warnMalformed('window', line, error)
+      }
     }
 
     return windows
@@ -233,19 +399,35 @@ export class TmuxClient {
     for (const line of output.split('\n')) {
       if (!line.trim()) continue
 
-      const [id, indexValue, colsValue, rowsValue, currentCommand, pidValue, ttyPath, zoomedValue] =
-        splitFields(line, 8)
+      try {
+        const [
+          id,
+          indexValue,
+          colsValue,
+          rowsValue,
+          currentCommand,
+          pidValue,
+          ttyPath,
+          zoomedValue,
+        ] = splitFields(line, 8)
 
-      panes.push({
-        id,
-        index: parseInteger(indexValue, 'pane index'),
-        cols: parseInteger(colsValue, 'pane cols'),
-        rows: parseInteger(rowsValue, 'pane rows'),
-        currentCommand,
-        pid: parseInteger(pidValue, 'pane pid'),
-        ttyPath,
-        zoomed: parseBoolean(zoomedValue),
-      })
+        if (!id || !ttyPath) {
+          throw new Error('Pane id and tty path are required')
+        }
+
+        panes.push({
+          id,
+          index: parseInteger(indexValue, 'pane index'),
+          cols: parseInteger(colsValue, 'pane cols'),
+          rows: parseInteger(rowsValue, 'pane rows'),
+          currentCommand,
+          pid: parseInteger(pidValue, 'pane pid'),
+          ttyPath,
+          zoomed: parseBoolean(zoomedValue),
+        })
+      } catch (error) {
+        this.warnMalformed('pane', line, error)
+      }
     }
 
     return panes
@@ -328,8 +510,17 @@ export class TmuxClient {
       try {
         const sessions = await this.listSessions()
         sessionManager.applyState(sessions)
+        if (this.lastPollErrorKey) {
+          this.logger.warn('[tmux poll] recovered')
+          this.lastPollErrorKey = null
+        }
       } catch (err) {
-        console.error('[tmux poll]', err)
+        const diagnostic = formatTmuxDiagnostic(err)
+        const key = err instanceof TmuxCommandError ? `${err.category}:${diagnostic}` : diagnostic
+        if (key !== this.lastPollErrorKey) {
+          this.logger.error(`[tmux poll] ${diagnostic}`)
+          this.lastPollErrorKey = key
+        }
       } finally {
         if (this.polling) {
           this.pollTimer = setTimeout(() => {
@@ -348,5 +539,14 @@ export class TmuxClient {
       clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
+  }
+
+  private warnMalformed(entity: 'session' | 'window' | 'pane', line: string, error: unknown): void {
+    this.logger.warn(
+      `[tmux] format-error: skipping malformed ${entity}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { line },
+    )
   }
 }

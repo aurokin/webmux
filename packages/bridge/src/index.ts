@@ -1,5 +1,5 @@
 import { DEFAULT_PORT, DEFAULT_HOST, AUTH_TOKEN_BYTES } from '@webmux/shared'
-import { TmuxClient } from './tmux'
+import { MIN_SUPPORTED_TMUX_VERSION, TmuxClient, formatTmuxDiagnostic } from './tmux'
 import { createWebSocketServer } from './ws'
 import { SessionManager } from './session'
 
@@ -19,7 +19,25 @@ const tmux = new TmuxClient({
   socketPath: tmuxSocketPath || undefined,
   pollInterval: Number.isFinite(pollInterval) && pollInterval > 0 ? pollInterval : undefined,
 })
+try {
+  const version = await tmux.getVersion()
+  const support =
+    version.supported === null
+      ? 'support unknown'
+      : version.supported
+        ? 'supported'
+        : `below supported ${MIN_SUPPORTED_TMUX_VERSION.major}.${MIN_SUPPORTED_TMUX_VERSION.minor}`
+  console.warn(`[webmux] ${version.raw} (${support})`)
+} catch (error) {
+  console.warn(`[webmux] tmux version unavailable: ${formatTmuxDiagnostic(error)}`)
+}
+console.warn(
+  `[webmux] tmux socket=${tmuxSocketPath || 'default'} pollInterval=${
+    Number.isFinite(pollInterval) && pollInterval > 0 ? pollInterval : 'default'
+  }ms`,
+)
 const initialSessions = await tmux.listSessions()
+console.warn(`[webmux] initial tmux sessions=${initialSessions.length}`)
 
 if (initialSessions.length === 0) {
   console.warn('No tmux sessions found. Waiting for tmux sessions to appear.')

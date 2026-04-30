@@ -87,6 +87,13 @@ export function createWebSocketServer(options: ServerOptions) {
       const clientId = url.searchParams.get('clientId')
       const authenticated = reqToken === token
 
+      if (url.pathname === '/health') {
+        return Response.json({
+          ok: true,
+          sessions: sessionManager.getSessions().length,
+        })
+      }
+
       // Route: /control
       if (url.pathname === '/control') {
         const upgraded = server.upgrade(req, {

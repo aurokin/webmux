@@ -266,6 +266,13 @@ Done when:
 
 Goal: move from working prototype to dependable tool.
 
+Status:
+
+- Bridge hardening is tracked in Linear parent `AUR-98`.
+- Noisy-pane resilience and explicit no-subscriber drain behavior shipped under `AUR-75`.
+- Pane lifecycle cleanup for churn, removed panes, and reconnect paths shipped under `AUR-76`.
+- tmux compatibility and diagnostics are the remaining bridge-hardening slice under `AUR-79`.
+
 Done when:
 
 - The system survives normal failure modes without surprising data loss or stuck sessions
