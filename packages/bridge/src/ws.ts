@@ -69,7 +69,13 @@ export function createWebSocketServer(options: ServerOptions) {
   })
 
   // Wire up session manager to broadcast state changes
-  sessionManager.onUpdate = (message: BridgeMessage) => broadcast(message)
+  sessionManager.onUpdate = (message: BridgeMessage) => {
+    if (message.type === 'state.sync') {
+      ptyManager.reconcilePanes(getPaneIds(message.sessions))
+    }
+
+    broadcast(message)
+  }
 
   const server = Bun.serve<SocketData>({
     port,
@@ -707,4 +713,10 @@ function mapTmuxErrorCode(error: unknown): ErrorCode {
   }
 
   return 'TMUX_ERROR'
+}
+
+function getPaneIds(sessions: Session[]): string[] {
+  return sessions.flatMap((session) =>
+    session.windows.flatMap((window) => window.panes.map((pane) => pane.id)),
+  )
 }

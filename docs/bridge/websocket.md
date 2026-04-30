@@ -27,7 +27,8 @@ Lifecycle:
 2. Bridge validates token and pane existence. Invalid tokens are closed with `4001` / `AUTH_FAILED`.
 3. Bridge subscribes this socket to the pane's shared live stream. The first subscriber opens the pane TTY for writes, attaches `tmux pipe-pane -O` for output, and starts forwarding bytes.
 4. Bridge checks ownership for that `clientId` before accepting input. Passive and unclaimed clients are read-only on the data channel.
-5. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge detaches the tmux output pipe and closes the pane stream.
+5. On disconnect, the socket unsubscribes from that pane stream. When the last subscriber disconnects, the bridge enters the bounded drain window documented in `docs/bridge/pty.md`.
+6. If tmux state no longer contains the pane, the bridge closes the pane stream and any subscribed data sockets with `4002` / `PANE_DESTROYED`.
 
 ## Server configuration
 
@@ -126,3 +127,5 @@ If a client disconnects and reconnects:
 2. Data channels: client reconnects per-pane WebSockets. Bridge starts forwarding output again. Any output generated during the disconnect is lost (this is the same behavior as detaching and reattaching in tmux).
 
 The client SDK (`@webmux/client`) handles reconnection logic with exponential backoff. The bridge doesn't need to preserve connection state between reconnects.
+
+When a fresh `state.sync` omits a pane, clients must treat that pane as destroyed and close any matching data channel. Reconnecting to that removed pane should fail with `PANE_DESTROYED`; connecting to a still-present replacement pane should open a new live stream.

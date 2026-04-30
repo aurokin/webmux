@@ -102,11 +102,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
       if (status === 'reconnecting') {
         // Close all data channels — they'll be reopened after reconnect
-        for (const conn of this.paneConnections.values()) {
-          conn.disconnect()
-        }
-        this.paneConnections.clear()
-        this.paneInputs.clear()
+        this.disconnectAllPanes()
       }
     }
 
@@ -148,11 +144,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   disconnect(): void {
     this.controlConnection.disconnect()
-    for (const conn of this.paneConnections.values()) {
-      conn.disconnect()
-    }
-    this.paneConnections.clear()
-    this.paneInputs.clear()
+    this.disconnectAllPanes()
     // controlConnection.disconnect() already emits 'disconnected' via
     // onStatusChange. Only emit here if status wasn't already set
     // (e.g. disconnect called before connect).
@@ -349,6 +341,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       case 'state.sync':
         this.receivedInitialStateSync = true
         this._sessions = msg.sessions
+        this.prunePaneConnections(this._sessions)
         if (this.pruneOwnership(this._sessions)) {
           this.emit('ownership:sync', Array.from(this._ownership.values()))
         }
@@ -415,15 +408,29 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     return pruned
   }
 
-  private pruneRichPaneStates(sessions: Session[]): boolean {
-    const activePaneIds = new Set<string>()
-    for (const session of sessions) {
-      for (const window of session.windows) {
-        for (const pane of window.panes) {
-          activePaneIds.add(pane.id)
-        }
+  private disconnectAllPanes(): void {
+    for (const conn of this.paneConnections.values()) {
+      conn.disconnect()
+    }
+    for (const input of this.paneInputs.values()) {
+      input.dispose()
+    }
+    this.paneConnections.clear()
+    this.paneInputs.clear()
+  }
+
+  private prunePaneConnections(sessions: Session[]): void {
+    const activePaneIds = this.getPaneIds(sessions)
+
+    for (const paneId of [...this.paneConnections.keys()]) {
+      if (!activePaneIds.has(paneId)) {
+        this.disconnectPane(paneId)
       }
     }
+  }
+
+  private pruneRichPaneStates(sessions: Session[]): boolean {
+    const activePaneIds = this.getPaneIds(sessions)
 
     let pruned = false
     for (const paneId of this._richPanes.keys()) {
@@ -434,6 +441,14 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
 
     return pruned
+  }
+
+  private getPaneIds(sessions: Session[]): Set<string> {
+    return new Set(
+      sessions.flatMap((session) =>
+        session.windows.flatMap((window) => window.panes.map((pane) => pane.id)),
+      ),
+    )
   }
 
   private emitRichPaneSync(): void {

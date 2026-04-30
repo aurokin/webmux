@@ -183,4 +183,59 @@ describe('PtyManager', () => {
       manager.closeAll()
     }
   })
+
+  test('reconciles away streams for panes missing from current tmux state', () => {
+    const originalOpen = PaneStream.prototype.open
+    const originalClose = PaneStream.prototype.close
+    const streamCloses = new Map<string, () => void>()
+    const subscriberCloseReasons: string[] = []
+
+    PaneStream.prototype.open = function openStub(_ttyPath, _onData, onClose) {
+      streamCloses.set(this.paneId, onClose)
+    }
+    PaneStream.prototype.close = function closeStub() {
+      streamCloses.get(this.paneId)?.()
+    }
+
+    const manager = new PtyManager({} as never)
+
+    try {
+      manager.openPane(
+        '%1',
+        '/dev/pts/1',
+        'sub-a',
+        () => undefined,
+        (reason) => {
+          subscriberCloseReasons.push(`%1:${reason}`)
+        },
+      )
+      manager.openPane(
+        '%2',
+        '/dev/pts/2',
+        'sub-b',
+        () => undefined,
+        (reason) => {
+          subscriberCloseReasons.push(`%2:${reason}`)
+        },
+      )
+
+      manager.reconcilePanes(['%2'])
+
+      expect(manager.getPaneStreamState('%1')).toEqual({
+        active: false,
+        draining: false,
+        subscriberCount: 0,
+      })
+      expect(manager.getPaneStreamState('%2')).toEqual({
+        active: true,
+        draining: false,
+        subscriberCount: 1,
+      })
+      expect(subscriberCloseReasons).toEqual(['%1:streamClosed'])
+    } finally {
+      PaneStream.prototype.open = originalOpen
+      PaneStream.prototype.close = originalClose
+      manager.closeAll()
+    }
+  })
 })

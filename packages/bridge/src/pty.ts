@@ -15,6 +15,13 @@ function createPanePipePath(paneId: string): string {
   return path.join(os.tmpdir(), `webmux-pane-${safePaneId}-${crypto.randomUUID()}.fifo`)
 }
 
+function isMissingPaneError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes('can not find pane') || error.message.includes("can't find pane"))
+  )
+}
+
 /**
  * Manages a PTY connection for a single tmux pane.
  *
@@ -150,7 +157,9 @@ export class PaneStream {
       try {
         this.tmux.closePanePipe(this.paneId)
       } catch (err) {
-        console.error(`[pty] failed to detach output pipe for pane ${this.paneId}:`, err)
+        if (!isMissingPaneError(err)) {
+          console.error(`[pty] failed to detach output pipe for pane ${this.paneId}:`, err)
+        }
       }
       this.outputPipeAttached = false
     }
@@ -328,6 +337,15 @@ export class PtyManager {
   closeAll(): void {
     for (const runtime of [...this.streams.values()]) {
       runtime.stream.close()
+    }
+  }
+
+  reconcilePanes(activePaneIds: Iterable<string>): void {
+    const active = new Set(activePaneIds)
+    for (const paneId of [...this.streams.keys()]) {
+      if (!active.has(paneId)) {
+        this.closePane(paneId)
+      }
     }
   }
 

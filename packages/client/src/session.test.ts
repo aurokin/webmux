@@ -290,6 +290,101 @@ describe('WebmuxClient connection handshake', () => {
     client.disconnectPane('pane-1')
   })
 
+  test('disconnects pane data channels when state sync omits their pane', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    expect(paneSocket).toBeDefined()
+    paneSocket.simulateOpen()
+
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [],
+    })
+
+    expect(paneSocket.readyState).toBe(FakeWebSocket.CLOSED)
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(FakeWebSocket.instances).toHaveLength(2)
+  })
+
+  test('closes stale pane data channels during control reconnect', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    expect(paneSocket).toBeDefined()
+    paneSocket.simulateOpen()
+
+    controlSocket.simulateClose(1011, 'bridge restart')
+
+    expect(client.connectionStatus).toBe('reconnecting')
+    expect(paneSocket.readyState).toBe(FakeWebSocket.CLOSED)
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const reconnectedControlSocket = FakeWebSocket.instances[2]
+    expect(reconnectedControlSocket).toBeDefined()
+    reconnectedControlSocket.simulateOpen()
+    reconnectedControlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    reconnectedControlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    expect(client.connectionStatus).toBe('connected')
+
+    client.connectPane('%1')
+    const reconnectedPaneSocket = FakeWebSocket.instances[3]
+    expect(reconnectedPaneSocket).toBeDefined()
+    expect(reconnectedPaneSocket.url).toBe(paneSocket.url)
+  })
+
   test('emits ownership sync when state sync prunes a destroyed session', async () => {
     const client = new WebmuxClient({
       url: 'ws://bridge.test',

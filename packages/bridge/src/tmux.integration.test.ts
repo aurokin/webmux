@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   PROTOCOL_VERSION,
+  WS_CLOSE,
   encodeRichPaneStub,
   type BridgeMessage,
   type ClientMessage,
@@ -108,6 +109,8 @@ class ControlTestClient {
 
 class DataTestClient {
   private chunks: string[] = []
+  private closeEvent: { code: number; reason: string } | null = null
+  private closeWaiters: Array<(event: { code: number; reason: string }) => void> = []
 
   constructor(readonly socket: WebSocket) {
     socket.binaryType = 'arraybuffer'
@@ -118,6 +121,13 @@ class DataTestClient {
       }
 
       this.chunks.push(Buffer.from(event.data as ArrayBuffer).toString('utf8'))
+    }
+    socket.onclose = (event) => {
+      this.closeEvent = { code: event.code, reason: event.reason }
+      for (const resolve of this.closeWaiters) {
+        resolve(this.closeEvent)
+      }
+      this.closeWaiters = []
     }
   }
 
@@ -156,6 +166,25 @@ class DataTestClient {
     }
 
     throw new Error('Timed out waiting for pane output')
+  }
+
+  async waitForClose(timeout = 5000): Promise<{ code: number; reason: string }> {
+    if (this.closeEvent) {
+      return this.closeEvent
+    }
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.closeWaiters = this.closeWaiters.filter((candidate) => candidate !== waiter)
+        reject(new Error('Timed out waiting for data WebSocket close'))
+      }, timeout)
+
+      const waiter = (event: { code: number; reason: string }) => {
+        clearTimeout(timer)
+        resolve(event)
+      }
+      this.closeWaiters.push(waiter)
+    })
   }
 }
 
@@ -663,6 +692,63 @@ describe('tmux bridge integration', () => {
       })
     } finally {
       manager.closeAll()
+    }
+  })
+
+  test('closes data sockets for panes removed from tmux state', async () => {
+    harness.start('cat')
+    harness.run(['split-window', '-d', '-t', harness.sessionName, 'cat'])
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath, pollInterval: 50 })
+    const sessionManager = new SessionManager(await tmux.listSessions())
+    const server = createWebSocketServer({
+      port: 0,
+      host: '127.0.0.1',
+      token: 'test-token',
+      tmux,
+      sessionManager,
+    })
+    const controlUrl = `ws://127.0.0.1:${server.port}/control?token=test-token`
+    const control = await ControlTestClient.connect(controlUrl, 'observer')
+    const targetPane = sessionManager.getSessions()[0]?.windows[0]?.panes[1]
+    expect(targetPane).toBeDefined()
+
+    const data = await DataTestClient.connect(
+      `ws://127.0.0.1:${server.port}/pane/${targetPane!.id}?token=test-token&clientId=observer`,
+    )
+
+    tmux.startPolling(sessionManager)
+
+    try {
+      harness.run(['kill-pane', '-t', targetPane!.id])
+
+      await control.waitForNew(
+        (message) =>
+          message.type === 'state.sync' &&
+          !message.sessions.some((session) =>
+            session.windows.some((window) =>
+              window.panes.some((pane) => pane.id === targetPane!.id),
+            ),
+          ),
+      )
+
+      await expect(data.waitForClose()).resolves.toEqual({
+        code: WS_CLOSE.PANE_DESTROYED,
+        reason: 'PANE_CLOSED',
+      })
+
+      const reconnect = await DataTestClient.connect(
+        `ws://127.0.0.1:${server.port}/pane/${targetPane!.id}?token=test-token&clientId=observer`,
+      )
+      await expect(reconnect.waitForClose()).resolves.toEqual({
+        code: WS_CLOSE.PANE_DESTROYED,
+        reason: 'PANE_NOT_FOUND',
+      })
+    } finally {
+      tmux.stopPolling()
+      data.close()
+      control.close()
+      server.stop(true)
     }
   })
 

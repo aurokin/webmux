@@ -89,8 +89,9 @@ Logs, warnings, and errors go to stderr. The token line on stdout is the only st
 When cleaning up a pane's data channel:
 
 - Normal shutdown: code 1000
-- Pane destroyed: code 1001 (going away)
+- Recoverable subscriber drop/backpressure: code 1001 (going away)
 - Auth failure: code 4001
+- Pane destroyed or missing: code 4002
 
 The client SDK uses these codes to decide whether to reconnect.
 
