@@ -46,7 +46,7 @@ describe('parseTmuxLayout', () => {
   })
 
   test('parses nested tmux layouts into containers and leaves', () => {
-    const layout = parseTmuxLayout('158x40,0,0[79x40,0,0,0,78x40,80,0{78x20,80,0,1,78x19,80,21,2}]')
+    const layout = parseTmuxLayout('158x40,0,0{79x40,0,0,0,78x40,80,0[78x20,80,0,1,78x19,80,21,2]}')
 
     expect(layout).toMatchObject({
       type: 'horizontal',
@@ -66,7 +66,7 @@ describe('parseTmuxLayout', () => {
 
 describe('bindLayoutToPanes', () => {
   test('normalizes tmux leaf ids to discovered pane ids', () => {
-    const layout = parseTmuxLayout('120x24,0,0[80x24,0,0,0,39x24,81,0,1]')
+    const layout = parseTmuxLayout('120x24,0,0{80x24,0,0,0,39x24,81,0,1}')
     const bound = bindLayoutToPanes(layout, panes)
 
     expect(bound).toMatchObject({

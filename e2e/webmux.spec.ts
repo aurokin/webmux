@@ -230,6 +230,52 @@ test.describe.serial('webmux browser validation', () => {
     await expect.poll(() => stack.windowZoomedFlag(stack.sessionName)).toBe('1')
   })
 
+  test('resizes split panes through browser drag handles', async ({ page }) => {
+    const sessionName = `webmux-resize-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+      await selectSession(page, sessionName)
+      await takeControl(page)
+
+      await page.locator('[data-testid^="split-horizontal-"]').first().click({ force: true })
+      await expect.poll(() => stack.paneCount(sessionName)).toBe(2)
+      const handle = page.locator('[data-testid^="resize-handle-"]').first()
+      await expect(handle).toBeVisible()
+
+      const box = await handle.boundingBox()
+      expect(box).not.toBeNull()
+      const axis = box!.width <= box!.height ? 'width' : 'height'
+      const before = stack.paneSizes(sessionName)
+      const beforeById = new Map(before.map((pane) => [pane.id, pane]))
+
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(
+        box!.x + box!.width / 2 + (axis === 'width' ? 120 : 0),
+        box!.y + box!.height / 2 + (axis === 'height' ? 80 : 0),
+      )
+      await page.mouse.up()
+
+      await expect
+        .poll(() => {
+          return stack.paneSizes(sessionName).some((pane) => {
+            const previous = beforeById.get(pane.id)
+            if (!previous) return false
+            return axis === 'width'
+              ? pane.width !== previous.width
+              : pane.height !== previous.height
+          })
+        })
+        .toBe(true)
+    } finally {
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+    }
+  })
+
   test('creates a named session from the session switcher and selects it', async ({ page }) => {
     const sessionName = `webmux-ui-create-${crypto.randomUUID().slice(0, 8)}`
 
@@ -286,11 +332,21 @@ test.describe.serial('webmux browser validation', () => {
     await selectSession(observerPage, stack.sessionName)
     await takeControl(ownerPage)
 
+    await ownerPage.locator('[data-testid^="split-horizontal-"]').first().click({ force: true })
+    await expect.poll(() => stack.paneCount(stack.sessionName)).toBeGreaterThan(1)
+    await expect(observerPage.locator('[data-testid^="resize-handle-"]').first()).toBeVisible()
+
     await observerPage.locator('[data-testid^="zoom-pane-"]').first().click({ force: true })
 
     await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
 
     await observerPage.getByTestId('new-window-button').click()
+
+    await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
+
+    await observerPage.locator('[data-testid^="resize-handle-"]').first().click({
+      force: true,
+    })
 
     await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
 

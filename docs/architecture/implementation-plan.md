@@ -271,7 +271,7 @@ Status:
 - Bridge hardening is tracked in Linear parent `AUR-98`.
 - Noisy-pane resilience and explicit no-subscriber drain behavior shipped under `AUR-75`.
 - Pane lifecycle cleanup for churn, removed panes, and reconnect paths shipped under `AUR-76`.
-- tmux compatibility and diagnostics are the remaining bridge-hardening slice under `AUR-79`.
+- tmux compatibility, diagnostics, and health reporting shipped under `AUR-79`.
 
 Done when:
 
@@ -284,6 +284,7 @@ Goal: improve usability and visual quality only after the core system is dependa
 Status:
 
 - Foundational UI redesign, theme system, keybind customization, and preference system shipped in Phase 5b.
+- Bridge-backed pane resize handles shipped under `AUR-78`.
 - Remaining work in this phase is iterative refinement on top of the working design.
 
 Done when:

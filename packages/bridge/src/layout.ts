@@ -88,17 +88,18 @@ class LayoutParser {
       break
     }
 
+    const isHorizontal = next === '{'
     const total = children.reduce((sum, child) => {
       const span = nodeSpan(child)
-      return sum + (next === '[' ? span.cols : span.rows)
+      return sum + (isHorizontal ? span.cols : span.rows)
     }, 0)
 
     return {
-      type: next === '[' ? 'horizontal' : 'vertical',
+      type: isHorizontal ? 'horizontal' : 'vertical',
       children,
       ratios: children.map((child) => {
         const span = nodeSpan(child)
-        const basis = next === '[' ? span.cols : span.rows
+        const basis = isHorizontal ? span.cols : span.rows
         return total === 0 ? 1 / children.length : basis / total
       }),
     }

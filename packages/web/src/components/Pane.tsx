@@ -21,6 +21,7 @@ interface PaneProps {
   cols: number
   rows: number
   mode: TerminalMode
+  suppressResize: boolean
   canMutate: boolean
   focused: boolean
   onFocus: () => void
@@ -40,6 +41,7 @@ export function Pane({
   cols,
   rows,
   mode,
+  suppressResize,
   canMutate,
   focused,
   onFocus,
@@ -86,6 +88,7 @@ export function Pane({
         cols={cols}
         rows={rows}
         mode={mode}
+        suppressResize={suppressResize}
         focused={focused && !richPane}
         hidden={Boolean(richPane)}
       />
@@ -107,6 +110,7 @@ interface TerminalPaneViewportProps {
   cols: number
   rows: number
   mode: TerminalMode
+  suppressResize: boolean
   focused: boolean
   hidden: boolean
 }
@@ -116,10 +120,22 @@ interface TerminalPaneViewportHandle {
 }
 
 const TerminalPaneViewport = forwardRef<TerminalPaneViewportHandle, TerminalPaneViewportProps>(
-  function TerminalPaneViewport({ client, paneId, cols, rows, mode, focused, hidden }, ref) {
+  function TerminalPaneViewport(
+    { client, paneId, cols, rows, mode, suppressResize, focused, hidden },
+    ref,
+  ) {
     const letterboxRef = useRef<HTMLDivElement>(null)
     const xtermHostRef = useRef<HTMLDivElement>(null)
-    const { focus, blur } = useTerminal(client, paneId, xtermHostRef, mode, { cols, rows })
+    const { focus, blur } = useTerminal(
+      client,
+      paneId,
+      xtermHostRef,
+      mode,
+      { cols, rows },
+      {
+        suppressResize,
+      },
+    )
 
     useImperativeHandle(ref, () => ({ focus }), [focus])
 

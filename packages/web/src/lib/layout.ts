@@ -5,9 +5,9 @@ import type { LayoutNode, LayoutLeaf } from '@webmux/shared'
  *
  * tmux layout format examples:
  *   "a]80x40,0,0,1"                           → single pane
- *   "[160x40,0,0,1,80x40,81,0,2]"             → horizontal split
- *   "{80x20,0,0,1,80x19,0,21,2}"              → vertical split
- *   "[160x40,0,0{80x40,0,0,1,80x20,81,0,2}]"  → nested
+ *   "{160x40,0,0,1,80x40,81,0,2}"             → horizontal split
+ *   "[80x20,0,0,1,80x19,0,21,2]"              → vertical split
+ *   "{160x40,0,0[80x40,0,0,1,80x20,81,0,2]}"  → nested
  *
  * See docs/web/layout.md for full format documentation.
  */

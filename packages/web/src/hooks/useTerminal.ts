@@ -10,6 +10,10 @@ import { applyRuntimeTerminalOptions } from './terminalOptions'
 
 export type { TerminalMode } from './terminalSizing'
 
+interface UseTerminalOptions {
+  suppressResize?: boolean
+}
+
 /**
  * Manages an xterm.js Terminal instance lifecycle.
  *
@@ -23,20 +27,27 @@ export function useTerminal(
   containerRef: RefObject<HTMLDivElement | null>,
   mode: TerminalMode,
   paneDims: { cols: number; rows: number },
+  options: UseTerminalOptions = {},
 ) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const modeRef = useRef(mode)
+  const suppressResizeRef = useRef(Boolean(options.suppressResize))
   const { preferences } = usePreferences()
   modeRef.current = mode
+  suppressResizeRef.current = Boolean(options.suppressResize)
 
   const resizeActiveTerminal = useCallback(
-    (terminal: Terminal, fitAddon: FitAddon) => {
+    (terminal: Terminal, fitAddon: FitAddon, forceSuppressResize = false) => {
       const prevCols = terminal.cols
       const prevRows = terminal.rows
       fitAddon.fit()
       if (terminal.cols === prevCols && terminal.rows === prevRows) {
+        return
+      }
+
+      if (forceSuppressResize || suppressResizeRef.current) {
         return
       }
 
@@ -112,11 +123,7 @@ export function useTerminal(
       terminalRef.current = null
       fitAddonRef.current = null
     }
-  }, [
-    client,
-    paneId,
-    containerRef,
-  ])
+  }, [client, paneId, containerRef])
 
   useEffect(() => {
     const terminal = terminalRef.current
@@ -159,8 +166,9 @@ export function useTerminal(
         clearTimeout(resizeTimerRef.current)
       }
 
+      const suppressScheduledResize = suppressResizeRef.current
       resizeTimerRef.current = setTimeout(() => {
-        resizeActiveTerminal(terminal, fitAddon)
+        resizeActiveTerminal(terminal, fitAddon, suppressScheduledResize)
       }, 50)
     })
 

@@ -232,6 +232,24 @@ async function expectWindowSize(
   expect(actual).toBe(expected)
 }
 
+async function expectPaneSize(
+  harness: TmuxTestHarness,
+  target: string,
+  expected: string,
+): Promise<void> {
+  let actual = ''
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    actual = harness.run(['display-message', '-p', '-t', target, '#{pane_width}:#{pane_height}'])
+    if (actual === expected) {
+      expect(actual).toBe(expected)
+      return
+    }
+    await delay(50)
+  }
+
+  expect(actual).toBe(expected)
+}
+
 async function waitForManagedSessionByName(
   sessionManager: SessionManager,
   name: string,
@@ -336,6 +354,27 @@ describe('tmux bridge integration', () => {
     await tmux.resizeSession(sessionId!, 100, 30)
 
     expect(harness.run(['list-windows', '-F', '#{window_width}:#{window_height}'])).toBe('100:30')
+  })
+
+  test('resizes live panes through resize-pane absolute dimensions', async () => {
+    harness.start('cat')
+    harness.run(['resize-window', '-t', `${harness.sessionName}:`, '-x', '120', '-y', '40'])
+    harness.run(['split-window', '-h', '-t', `${harness.sessionName}:1`])
+    harness.run(['split-window', '-v', '-t', `${harness.sessionName}:1.1`])
+
+    const tmux = new TmuxClient({ socketPath: harness.socketPath })
+    const sessions = await tmux.listSessions()
+    const window = sessions[0]?.windows[0]
+    const panes = [...(window?.panes ?? [])].sort((a, b) => a.index - b.index)
+    const leftPane = panes[0]
+
+    expect(leftPane).toBeDefined()
+
+    await tmux.resizePane(leftPane!.id, 70, leftPane!.rows)
+    await expectPaneSize(harness, leftPane!.id, '70:20')
+
+    await tmux.resizePane(leftPane!.id, 70, 12)
+    await expectPaneSize(harness, leftPane!.id, '70:12')
   })
 
   test('toggles pane zoom and creates and kills live tmux sessions', async () => {

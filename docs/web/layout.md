@@ -8,10 +8,10 @@ tmux describes window layouts as a string:
 
 ```
 # Horizontal split: two panes side by side
-160x40,0,0[80x40,0,0,1,79x40,81,0,2]
+160x40,0,0{80x40,0,0,1,79x40,81,0,2}
 
 # Vertical split: two panes stacked
-80x40,0,0{80x20,0,0,1,80x19,0,21,2}
+80x40,0,0[80x20,0,0,1,80x19,0,21,2]
 
 # Nested: left pane, right column with two stacked panes
 160x40,0,0{80x40,0,0,1,80x40,81,0[80x20,81,0,2,80x19,81,21,3]}
@@ -36,8 +36,8 @@ interface LayoutNode {
 
 ## Conversion to CSS flex
 
-- `horizontal` container → `display: flex; flex-direction: row`
-- `vertical` container → `display: flex; flex-direction: column`
+- tmux `{...}` containers become `horizontal` layout nodes with `display: flex; flex-direction: row`
+- tmux `[...]` containers become `vertical` layout nodes with `display: flex; flex-direction: column`
 - Each child gets `flex: ratio` where ratio is derived from the pane's col/row size relative to its siblings.
 - Resize handles are inserted between children.
 
@@ -71,22 +71,20 @@ Resize handles are thin (2px) dividers between panes that become visible (highli
 
 ### Drag behavior
 
-1. User mousedown on handle.
-2. Track mouse position relative to the parent container.
-3. Convert to flex ratio for the two adjacent children.
-4. Update local state (React) for immediate visual feedback.
-5. On mouseup, send `pane.resize` to the bridge with new cols/rows calculated from the pixel dimensions and the terminal's character cell size.
+1. User presses a handle.
+2. The web app tracks pointer position relative to the immediate layout container.
+3. The two adjacent child ratios update locally for responsive visual feedback.
+4. xterm auto-fit still redraws during drag, but bridge resize messages are suppressed while the pointer is down.
+5. On pointer release, the web app sends one `pane.resize` control message for the tmux pane at the dragged boundary.
+6. The next `state.sync` from the bridge replaces local preview ratios. tmux remains the source of truth.
 
-### Character cell size
+### Cell sizing
 
-xterm.js exposes `Terminal.options.fontSize` and the renderer exposes actual cell dimensions. To convert pixel-based flex ratios to cols/rows:
+Drag commits use the cell dimensions already present in the bridge-provided layout tree, not xterm private renderer internals. For a horizontal container, the drag position maps to a target column count. For a vertical container, it maps to a target row count.
 
-```typescript
-const cellWidth = terminal._core._renderService.dimensions.css.cell.width
-const cellHeight = terminal._core._renderService.dimensions.css.cell.height
-const cols = Math.floor(panePixelWidth / cellWidth)
-const rows = Math.floor(panePixelHeight / cellHeight)
-```
+The web app chooses the pane nearest the dragged boundary and sends absolute dimensions through `pane.resize`. The bridge applies that with `tmux resize-pane -x/-y`, then polling sends the authoritative layout back to every client.
+
+Passive clients cannot resize panes. Clicking or dragging a handle while passive shows the same "Take control first" feedback used by other tmux mutations.
 
 ## Layout sync
 

@@ -338,6 +338,28 @@ export class WebmuxE2EStack {
     return output ? output.split('\n').length : 0
   }
 
+  paneSizes(sessionName = this.sessionName): Array<{ id: string; width: number; height: number }> {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-panes',
+      '-t',
+      this.activeWindowTarget(sessionName),
+      '-F',
+      '#{pane_id}\t#{pane_width}\t#{pane_height}',
+    ])
+
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [id, width, height] = line.split('\t')
+        return {
+          id,
+          width: Number.parseInt(width, 10),
+          height: Number.parseInt(height, 10),
+        }
+      })
+  }
+
   activeWindowName(sessionName = this.sessionName): string {
     const { name } = this.activeWindow(sessionName)
     return name

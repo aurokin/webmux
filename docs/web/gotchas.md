@@ -21,3 +21,9 @@ Read-only rendering, take-control affordances, and ownership indicators are core
 Terminal sizing affects tmux dimensions and pane behavior. A resize change is often a contract change, not only a paint change.
 
 Read the latency, terminal, and ownership docs before changing sizing or focus behavior casually.
+
+## Drag preview is not layout authority
+
+Pane resize handles may keep local flex ratios while the pointer is down so the UI feels immediate. That preview must end at the bridge boundary: release sends a single `pane.resize`, and the next `state.sync` from tmux replaces the preview.
+
+Do not let xterm's container `ResizeObserver` spam `pane.resize` while a drag is active. The committed resize should be the intentional handle release, not every intermediate browser fit.
