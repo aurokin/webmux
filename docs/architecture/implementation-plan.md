@@ -285,6 +285,7 @@ Status:
 
 - Foundational UI redesign, theme system, keybind customization, and preference system shipped in Phase 5b.
 - Bridge-backed pane resize handles shipped under `AUR-78`.
+- Responsive shell behavior and accessibility cleanup shipped under `AUR-81`.
 - Remaining work in this phase is iterative refinement on top of the working design.
 
 Done when:

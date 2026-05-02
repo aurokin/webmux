@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import { getCommands, type Command } from '../lib/commands'
 import { onKeybindsChanged, type ActionId } from '../lib/keybinds'
 import { cn } from '../lib/cn'
+import { useFocusRestore } from '../hooks/useFocusRestore'
 
 interface CommandPaletteProps {
   onClose: () => void
@@ -13,6 +14,7 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const [commands, setCommands] = useState(() => getCommands())
+  useFocusRestore()
 
   useEffect(() => {
     return onKeybindsChanged(() => {
@@ -34,6 +36,17 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
@@ -71,19 +84,31 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-start justify-center pt-[18vh]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="command-palette-title"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-start justify-center p-3 pt-3 sm:pt-[18vh]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
     >
-      <div className="w-[560px] bg-bg-surface border border-border-default rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="w-full max-w-[560px] max-h-[calc(100dvh-24px)] bg-bg-surface border border-border-default rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden">
+        <h2 id="command-palette-title" className="sr-only">
+          Command palette
+        </h2>
         {/* Input */}
         <div className="flex items-center px-4 border-b border-border-subtle gap-2.5">
           <span className="text-text-ghost text-sm">❯</span>
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0) }}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setSelectedIndex(0)
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type a command..."
             autoComplete="off"
@@ -93,43 +118,43 @@ export function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
         </div>
 
         {/* Command groups */}
-        <div className="p-2 max-h-[420px] overflow-y-auto">
+        <div className="p-2 max-h-[min(420px,calc(100dvh-150px))] overflow-y-auto">
           {Object.entries(groups).map(([category, commands]) => (
             <div key={category} className="py-1">
               <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-ghost font-ui">
                 {category}
               </div>
               {commands.map((cmd) => (
-                  <button
-                    key={cmd.id}
-                    onClick={() => {
-                      onExecute(cmd.id)
-                      onClose()
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm cursor-pointer transition-colors',
-                      cmd.id === selectedId ? 'bg-bg-hover' : '',
-                    )}
-                  >
-                    <span className="w-7 h-7 flex items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle text-text-tertiary text-[12px] shrink-0">
-                      {cmd.icon}
+                <button
+                  key={cmd.id}
+                  onClick={() => {
+                    onExecute(cmd.id)
+                    onClose()
+                  }}
+                  className={cn(
+                    'focus-ring w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm cursor-pointer transition-colors',
+                    cmd.id === selectedId ? 'bg-bg-hover' : '',
+                  )}
+                >
+                  <span className="w-7 h-7 flex items-center justify-center rounded-sm bg-bg-elevated border border-border-subtle text-text-tertiary text-[12px] shrink-0">
+                    {cmd.icon}
+                  </span>
+                  <span className="flex-1 text-[13px] text-text-primary font-ui text-left">
+                    {cmd.label}
+                  </span>
+                  {cmd.keybind && (
+                    <span className="hidden text-[10px] text-text-ghost font-mono gap-1 sm:flex">
+                      {cmd.keybind.split(' ').map((k, i) => (
+                        <kbd
+                          key={i}
+                          className="px-1.5 py-0.5 bg-bg-base border border-border-subtle rounded-[3px]"
+                        >
+                          {k}
+                        </kbd>
+                      ))}
                     </span>
-                    <span className="flex-1 text-[13px] text-text-primary font-ui text-left">
-                      {cmd.label}
-                    </span>
-                    {cmd.keybind && (
-                      <span className="text-[10px] text-text-ghost font-mono flex gap-1">
-                        {cmd.keybind.split(' ').map((k, i) => (
-                          <kbd
-                            key={i}
-                            className="px-1.5 py-0.5 bg-bg-base border border-border-subtle rounded-[3px]"
-                          >
-                            {k}
-                          </kbd>
-                        ))}
-                      </span>
-                    )}
-                  </button>
+                  )}
+                </button>
               ))}
             </div>
           ))}

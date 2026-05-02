@@ -35,6 +35,7 @@ The web app should feel like a local tmux session running in the browser. Every 
 ```
 
 Overlays (rendered above everything):
+
 - Session switcher (center-anchored modal)
 - Command palette (center-anchored modal)
 
@@ -188,15 +189,18 @@ Always visible at the bottom. Dense, tmux-faithful layout.
 ### Segments
 
 **Left:**
+
 - Session badge: green pill with session name (e.g., `[MAIN]`)
 - When tab-position = bottom: window tabs appear here
 
 **Center:**
+
 - Pane count (e.g., `● 3 panes`)
 - Running processes (e.g., `■ zsh · nvim · htop`)
 - Prefix key hint (e.g., `⌃b prefix`) — useful for onboarding
 
 **Right:**
+
 - Connection status: colored dot + "connected" / "reconnecting" / "offline"
 - Latency: e.g., `12ms`
 - Ownership mode: `active` (green) / `passive` (yellow) / `unclaimed` (gray)
@@ -285,7 +289,7 @@ Fuzzy filterable. Selecting an item executes the action.
 
 All visual values are CSS custom properties consumed by Tailwind. Swapping themes = swapping one set of variables.
 
-```css
+```text
 :root {
   /* Backgrounds */
   --bg-deep:      /* deepest background (app chrome) */
@@ -334,23 +338,23 @@ All visual values are CSS custom properties consumed by Tailwind. Swapping theme
 ### Tokyo Night (default theme)
 
 ```css
-[data-theme="tokyo-night"] {
-  --bg-deep:       #0a0a0c;
-  --bg-base:       #0f1014;
-  --bg-surface:    #161820;
-  --bg-elevated:   #1c1f2a;
-  --bg-hover:      #242836;
-  --border-subtle: rgba(255,255,255,0.04);
-  --border-default: rgba(255,255,255,0.08);
-  --border-active: rgba(255,255,255,0.15);
-  --text-primary:  #e4e4e8;
+[data-theme='tokyo-night'] {
+  --bg-deep: #0a0a0c;
+  --bg-base: #0f1014;
+  --bg-surface: #161820;
+  --bg-elevated: #1c1f2a;
+  --bg-hover: #242836;
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(255, 255, 255, 0.15);
+  --text-primary: #e4e4e8;
   --text-secondary: #8b8d98;
   --text-tertiary: #5c5e6a;
-  --text-ghost:    #3a3c48;
-  --accent-green:  #3dd68c;
-  --accent-blue:   #5b9df5;
+  --text-ghost: #3a3c48;
+  --accent-green: #3dd68c;
+  --accent-blue: #5b9df5;
   --accent-yellow: #f5c542;
-  --accent-red:    #f55b5b;
+  --accent-red: #f55b5b;
   --accent-purple: #b07df5;
 }
 ```
@@ -392,35 +396,35 @@ The selected font applies to all terminal panes. UI chrome font stays fixed (DM 
 
 Stored locally (localStorage), synced to bridge if/when user accounts exist.
 
-| Setting | Default | Options |
-|---|---|---|
-| Tab position | `bottom` | `top`, `bottom` |
-| Pane headers | `on` | `on`, `off` |
-| Sidebar open | `true` | `true`, `false` |
-| Terminal font | `JetBrains Mono` | (see font list) |
-| Terminal font size | `13` | `10`-`20` |
-| Theme | `tokyo-night` | (theme list) |
-| Background style | `solid` | `solid`, `gradient`, `pattern`, `custom` |
-| Background custom color | — | hex value |
+| Setting                 | Default          | Options                                  |
+| ----------------------- | ---------------- | ---------------------------------------- |
+| Tab position            | `bottom`         | `top`, `bottom`                          |
+| Pane headers            | `on`             | `on`, `off`                              |
+| Sidebar open            | `true`           | `true`, `false`                          |
+| Terminal font           | `JetBrains Mono` | (see font list)                          |
+| Terminal font size      | `13`             | `10`-`20`                                |
+| Theme                   | `tokyo-night`    | (theme list)                             |
+| Background style        | `solid`          | `solid`, `gradient`, `pattern`, `custom` |
+| Background custom color | —                | hex value                                |
 
 ## Keybinds
 
 All tmux prefix keys (Ctrl+B + key) work as expected and are intercepted before xterm.js. Web-specific additions:
 
-| Keybind | Action |
-|---|---|
-| `Ctrl+B s` | Open session switcher |
-| `Ctrl+B :` | Open command palette |
-| `Ctrl+B b` | Toggle sidebar |
+| Keybind      | Action                                      |
+| ------------ | ------------------------------------------- |
+| `Ctrl+B s`   | Open session switcher                       |
+| `Ctrl+B :`   | Open command palette                        |
+| `Ctrl+B b`   | Toggle sidebar                              |
 | `Ctrl+B 0-9` | Jump to session by index (sidebar ordering) |
-| `Ctrl+B "` | Split horizontal |
-| `Ctrl+B %` | Split vertical |
-| `Ctrl+B z` | Zoom pane |
-| `Ctrl+B x` | Close pane |
-| `Ctrl+B c` | New window |
-| `Ctrl+B n/p` | Next/previous window |
-| `Ctrl+B d` | Detach (close web client) |
-| `Escape` | Close any open overlay |
+| `Ctrl+B "`   | Split horizontal                            |
+| `Ctrl+B %`   | Split vertical                              |
+| `Ctrl+B z`   | Zoom pane                                   |
+| `Ctrl+B x`   | Close pane                                  |
+| `Ctrl+B c`   | New window                                  |
+| `Ctrl+B n/p` | Next/previous window                        |
+| `Ctrl+B d`   | Detach (close web client)                   |
+| `Escape`     | Close any open overlay                      |
 
 ## Keybind customization
 
@@ -461,14 +465,21 @@ All customizations persist in `localStorage` and survive page reloads. There is 
 
 ## Responsive behavior
 
-For v0, the web app targets desktop browsers (1280px+ viewport). Mobile and tablet layouts are deferred to the mobile consumer phase.
+For v0, the web app targets desktop browsers first, but the shell must remain usable on narrow browser viewports. This is not the dedicated mobile consumer; it is a responsive fallback for the web app.
 
-Sidebar collapses automatically below a breakpoint (~900px) and can be toggled back.
+At widths below 900px:
+
+- The sidebar becomes an overlay drawer instead of consuming fixed layout width.
+- Desktop sidebar preference is preserved; opening/closing the narrow drawer does not rewrite the desktop preference.
+- The drawer closes on Escape, backdrop click, session selection, and pane selection.
+- Status and tab bars compact/truncate nonessential metadata before the terminal workspace overflows.
+- Command palette, session switcher, settings, and token prompt fit within the viewport and scroll internally.
 
 ## Accessibility
 
-- All interactive elements are keyboard-navigable
-- Focus rings on interactive elements
-- ARIA labels on icon-only buttons
+- All interactive elements are keyboard-navigable.
+- Focus rings on interactive elements.
+- ARIA labels on icon-only buttons.
+- Modal overlays use dialog semantics and restore focus to the invoking control when closed.
 - Sufficient contrast ratios within each theme
 - Reduced motion: respect `prefers-reduced-motion` for animations

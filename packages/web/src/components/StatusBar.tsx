@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Menu } from 'lucide-react'
 import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 import type { OwnershipState } from '../hooks/useOwnership'
@@ -12,6 +13,8 @@ interface StatusBarProps {
   connectionStatus: ConnectionStatus
   latency: number | null
   tabPosition: 'top' | 'bottom'
+  showSidebarToggle?: boolean
+  onToggleSidebar?: () => void
   onOpenSwitcher: () => void
 }
 
@@ -22,6 +25,8 @@ export function StatusBar({
   connectionStatus,
   latency,
   tabPosition,
+  showSidebarToggle = false,
+  onToggleSidebar,
   onOpenSwitcher,
 }: StatusBarProps) {
   const [prefixDisplay, setPrefixDisplay] = useState(() => getPrefix().display)
@@ -36,13 +41,28 @@ export function StatusBar({
         : 'bg-accent-red'
 
   return (
-    <div className="h-[var(--status-h)] bg-bg-deep border-t border-border-subtle flex items-center text-[11px] font-mono text-text-tertiary shrink-0 select-none">
+    <div className="h-[var(--status-h)] bg-bg-deep border-t border-border-subtle flex min-w-0 items-center overflow-hidden text-[11px] font-mono text-text-tertiary shrink-0 select-none">
+      {showSidebarToggle && onToggleSidebar && (
+        <Segment>
+          <button
+            type="button"
+            title="Sessions"
+            aria-label="Sessions"
+            onClick={onToggleSidebar}
+            className="focus-ring flex h-6 w-6 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          >
+            <Menu size={13} />
+          </button>
+        </Segment>
+      )}
+
       {/* Session badge */}
-      <Segment>
+      <Segment className="min-w-0">
         <button
           data-testid="session-switcher-button"
           onClick={onOpenSwitcher}
-          className="bg-accent-green text-bg-deep font-semibold px-2 py-0.5 rounded-[3px] text-[10px] tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all"
+          className="focus-ring max-w-[140px] truncate bg-accent-green text-bg-deep font-semibold px-2 py-0.5 rounded-[3px] text-[10px] tracking-wider uppercase cursor-pointer hover:brightness-110 transition-all sm:max-w-[220px]"
+          aria-label="Open session switcher"
         >
           {activeSession?.name ?? 'no session'}
         </button>
@@ -52,21 +72,22 @@ export function StatusBar({
       {tabPosition === 'bottom' && activeSession && (
         <>
           {activeSession.windows.map((win) => (
-            <Segment key={win.id}>
+            <Segment key={win.id} className="hidden min-w-0 sm:flex">
               <button
+                aria-current={win.active ? 'page' : undefined}
                 onClick={() => {
                   if (canMutate) {
                     client.selectWindow(activeSession.id, win.index)
                   }
                 }}
                 className={cn(
-                  'flex items-center gap-1.5 transition-colors',
+                  'focus-ring flex min-w-0 items-center gap-1.5 transition-colors rounded-sm',
                   win.active ? 'text-text-primary' : 'text-text-ghost',
                   canMutate ? 'cursor-pointer' : 'cursor-default',
                 )}
               >
                 <span className="text-[10px] text-text-ghost">{win.index}</span>
-                <span>{win.name}</span>
+                <span className="max-w-[110px] truncate">{win.name}</span>
                 {win.active && <span className="text-accent-green text-[9px]">❯</span>}
               </button>
             </Segment>
@@ -75,9 +96,9 @@ export function StatusBar({
       )}
 
       {/* Center: pane count + prefix hint */}
-      <Segment>
+      <Segment className="min-w-0 flex-1">
         <span className="text-accent-blue">◼</span>
-        <span>
+        <span className="truncate">
           {activeSession
             ? (activeSession.windows
                 .find((w) => w.active)
@@ -87,7 +108,7 @@ export function StatusBar({
         </span>
       </Segment>
 
-      <Segment>
+      <Segment className="hidden sm:flex">
         <kbd className="text-[10px] px-1.5 py-px rounded-[3px] bg-bg-elevated text-text-ghost font-medium border border-border-subtle">
           {prefixDisplay}
         </kbd>
@@ -95,7 +116,7 @@ export function StatusBar({
       </Segment>
 
       {/* Right side */}
-      <div className="ml-auto flex items-center">
+      <div className="ml-auto flex min-w-0 shrink-0 items-center">
         {/* Ownership */}
         <Segment>
           <span
@@ -114,7 +135,7 @@ export function StatusBar({
             <button
               data-testid="claim-control-button"
               onClick={() => client.takeControl(activeSession.id)}
-              className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
+              className="focus-ring px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
               claim
             </button>
@@ -123,7 +144,7 @@ export function StatusBar({
             <button
               data-testid="release-control-button"
               onClick={() => client.releaseControl(activeSession.id)}
-              className="px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
+              className="focus-ring px-2 py-px rounded-sm border border-border-default bg-transparent text-text-primary cursor-pointer font-mono text-[10px] hover:border-border-active transition-colors"
             >
               release
             </button>
@@ -140,15 +161,15 @@ export function StatusBar({
         </Segment>
 
         {/* Encoding */}
-        <Segment>utf-8</Segment>
+        <Segment className="hidden md:flex">utf-8</Segment>
 
         {/* Clock */}
-        <Segment>
+        <Segment className="hidden lg:flex">
           <Clock />
         </Segment>
 
         {/* Date */}
-        <Segment last>
+        <Segment last className="hidden xl:flex">
           <DateDisplay />
         </Segment>
       </div>
@@ -156,12 +177,21 @@ export function StatusBar({
   )
 }
 
-function Segment({ children, last = false }: { children: React.ReactNode; last?: boolean }) {
+function Segment({
+  children,
+  last = false,
+  className,
+}: {
+  children: React.ReactNode
+  last?: boolean
+  className?: string
+}) {
   return (
     <div
       className={cn(
-        'flex items-center gap-1.5 px-3 h-full',
+        'flex items-center gap-1.5 px-2 sm:px-3 h-full',
         !last && 'border-r border-border-subtle',
+        className,
       )}
     >
       {children}

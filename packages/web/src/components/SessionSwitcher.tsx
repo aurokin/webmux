@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from 
 import type { Session } from '@webmux/shared'
 import { cn } from '../lib/cn'
 import { getPrefix, getKeybinds, formatKeybind, onKeybindsChanged } from '../lib/keybinds'
+import { useFocusRestore } from '../hooks/useFocusRestore'
 
 interface SessionSwitcherProps {
   sessions: Session[]
@@ -26,6 +27,7 @@ export function SessionSwitcher({
     ),
   )
   const inputRef = useRef<HTMLInputElement>(null)
+  useFocusRestore()
 
   // Read keybind hint once at mount and subscribe to changes, avoiding
   // localStorage parsing on every keystroke/render.
@@ -84,12 +86,21 @@ export function SessionSwitcher({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-switcher-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[12vh] z-[500]"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-3 pt-3 sm:pt-[12vh] z-[500]"
     >
-      <div className="w-[520px] bg-bg-surface/95 border border-border-default rounded-lg shadow-[0_32px_100px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-3xl">
+      <div className="w-full max-w-[520px] max-h-[calc(100dvh-24px)] bg-bg-surface/95 border border-border-default rounded-lg shadow-[0_32px_100px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-3xl">
+        <h2 id="session-switcher-title" className="sr-only">
+          Session switcher
+        </h2>
         {/* Search */}
         <div className="flex items-center px-4 border-b border-border-subtle gap-2.5">
           <span className="text-text-ghost text-[13px]">❯</span>
@@ -103,13 +114,13 @@ export function SessionSwitcher({
             spellCheck={false}
             className="flex-1 h-12 bg-transparent border-none outline-none text-text-primary font-mono text-[13px]"
           />
-          <span className="font-ui text-[10px] uppercase tracking-widest text-text-ghost font-semibold">
+          <span className="hidden font-ui text-[10px] uppercase tracking-widest text-text-ghost font-semibold sm:inline">
             {keybindHint}
           </span>
         </div>
 
         {/* Session list */}
-        <div className="p-1.5 max-h-[420px] overflow-y-auto">
+        <div className="p-1.5 max-h-[min(420px,calc(100dvh-170px))] overflow-y-auto">
           {filtered.map((session, i) => (
             <button
               key={session.id}
@@ -117,6 +128,7 @@ export function SessionSwitcher({
               onClick={() => onSelectSession(session.id)}
               className={cn(
                 'w-full flex items-center px-3 py-2.5 rounded-md cursor-pointer gap-2.5 mb-px transition-colors text-left',
+                'focus-ring',
                 i === safeIndex
                   ? 'bg-bg-hover border border-border-default'
                   : 'border border-transparent hover:bg-bg-hover',
@@ -138,7 +150,7 @@ export function SessionSwitcher({
               />
 
               {/* Name */}
-              <span className="text-[13px] font-medium text-text-primary flex-1">
+              <span className="text-[13px] font-medium text-text-primary flex-1 truncate">
                 {session.name}
                 {session.id === selectedSessionId && (
                   <span className="ml-2 text-accent-green text-[11px]">active</span>
@@ -160,6 +172,7 @@ export function SessionSwitcher({
               }}
               className={cn(
                 'w-full rounded-md border border-transparent px-3 py-4 text-center text-[13px] transition-colors',
+                'focus-ring',
                 query.trim()
                   ? 'text-text-secondary hover:bg-bg-hover hover:border-border-default'
                   : 'text-text-ghost',

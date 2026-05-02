@@ -18,6 +18,7 @@ import {
 } from '../lib/keybinds'
 // normalizeKey is also used in KeybindRow for default comparison
 import { cn } from '../lib/cn'
+import { useFocusRestore } from '../hooks/useFocusRestore'
 
 interface SettingsProps {
   onClose: () => void
@@ -28,20 +29,29 @@ type Tab = 'general' | 'keybinds'
 export function Settings({ onClose }: SettingsProps) {
   const { preferences, setPreference } = usePreferences()
   const [tab, setTab] = useState<Tab>('general')
+  useFocusRestore()
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-start justify-center pt-[10vh]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-start justify-center p-3 pt-3 sm:pt-[10vh]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
     >
-      <div className="w-[540px] bg-bg-surface border border-border-default rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="w-full max-w-[540px] max-h-[calc(100dvh-24px)] bg-bg-surface border border-border-default rounded-lg shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-semibold text-text-primary font-ui">Settings</span>
-            <div className="flex gap-0.5">
+            <span id="settings-title" className="text-sm font-semibold text-text-primary font-ui">
+              Settings
+            </span>
+            <div role="tablist" aria-label="Settings sections" className="flex gap-0.5">
               <TabButton active={tab === 'general'} onClick={() => setTab('general')}>
                 General
               </TabButton>
@@ -52,7 +62,7 @@ export function Settings({ onClose }: SettingsProps) {
           </div>
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-6 h-6 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
+            className="focus-ring flex items-center justify-center w-6 h-6 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
             aria-label="Close settings"
           >
             <X size={14} />
@@ -86,11 +96,11 @@ function TabButton({
   return (
     <button
       onClick={onClick}
+      role="tab"
+      aria-selected={active}
       className={cn(
-        'px-3 py-1 rounded-md text-[11px] font-medium font-ui transition-colors',
-        active
-          ? 'bg-bg-hover text-text-primary'
-          : 'text-text-tertiary hover:text-text-secondary',
+        'focus-ring px-3 py-1 rounded-md text-[11px] font-medium font-ui transition-colors',
+        active ? 'bg-bg-hover text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
       )}
     >
       {children}
@@ -108,12 +118,12 @@ function GeneralSettings({
   setPreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void
 }) {
   return (
-    <div className="p-4 space-y-5 max-h-[55vh] overflow-y-auto">
+    <div className="p-4 space-y-5 max-h-[min(55vh,calc(100dvh-150px))] overflow-y-auto">
       <SettingRow label="Terminal font">
         <select
           value={preferences.terminalFont}
           onChange={(e) => setPreference('terminalFont', e.target.value)}
-          className="bg-bg-elevated border border-border-default rounded-md px-3 py-1.5 text-[12px] text-text-primary font-mono outline-none focus:border-border-active w-full"
+          className="focus-ring bg-bg-elevated border border-border-default rounded-md px-3 py-1.5 text-[12px] text-text-primary font-mono outline-none focus:border-border-active w-full"
         >
           {TERMINAL_FONTS.map((font) => (
             <option key={font.name} value={font.name}>
@@ -220,7 +230,7 @@ function KeybindSettings() {
   }
 
   return (
-    <div className="max-h-[55vh] overflow-y-auto">
+    <div className="max-h-[min(55vh,calc(100dvh-150px))] overflow-y-auto">
       {/* Prefix key */}
       <div className="px-4 py-3 border-b border-border-subtle">
         <div className="flex items-center justify-between">
@@ -422,7 +432,11 @@ function RecordingBadge({
   })
 
   // Track mount state so cleanup doesn't dispatch to an unmounted parent
-  useEffect(() => { return () => { mountedRef.current = false } }, [])
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     setCapturingKeybind(true)
@@ -447,11 +461,25 @@ function RecordingBadge({
         return
       }
       // Ignore modifier-only and unbindable keys
-      if (['Control', 'Shift', 'Alt', 'Meta',
-        'Dead', 'Unidentified', 'Process',
-        'CapsLock', 'NumLock', 'ScrollLock', 'FnLock',
-        'ContextMenu', 'Pause', 'PrintScreen',
-      ].includes(e.key)) return
+      if (
+        [
+          'Control',
+          'Shift',
+          'Alt',
+          'Meta',
+          'Dead',
+          'Unidentified',
+          'Process',
+          'CapsLock',
+          'NumLock',
+          'ScrollLock',
+          'FnLock',
+          'ContextMenu',
+          'Pause',
+          'PrintScreen',
+        ].includes(e.key)
+      )
+        return
 
       // Reject shifted keys — normalizeKey lowercases single chars, so
       // Shift+S → "S" → "s" would fire on bare "s", not the intended Shift+S.
@@ -472,9 +500,7 @@ function RecordingBadge({
   }, [])
 
   return (
-    <div
-      className="px-2.5 py-1 rounded-md border border-accent-green bg-accent-green-dim text-accent-green text-[11px] font-mono animate-pulse"
-    >
+    <div className="px-2.5 py-1 rounded-md border border-accent-green bg-accent-green-dim text-accent-green text-[11px] font-mono animate-pulse">
       press a key...
     </div>
   )
@@ -502,7 +528,9 @@ function CustomColorSetting({ value, onChange }: { value: string; onChange: (v: 
   const [draft, setDraft] = useState(value || COLOR_PICKER_DEFAULT)
 
   // Sync draft when external value changes (e.g. color picker)
-  useEffect(() => { setDraft(value || COLOR_PICKER_DEFAULT) }, [value])
+  useEffect(() => {
+    setDraft(value || COLOR_PICKER_DEFAULT)
+  }, [value])
 
   return (
     <SettingRow label="Custom color">
@@ -532,7 +560,9 @@ function CustomColorSetting({ value, onChange }: { value: string; onChange: (v: 
           placeholder="#0a0a0c"
           className={cn(
             'bg-bg-elevated border rounded-md px-3 py-1.5 text-[12px] text-text-primary font-mono outline-none focus:border-border-active flex-1',
-            HEX_COLOR_RE.test(draft) || draft === '' ? 'border-border-default' : 'border-accent-red',
+            HEX_COLOR_RE.test(draft) || draft === ''
+              ? 'border-border-default'
+              : 'border-accent-red',
           )}
         />
       </div>

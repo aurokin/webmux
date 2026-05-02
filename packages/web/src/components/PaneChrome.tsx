@@ -116,7 +116,7 @@ function PaneAction({
         onClick()
       }}
       className={cn(
-        'w-5 h-5 flex items-center justify-center rounded-[3px] transition-colors',
+        'focus-ring w-5 h-5 flex items-center justify-center rounded-[3px] transition-colors',
         canMutate
           ? 'text-text-ghost hover:text-text-secondary hover:bg-bg-hover'
           : 'text-text-ghost/50 hover:text-accent-yellow hover:bg-bg-hover',

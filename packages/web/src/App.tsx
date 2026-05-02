@@ -19,6 +19,7 @@ import {
 } from './hooks/useSession'
 import { useSessionOwnership } from './hooks/useOwnership'
 import { usePreferences, readPreferences } from './hooks/usePreferences'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
 import {
   DEFAULT_BRIDGE_URL,
@@ -89,9 +90,11 @@ export function App() {
   const [client, setClient] = useState(() => createClient(_initConfig.token))
 
   const { preferences, setPreference } = usePreferences()
+  const compactShell = useMediaQuery('(max-width: 899px)')
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
   const [destroyedSession, setDestroyedSession] = useState<DestroyedSession | null>(null)
@@ -104,6 +107,22 @@ export function App() {
   const connectionStatus = useConnectionStatus(client)
   const connectionIssue = useConnectionIssue(client)
   const latency = useLatency(client)
+
+  const sidebarOpen = compactShell ? mobileSidebarOpen : preferences.sidebarOpen
+  const toggleSidebar = useCallback(() => {
+    if (compactShell) {
+      setMobileSidebarOpen((open) => !open)
+      return
+    }
+
+    setPreference('sidebarOpen', !readPreferences().sidebarOpen)
+  }, [compactShell, setPreference])
+
+  useEffect(() => {
+    if (!compactShell) {
+      setMobileSidebarOpen(false)
+    }
+  }, [compactShell])
 
   // Apply theme to document
   useEffect(() => {
@@ -312,7 +331,7 @@ export function App() {
     () => ({
       toggleSwitcher: () => setSwitcherOpen((o) => !o),
       toggleCommandPalette: () => setPaletteOpen((o) => !o),
-      toggleSidebar: () => setPreference('sidebarOpen', !readPreferences().sidebarOpen),
+      toggleSidebar,
       jumpToSession: (index: number) => {
         const session = sessions[index]
         if (!session) return
@@ -377,7 +396,7 @@ export function App() {
         setSettingsOpen(true)
       },
     }),
-    [sessions, activeSession, focusedPaneId, setPreference, client, requireActiveOwnership],
+    [sessions, activeSession, focusedPaneId, toggleSidebar, client, requireActiveOwnership],
   )
 
   // dispatch is stable (reads from actionsRef internally), so
@@ -400,14 +419,30 @@ export function App() {
     destroyedSession,
   })
 
-  const handleSelectSession = useCallback((sessionId: string) => {
-    setDestroyedSession(null)
-    setSelectedSessionId(sessionId)
-    setFocusedPaneId(null)
-  }, [])
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      setDestroyedSession(null)
+      setSelectedSessionId(sessionId)
+      setFocusedPaneId(null)
+      if (compactShell) {
+        setMobileSidebarOpen(false)
+      }
+    },
+    [compactShell],
+  )
+
+  const handleFocusPane = useCallback(
+    (paneId: string) => {
+      setFocusedPaneId(paneId)
+      if (compactShell) {
+        setMobileSidebarOpen(false)
+      }
+    },
+    [compactShell],
+  )
 
   return (
-    <div className="flex h-screen w-screen bg-bg-deep text-text-primary">
+    <div className="flex h-dvh w-screen overflow-hidden bg-bg-deep text-text-primary">
       {/* Sidebar */}
       <Sidebar
         sessions={sessions}
@@ -416,17 +451,19 @@ export function App() {
         focusedPaneId={focusedPaneId}
         canCreateSession={sessions.length === 0 || ownership.mode === 'active'}
         canKillSession={ownership.mode === 'active' && Boolean(activeSession)}
-        isOpen={preferences.sidebarOpen}
-        onToggle={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
+        isOpen={sidebarOpen}
+        mode={compactShell ? 'drawer' : 'inline'}
+        onToggle={toggleSidebar}
+        onRequestClose={() => setMobileSidebarOpen(false)}
         onSelectSession={handleSelectSession}
-        onFocusPane={setFocusedPaneId}
+        onFocusPane={handleFocusPane}
         onCreateSession={() => createSession()}
         onKillSession={killSelectedSession}
         onMutationUnavailable={showMutationNotice}
       />
 
       {/* Main area */}
-      <div className="relative flex flex-1 flex-col min-w-0">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Tab bar (when position = top) */}
         {preferences.tabPosition === 'top' && activeSession && (
           <TabBar
@@ -434,7 +471,7 @@ export function App() {
             activeSession={activeSession}
             canMutate={ownership.mode === 'active'}
             onMutationUnavailable={showMutationNotice}
-            onToggleSidebar={() => setPreference('sidebarOpen', !readPreferences().sidebarOpen)}
+            onToggleSidebar={toggleSidebar}
             onOpenPalette={() => setPaletteOpen(true)}
           />
         )}
@@ -470,6 +507,8 @@ export function App() {
           connectionStatus={connectionStatus}
           latency={latency}
           tabPosition={preferences.tabPosition}
+          showSidebarToggle={compactShell && preferences.tabPosition === 'bottom'}
+          onToggleSidebar={toggleSidebar}
           onOpenSwitcher={() => setSwitcherOpen(true)}
         />
       </div>

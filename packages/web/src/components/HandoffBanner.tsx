@@ -24,12 +24,15 @@ export function HandoffBanner({ client, activeSession, ownership }: HandoffBanne
     <div
       data-testid="handoff-banner"
       data-mode={ownership.mode}
-      className="absolute top-2 left-1/2 -translate-x-1/2 bg-bg-elevated/95 border border-border-default rounded-lg px-4 py-2 font-ui text-[12px] text-text-secondary flex items-center gap-2.5 z-[200] shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md whitespace-nowrap"
+      className="absolute top-2 left-2 right-2 bg-bg-elevated/95 border border-border-default rounded-lg px-3 py-2 font-ui text-[12px] text-text-secondary flex flex-wrap items-center justify-center gap-2.5 z-[200] shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:flex-nowrap sm:px-4 sm:whitespace-nowrap"
     >
       {isUnclaimed ? (
         <>
           <span className="text-sm">🔒</span>
-          <span>No client is controlling this session — Take Control to interact and resize tmux to your viewport</span>
+          <span>
+            No client is controlling this session — Take Control to interact and resize tmux to your
+            viewport
+          </span>
         </>
       ) : (
         <>
@@ -42,7 +45,7 @@ export function HandoffBanner({ client, activeSession, ownership }: HandoffBanne
       <button
         data-testid="take-control-button"
         onClick={() => client.takeControl(activeSession.id)}
-        className="px-3 py-1 rounded-sm bg-accent-green text-bg-deep font-semibold text-[11px] cursor-pointer border-none font-ui hover:brightness-110 transition-all"
+        className="focus-ring px-3 py-1 rounded-sm bg-accent-green text-bg-deep font-semibold text-[11px] cursor-pointer border-none font-ui hover:brightness-110 transition-all"
       >
         Take Control
       </button>

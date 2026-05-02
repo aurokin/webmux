@@ -36,7 +36,7 @@ export function TabBar({
   }
 
   return (
-    <div className="flex items-stretch h-[var(--tab-h)] bg-bg-deep border-b border-border-subtle shrink-0 select-none">
+    <div className="flex items-stretch h-[var(--tab-h)] bg-bg-deep border-b border-border-subtle shrink-0 select-none overflow-hidden">
       {/* Logo */}
       <div className="flex items-center gap-1.5 px-3 font-ui">
         <div className="flex items-center justify-center w-4 h-4 bg-accent-green rounded-[3px]">
@@ -52,17 +52,18 @@ export function TabBar({
       </div>
 
       {/* Window tabs */}
-      <div className="flex items-stretch">
+      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
         {activeSession.windows.map((win) => (
           <button
             key={win.id}
+            aria-current={win.active ? 'page' : undefined}
             onClick={() => {
               if (requireMutation('Select window')) {
                 client.selectWindow(activeSession.id, win.index)
               }
             }}
             className={cn(
-              'flex items-center gap-2 px-4 text-[12px] font-medium relative transition-colors border-r border-border-subtle whitespace-nowrap group',
+              'focus-ring flex min-w-0 items-center gap-2 px-3 sm:px-4 text-[12px] font-medium relative transition-colors border-r border-border-subtle whitespace-nowrap group',
               win.active
                 ? 'text-text-primary bg-bg-base'
                 : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-surface',
@@ -70,7 +71,7 @@ export function TabBar({
             )}
           >
             <span className="text-[10px] text-text-ghost font-medium">{win.index}</span>
-            <span>{win.name}</span>
+            <span className="max-w-[120px] truncate">{win.name}</span>
             {win.active && (
               <span className="absolute bottom-[-1px] left-0 right-0 h-[1px] bg-accent-green shadow-[0_0_8px_var(--accent-green-dim)]" />
             )}
@@ -83,7 +84,8 @@ export function TabBar({
               client.createWindow(activeSession.id)
             }
           }}
-          className="flex items-center justify-center w-[34px] text-text-ghost hover:text-text-secondary text-[16px] transition-colors"
+          className="focus-ring flex items-center justify-center w-[34px] shrink-0 text-text-ghost hover:text-text-secondary text-[16px] transition-colors"
+          aria-label="New window"
           title="New window"
         >
           +
@@ -91,7 +93,7 @@ export function TabBar({
       </div>
 
       {/* Right actions */}
-      <div className="ml-auto flex items-center pr-3 gap-1">
+      <div className="flex items-center pr-2 sm:pr-3 gap-1 border-l border-border-subtle">
         <TabBarButton icon={<Menu size={13} />} title="Sessions" onClick={onToggleSidebar} />
         <TabBarButton
           icon={<Command size={13} />}
@@ -117,7 +119,8 @@ function TabBarButton({
     <button
       onClick={onClick}
       title={title}
-      className="flex items-center justify-center w-7 h-7 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
+      aria-label={title}
+      className="focus-ring flex items-center justify-center w-7 h-7 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
     >
       {icon}
     </button>

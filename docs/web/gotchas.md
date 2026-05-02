@@ -27,3 +27,9 @@ Read the latency, terminal, and ownership docs before changing sizing or focus b
 Pane resize handles may keep local flex ratios while the pointer is down so the UI feels immediate. That preview must end at the bridge boundary: release sends a single `pane.resize`, and the next `state.sync` from tmux replaces the preview.
 
 Do not let xterm's container `ResizeObserver` spam `pane.resize` while a drag is active. The committed resize should be the intentional handle release, not every intermediate browser fit.
+
+## Responsive web is a fallback, not mobile architecture
+
+The web shell should stay usable below desktop width, but it should not become a second mobile product model. Narrow web viewports use a temporary sidebar drawer and compact chrome while keeping the same bridge/client/session semantics.
+
+Do not persist narrow-only drawer state into the desktop sidebar preference. The user can collapse the desktop sidebar deliberately; opening the drawer on a phone-sized browser window should not rewrite that choice.

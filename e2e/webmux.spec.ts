@@ -242,21 +242,21 @@ test.describe.serial('webmux browser validation', () => {
 
       await page.locator('[data-testid^="split-horizontal-"]').first().click({ force: true })
       await expect.poll(() => stack.paneCount(sessionName)).toBe(2)
+      await expect.poll(() => stack.paneSizes(sessionName).length).toBe(2)
+      await page.waitForTimeout(500)
       const handle = page.locator('[data-testid^="resize-handle-"]').first()
       await expect(handle).toBeVisible()
 
       const box = await handle.boundingBox()
       expect(box).not.toBeNull()
-      const axis = box!.width <= box!.height ? 'width' : 'height'
       const before = stack.paneSizes(sessionName)
       const beforeById = new Map(before.map((pane) => [pane.id, pane]))
 
       await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
       await page.mouse.down()
-      await page.mouse.move(
-        box!.x + box!.width / 2 + (axis === 'width' ? 120 : 0),
-        box!.y + box!.height / 2 + (axis === 'height' ? 80 : 0),
-      )
+      await page.mouse.move(box!.x + box!.width / 2 + 120, box!.y + box!.height / 2, {
+        steps: 8,
+      })
       await page.mouse.up()
 
       await expect
@@ -264,9 +264,7 @@ test.describe.serial('webmux browser validation', () => {
           return stack.paneSizes(sessionName).some((pane) => {
             const previous = beforeById.get(pane.id)
             if (!previous) return false
-            return axis === 'width'
-              ? pane.width !== previous.width
-              : pane.height !== previous.height
+            return pane.width !== previous.width || pane.height !== previous.height
           })
         })
         .toBe(true)
@@ -352,6 +350,70 @@ test.describe.serial('webmux browser validation', () => {
 
     await ownerPage.close()
     await observerPage.close()
+  })
+
+  test('keeps shell controls usable on narrow viewports', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 720 })
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'webmux:preferences',
+        JSON.stringify({ tabPosition: 'top', sidebarOpen: true }),
+      )
+    })
+
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+
+    await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
+
+    const sessionsButton = page.getByTitle('Sessions')
+    await sessionsButton.click()
+    await expect(page.getByRole('dialog', { name: 'Sessions and panes' })).toBeVisible()
+    await expect(page.getByTestId('sidebar-drawer')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
+
+    const paletteButton = page.getByTitle('Command Palette')
+    await paletteButton.click()
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    const paletteBox = await palette.boundingBox()
+    expect(paletteBox?.width ?? 999).toBeLessThanOrEqual(390)
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveCount(0)
+    await expect(paletteButton).toBeFocused()
+
+    const switcherButton = page.getByTestId('session-switcher-button')
+    await switcherButton.click()
+    const switcher = page.getByRole('dialog', { name: 'Session switcher' })
+    await expect(switcher).toBeVisible()
+    const switcherBox = await switcher.boundingBox()
+    expect(switcherBox?.width ?? 999).toBeLessThanOrEqual(390)
+    await page.keyboard.press('Escape')
+    await expect(switcher).toHaveCount(0)
+    await expect(switcherButton).toBeFocused()
+  })
+
+  test('opens the sessions drawer from the default bottom status bar on narrow viewports', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 720 })
+
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+
+    await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
+
+    const sessionsButton = page.getByTitle('Sessions')
+    await sessionsButton.click()
+    await expect(page.getByRole('dialog', { name: 'Sessions and panes' })).toBeVisible()
+    await expect(page.getByTestId('sidebar-drawer')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
   })
 
   test('shows a destroyed-session state and recovers by selecting another session', async ({

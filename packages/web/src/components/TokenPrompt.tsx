@@ -43,16 +43,18 @@ export function TokenPrompt({ kind, onSubmit }: TokenPromptProps) {
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center font-ui"
+      role={isError ? 'alert' : 'region'}
+      aria-labelledby="token-prompt-title"
+      className="flex-1 flex flex-col items-center justify-center gap-4 p-4 text-center font-ui sm:p-6"
       data-testid="token-prompt"
       data-kind={kind}
     >
       <div className="flex flex-col gap-2.5">
         <div
           className={
-            'text-[15px] font-semibold ' +
-            (isError ? 'text-accent-red' : 'text-text-primary')
+            'text-[15px] font-semibold ' + (isError ? 'text-accent-red' : 'text-text-primary')
           }
+          id="token-prompt-title"
         >
           {copy.title}
         </div>
@@ -63,7 +65,7 @@ export function TokenPrompt({ kind, onSubmit }: TokenPromptProps) {
 
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 w-full max-w-[480px]"
+        className="flex w-full max-w-[480px] flex-col items-stretch gap-2 sm:flex-row sm:items-center"
         data-testid="token-prompt-form"
       >
         <input
@@ -75,13 +77,13 @@ export function TokenPrompt({ kind, onSubmit }: TokenPromptProps) {
           autoComplete="off"
           spellCheck={false}
           data-testid="token-prompt-input"
-          className="flex-1 bg-bg-elevated border border-border-default rounded-md px-3 py-2 text-sm text-text-primary font-mono outline-none focus:border-border-active"
+          className="focus-ring flex-1 bg-bg-elevated border border-border-default rounded-md px-3 py-2 text-sm text-text-primary font-mono outline-none focus:border-border-active"
         />
         <button
           type="submit"
           disabled={value.trim().length === 0}
           data-testid="token-prompt-submit"
-          className="px-4 py-2 rounded-md bg-accent-green text-bg-deep font-semibold text-sm cursor-pointer border-none hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          className="focus-ring px-4 py-2 rounded-md bg-accent-green text-bg-deep font-semibold text-sm cursor-pointer border-none hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           Connect
         </button>
