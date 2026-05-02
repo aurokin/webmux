@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { usePreferences, type UserPreferences } from '../hooks/usePreferences'
 import { TERMINAL_FONTS } from '../lib/fonts'
+import { THEMES } from '../lib/themes'
 import {
   DEFAULT_KEYBINDS,
   getKeybindEntries,
@@ -147,6 +148,13 @@ function GeneralSettings({
             {preferences.terminalFontSize}px
           </span>
         </div>
+      </SettingRow>
+
+      <SettingRow label="Theme">
+        <ThemePicker
+          value={preferences.theme}
+          onChange={(value) => setPreference('theme', value)}
+        />
       </SettingRow>
 
       <SettingRow label="Window tab position">
@@ -523,6 +531,55 @@ const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA
 
 /** Default color for the picker when no custom color is set */
 const COLOR_PICKER_DEFAULT = '#1a1b26'
+
+function ThemePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {THEMES.map((theme) => (
+        <button
+          key={theme.id}
+          type="button"
+          onClick={() => onChange(theme.id)}
+          aria-pressed={theme.id === value}
+          className={cn(
+            'focus-ring rounded-md border p-3 text-left transition-colors',
+            theme.id === value
+              ? 'border-accent-green bg-accent-green-dim'
+              : 'border-border-default bg-bg-elevated hover:border-border-active hover:bg-bg-hover',
+          )}
+        >
+          <span className="flex items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block truncate text-[12px] font-semibold text-text-primary font-ui">
+                {theme.name}
+              </span>
+              <span className="mt-0.5 block text-[10px] leading-4 text-text-tertiary">
+                {theme.description}
+              </span>
+            </span>
+            <span className="flex shrink-0 overflow-hidden rounded-[4px] border border-border-subtle">
+              <span
+                className="h-5 w-5"
+                style={{ backgroundColor: theme.swatches.background }}
+                aria-hidden="true"
+              />
+              <span
+                className="h-5 w-5"
+                style={{ backgroundColor: theme.swatches.surface }}
+                aria-hidden="true"
+              />
+              <span
+                className="h-5 w-5"
+                style={{ backgroundColor: theme.swatches.accent }}
+                aria-hidden="true"
+              />
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function CustomColorSetting({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [draft, setDraft] = useState(value || COLOR_PICKER_DEFAULT)

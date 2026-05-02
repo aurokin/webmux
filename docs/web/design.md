@@ -359,6 +359,32 @@ All visual values are CSS custom properties consumed by Tailwind. Swapping theme
 }
 ```
 
+### Oxide
+
+```css
+[data-theme='oxide'] {
+  --bg-deep: #080b0b;
+  --bg-base: #0d1111;
+  --bg-surface: #141919;
+  --bg-elevated: #1c2322;
+  --bg-hover: #26302e;
+  --border-subtle: rgba(214, 235, 225, 0.05);
+  --border-default: rgba(214, 235, 225, 0.11);
+  --border-active: rgba(214, 235, 225, 0.2);
+  --text-primary: #e2e9e5;
+  --text-secondary: #9aa8a2;
+  --text-tertiary: #697872;
+  --text-ghost: #40504a;
+  --accent-green: #40d6b1;
+  --accent-blue: #6db7ff;
+  --accent-yellow: #e8c66a;
+  --accent-red: #ff6b7a;
+  --accent-purple: #c994ff;
+}
+```
+
+Oxide is a neutral graphite theme with teal operational focus and warmer terminal contrast. It exists to prove that theme changes are coherent across chrome and xterm, not just a Tokyo Night shade swap.
+
 ## Backgrounds
 
 Independent of theme. The user can choose a background style:
@@ -403,7 +429,7 @@ Stored locally (localStorage), synced to bridge if/when user accounts exist.
 | Sidebar open            | `true`           | `true`, `false`                          |
 | Terminal font           | `JetBrains Mono` | (see font list)                          |
 | Terminal font size      | `13`             | `10`-`20`                                |
-| Theme                   | `tokyo-night`    | (theme list)                             |
+| Theme                   | `tokyo-night`    | `tokyo-night`, `oxide`                   |
 | Background style        | `solid`          | `solid`, `gradient`, `pattern`, `custom` |
 | Background custom color | —                | hex value                                |
 

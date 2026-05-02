@@ -126,6 +126,6 @@ Prefix mode keys (`s` for session switcher, `z` for zoom, `"` for split, etc.) a
 
 ## Theme
 
-The xterm.js theme should match the webmux UI. Colors are defined as CSS variables and passed to xterm.js's theme option. When the user changes themes (future), both the UI chrome and the terminal colors update together.
+The xterm.js theme should match the webmux UI. Chrome colors are defined as CSS variables, while xterm receives concrete color values from `packages/web/src/lib/themes.ts`. When the user changes themes, both the UI chrome and terminal options update at runtime.
 
 Background should be transparent so the pane's background (which may include the atmospheric gradient) shows through slightly, matching the aesthetic of the user's terminal setup.

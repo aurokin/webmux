@@ -416,6 +416,48 @@ test.describe.serial('webmux browser validation', () => {
     await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
   })
 
+  test('switches themes without disrupting the live terminal', async ({ page }) => {
+    const marker = `theme-e2e-${crypto.randomUUID().slice(0, 8)}`
+
+    await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+    await page.waitForSelector('.xterm')
+    await selectSession(page, stack.sessionName)
+    await takeControl(page)
+
+    const initialBackground = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
+    )
+
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.keyboard.down('Control')
+    await page.keyboard.press('b')
+    await page.keyboard.up('Control')
+    await page.keyboard.press(',')
+
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await page.getByRole('button', { name: /Oxide/ }).click()
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'oxide')
+    const oxideBackground = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
+    )
+    expect(oxideBackground).not.toBe(initialBackground)
+    expect(oxideBackground).toBe('#080b0b')
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+    await expect(page.locator('.xterm').first()).toBeVisible()
+
+    await page.locator('.xterm').first().click()
+    await page.keyboard.type(marker)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(800)
+
+    expect(stack.capturePane(stack.sessionName)).toContain(marker)
+  })
+
   test('shows a destroyed-session state and recovers by selecting another session', async ({
     page,
   }) => {

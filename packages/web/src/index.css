@@ -58,15 +58,54 @@
   --bg-surface: #161820;
   --bg-elevated: #1c1f2a;
   --bg-hover: #242836;
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(255, 255, 255, 0.15);
   --text-primary: #e4e4e8;
   --text-secondary: #8b8d98;
   --text-tertiary: #5c5e6a;
   --text-ghost: #3a3c48;
   --accent-green: #3dd68c;
+  --accent-green-dim: rgba(61, 214, 140, 0.12);
+  --accent-green-glow: rgba(61, 214, 140, 0.06);
   --accent-blue: #5b9df5;
+  --accent-blue-dim: rgba(91, 157, 245, 0.12);
   --accent-yellow: #f5c542;
+  --accent-yellow-dim: rgba(245, 197, 66, 0.1);
   --accent-red: #f55b5b;
+  --accent-red-dim: rgba(245, 91, 91, 0.1);
   --accent-purple: #b07df5;
+  --accent-purple-dim: rgba(176, 125, 245, 0.1);
+}
+
+/* Oxide theme — neutral graphite with teal operational focus */
+[data-theme='oxide'] {
+  --bg-deep: #080b0b;
+  --bg-base: #0d1111;
+  --bg-surface: #141919;
+  --bg-elevated: #1c2322;
+  --bg-hover: #26302e;
+
+  --border-subtle: rgba(214, 235, 225, 0.05);
+  --border-default: rgba(214, 235, 225, 0.11);
+  --border-active: rgba(214, 235, 225, 0.2);
+
+  --text-primary: #e2e9e5;
+  --text-secondary: #9aa8a2;
+  --text-tertiary: #697872;
+  --text-ghost: #40504a;
+
+  --accent-green: #40d6b1;
+  --accent-green-dim: rgba(64, 214, 177, 0.13);
+  --accent-green-glow: rgba(64, 214, 177, 0.07);
+  --accent-blue: #6db7ff;
+  --accent-blue-dim: rgba(109, 183, 255, 0.13);
+  --accent-yellow: #e8c66a;
+  --accent-yellow-dim: rgba(232, 198, 106, 0.12);
+  --accent-red: #ff6b7a;
+  --accent-red-dim: rgba(255, 107, 122, 0.12);
+  --accent-purple: #c994ff;
+  --accent-purple-dim: rgba(201, 148, 255, 0.11);
 }
 
 /* ═══ Tailwind theme extension ═══ */
