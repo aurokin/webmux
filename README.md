@@ -125,6 +125,9 @@ The current automated coverage covers the implemented backend path and a minimal
 - **Portless** via the repo dev dependency for the supported local HTTPS dev loop
 - A modern browser (Chrome, Firefox, Safari, Arc, Zen)
 
+webmux is currently source-checkout only. Packaged CLI, Homebrew, standalone
+binary, desktop, and mobile distribution paths are deferred.
+
 ## Dependency rule
 
 The dependency graph is strictly one-directional. This is an invariant that must never be broken:

@@ -6,9 +6,9 @@ Not the source of truth for: issue-scale release tasks or long-range consumer ro
 Read before this doc: [implementation-plan.md](./implementation-plan.md), [../decisions/README.md](../decisions/README.md)
 Describes: current behavior and current release constraints
 
-webmux is not packaged as a public binary or installer yet. The current release
-surface is a source checkout running with Bun, Portless, tmux, and a modern
-browser.
+webmux is source-checkout only for the current release surface. It is not
+packaged as a public binary or installer. See
+[0007 Source Checkout Release Surface](../decisions/0007-source-checkout-release-surface.md).
 
 ## Install Surface
 
@@ -27,7 +27,7 @@ Requirements:
 - a modern browser
 - Portless local HTTPS trust initialized with `bunx portless trust`
 
-Not yet part of the release surface:
+Deferred out of the current release surface:
 
 - npm-published `webmux` CLI package
 - Homebrew package
@@ -95,9 +95,8 @@ Public/contributor entrypoints:
 - [harnesses.md](./harnesses.md) for validation expectations
 - [docs/cli/commands.md](../cli/commands.md) for CLI command behavior
 
-Operator gaps that must be closed before a public release:
+Operator gaps that must be closed before broadening beyond source checkout:
 
-- choose package/distribution channel
 - document bridge process management if `webmux serve` becomes a supported
   operator path
 - document token handling and trusted-network boundaries explicitly

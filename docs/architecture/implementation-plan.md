@@ -319,12 +319,14 @@ Status:
   [0006 Portless Local Development Surface](../decisions/0006-portless-local-development.md).
 - The current install/run/operator boundary is documented in
   [release-surface.md](./release-surface.md).
-- Public packaging is not settled yet; the current release surface is still a
-  source checkout with Bun, Portless, tmux, and a modern browser.
+- The release surface is source-checkout only for now. npm, Homebrew,
+  standalone binaries, service templates, desktop packages, and mobile packages
+  are deferred. See
+  [0007 Source Checkout Release Surface](../decisions/0007-source-checkout-release-surface.md).
 
 Done when:
 
-- install and packaging choices are explicit
+- source-checkout install and run behavior are explicit
 - supported run modes are documented without fixed-port ambiguity
 - public and operator docs match shipped behavior
 

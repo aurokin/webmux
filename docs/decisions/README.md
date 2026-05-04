@@ -28,6 +28,7 @@ Read in this order if you are new:
 4. [0004-single-owner-session-model.md](./0004-single-owner-session-model.md)
 5. [0005-bridge-is-consumer-agnostic.md](./0005-bridge-is-consumer-agnostic.md)
 6. [0006-portless-local-development.md](./0006-portless-local-development.md)
+7. [0007-source-checkout-release-surface.md](./0007-source-checkout-release-surface.md)
 
 ## Current Decision Index
 
@@ -39,6 +40,7 @@ Read in this order if you are new:
 | 0004 | [Single-owner session model](./0004-single-owner-session-model.md)                     | Accepted | ownership, handoff, UX         |
 | 0005 | [Bridge is consumer-agnostic](./0005-bridge-is-consumer-agnostic.md)                   | Accepted | package boundaries, API design |
 | 0006 | [Portless local development surface](./0006-portless-local-development.md)             | Accepted | local dev, release surface     |
+| 0007 | [Source checkout release surface](./0007-source-checkout-release-surface.md)           | Accepted | packaging, release surface     |
 
 ## When To Write One
 
