@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter '@webmux/*' dev",
+    "dev": "portless --script dev:raw",
     "build": "bun run --filter '@webmux/*' build",
     "test": "bun test packages --timeout 15000",
     "test:unit": "bun test packages --path-ignore-patterns '**/*.integration.test.ts'",
@@ -28,6 +28,7 @@
     "@typescript-eslint/parser": "^8.57.2",
     "eslint": "^10.1.0",
     "globals": "^17.4.0",
+    "portless": "^0.12.0",
     "prettier": "^3.8.1"
   }
 }

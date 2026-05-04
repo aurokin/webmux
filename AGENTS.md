@@ -11,11 +11,16 @@ webmux is currently a scaffold and design reference for a web-first tmux client 
 ## Scaffold commands
 
 ```bash
-bun install                          # install all workspaces
-bun run --filter @webmux/bridge dev     # start bridge daemon
-bun run --filter @webmux/web dev        # start web client (vite)
-bun run --filter @webmux/cli build      # build CLI binary
+bun install             # install all workspaces
+bunx portless trust     # one-time local HTTPS trust setup
+bun run dev             # start bridge + web through Portless
+bun run --filter @webmux/cli build  # build CLI binary
 ```
+
+Portless is the supported local dev path. The web app runs at
+`https://webmux.localhost`; the bridge runs at `https://bridge.webmux.localhost`
+with WebSocket upgrade support. Package-level `dev:raw` scripts exist only as
+Portless targets and low-level debugging hooks.
 
 ## Package map
 

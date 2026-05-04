@@ -66,16 +66,24 @@ The web app is the primary product. The architecture also needs to support futur
 # Install dependencies
 bun install
 
-# Start the bridge daemon (connects to your local tmux server)
-bun run --filter @webmux/bridge dev
+# One-time trust setup for local HTTPS certificates
+bunx portless trust
 
-# Or target an isolated tmux socket explicitly
-WEBMUX_TMUX_SOCKET=/tmp/webmux-test.sock bun run --filter @webmux/bridge dev
+# Start the bridge and web client through Portless
+bun run dev
 
-# In another terminal, start the web client
-bun run --filter @webmux/web dev
+# Open https://webmux.localhost
+```
 
-# Open http://localhost:5173
+Portless is the supported local development path. It registers the web app as
+`webmux.localhost` and the bridge as `bridge.webmux.localhost`. In linked git
+worktrees, Portless prefixes both names with the worktree branch, and the web
+client derives the matching bridge URL.
+
+To target an isolated tmux socket while keeping the Portless path:
+
+```bash
+WEBMUX_TMUX_SOCKET=/tmp/webmux-test.sock bun run dev
 ```
 
 These commands are useful for exploring the scaffold, but they do not imply feature completeness.

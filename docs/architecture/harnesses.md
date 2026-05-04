@@ -127,8 +127,8 @@ Primary local loop:
 
 ```bash
 bun install
-bun run --filter @webmux/bridge dev
-bun run --filter @webmux/web dev
+bunx portless trust
+bun run dev
 ```
 
 Manual checks should focus on:

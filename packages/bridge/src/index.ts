@@ -3,7 +3,7 @@ import { MIN_SUPPORTED_TMUX_VERSION, TmuxClient, formatTmuxDiagnostic } from './
 import { createWebSocketServer } from './ws'
 import { SessionManager } from './session'
 
-const port = parseInt(process.env.WEBMUX_PORT ?? '') || DEFAULT_PORT
+const port = parseInt(process.env.WEBMUX_PORT ?? process.env.PORT ?? '') || DEFAULT_PORT
 const host = process.env.WEBMUX_HOST ?? DEFAULT_HOST
 const pollInterval = parseInt(process.env.WEBMUX_POLL_INTERVAL ?? '')
 const tmuxSocketPath = process.env.WEBMUX_TMUX_SOCKET

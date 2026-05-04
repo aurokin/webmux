@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   getBridgeTokenStorageKey,
   removeStoredBridgeTokenIfMatches,
+  resolveDefaultBridgeUrl,
   resolveInitialBridgeAuth,
   shouldPersistAcceptedBridgeToken,
 } from './bridgeToken'
@@ -25,6 +26,34 @@ function createStorage(initialValues: Record<string, string> = {}) {
 }
 
 describe('bridge token bootstrap', () => {
+  test('uses the localhost bridge URL for ordinary local development', () => {
+    expect(resolveDefaultBridgeUrl('http://localhost:5173/')).toBe('ws://localhost:7400')
+  })
+
+  test('derives a Portless bridge URL from the web app hostname', () => {
+    expect(resolveDefaultBridgeUrl('https://webmux.localhost/')).toBe(
+      'wss://bridge.webmux.localhost',
+    )
+  })
+
+  test('preserves the Portless proxy port in derived bridge URLs', () => {
+    expect(resolveDefaultBridgeUrl('https://webmux.localhost:8443/')).toBe(
+      'wss://bridge.webmux.localhost:8443',
+    )
+  })
+
+  test('preserves Portless worktree prefixes when deriving the bridge URL', () => {
+    expect(resolveDefaultBridgeUrl('https://fix-auth.webmux.localhost/')).toBe(
+      'wss://fix-auth.bridge.webmux.localhost',
+    )
+  })
+
+  test('preserves worktree prefixes and proxy ports together', () => {
+    expect(resolveDefaultBridgeUrl('https://fix-auth.webmux.localhost:8443/')).toBe(
+      'wss://fix-auth.bridge.webmux.localhost:8443',
+    )
+  })
+
   test('reads the stored token for the active bridge only', () => {
     const bridgeA = 'ws://bridge-a:7400'
     const bridgeB = 'ws://bridge-b:7400'

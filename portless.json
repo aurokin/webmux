@@ -1,0 +1,12 @@
+{
+  "apps": {
+    "packages/bridge": {
+      "name": "bridge.webmux",
+      "script": "dev:raw"
+    },
+    "packages/web": {
+      "name": "webmux",
+      "script": "dev:raw"
+    }
+  }
+}
