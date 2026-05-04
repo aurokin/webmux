@@ -309,6 +309,25 @@ Done when:
 
 - A user can move between multiple AI agents from a tmux-backed workspace with less friction than raw pane/session management alone
 
+## Release readiness
+
+Goal: define the stable release surface, packaging direction, and public/operator docs.
+
+Status:
+
+- Portless is now the supported local development path. See
+  [0006 Portless Local Development Surface](../decisions/0006-portless-local-development.md).
+- The current install/run/operator boundary is documented in
+  [release-surface.md](./release-surface.md).
+- Public packaging is not settled yet; the current release surface is still a
+  source checkout with Bun, Portless, tmux, and a modern browser.
+
+Done when:
+
+- install and packaging choices are explicit
+- supported run modes are documented without fixed-port ambiguity
+- public and operator docs match shipped behavior
+
 ## Implementation order to follow now
 
 1. ~~Fix repo/typecheck wiring.~~ (Phase 0 — done)

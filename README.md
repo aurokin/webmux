@@ -122,6 +122,7 @@ The current automated coverage covers the implemented backend path and a minimal
 
 - **tmux** installed and running (any session active)
 - **Bun** >= 1.3.5 (for native PTY API and workspace support)
+- **Portless** via the repo dev dependency for the supported local HTTPS dev loop
 - A modern browser (Chrome, Firefox, Safari, Arc, Zen)
 
 ## Dependency rule

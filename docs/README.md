@@ -45,6 +45,7 @@ That path gives you current status, locked decisions, proof strategy, and only t
 ### I need to know what is implemented today
 
 - [implementation-plan.md](./architecture/implementation-plan.md) — phase-by-phase status, shipped work, remaining work
+- [release-surface.md](./architecture/release-surface.md) — current install, run, and operator surface
 
 ### I need to know what to build next
 
@@ -71,6 +72,7 @@ That path gives you current status, locked decisions, proof strategy, and only t
 - [overview.md](./architecture/overview.md) — layers, package boundaries, data flow, ownership model
 - [protocol.md](./architecture/protocol.md) — control/data channel message contract
 - [latency.md](./architecture/latency.md) — zero-buffering rule and buffered-mode constraints
+- [release-surface.md](./architecture/release-surface.md) — supported local dev path and current release boundaries
 
 ### I am making a risky change in one package
 
@@ -84,6 +86,7 @@ That path gives you current status, locked decisions, proof strategy, and only t
 - [overview.md](./architecture/overview.md) — intended system model and layer boundaries
 - [protocol.md](./architecture/protocol.md) — shared control/data message contract
 - [latency.md](./architecture/latency.md) — latency invariants and buffered-mode constraints
+- [release-surface.md](./architecture/release-surface.md) — install/run/operator surface for release readiness
 
 ### Bridge
 

@@ -27,6 +27,7 @@ Read in this order if you are new:
 3. [0003-split-control-and-pane-data-channels.md](./0003-split-control-and-pane-data-channels.md)
 4. [0004-single-owner-session-model.md](./0004-single-owner-session-model.md)
 5. [0005-bridge-is-consumer-agnostic.md](./0005-bridge-is-consumer-agnostic.md)
+6. [0006-portless-local-development.md](./0006-portless-local-development.md)
 
 ## Current Decision Index
 
@@ -37,6 +38,7 @@ Read in this order if you are new:
 | 0003 | [Split control and pane data channels](./0003-split-control-and-pane-data-channels.md) | Accepted | protocol, bridge, client       |
 | 0004 | [Single-owner session model](./0004-single-owner-session-model.md)                     | Accepted | ownership, handoff, UX         |
 | 0005 | [Bridge is consumer-agnostic](./0005-bridge-is-consumer-agnostic.md)                   | Accepted | package boundaries, API design |
+| 0006 | [Portless local development surface](./0006-portless-local-development.md)             | Accepted | local dev, release surface     |
 
 ## When To Write One
 
