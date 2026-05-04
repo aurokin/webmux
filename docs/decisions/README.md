@@ -30,13 +30,13 @@ Read in this order if you are new:
 
 ## Current Decision Index
 
-| ID | Title | Status | Scope |
-| --- | --- | --- | --- |
-| 0001 | [Core-first build order](./0001-core-first-build-order.md) | Accepted | sequencing, product scope |
-| 0002 | [Zero-buffering input path](./0002-zero-buffering-input-path.md) | Accepted | latency, bridge, client |
-| 0003 | [Split control and pane data channels](./0003-split-control-and-pane-data-channels.md) | Accepted | protocol, bridge, client |
-| 0004 | [Single-owner session model](./0004-single-owner-session-model.md) | Accepted | ownership, handoff, UX |
-| 0005 | [Bridge is consumer-agnostic](./0005-bridge-is-consumer-agnostic.md) | Accepted | package boundaries, API design |
+| ID   | Title                                                                                  | Status   | Scope                          |
+| ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| 0001 | [Core-first build order](./0001-core-first-build-order.md)                             | Accepted | sequencing, product scope      |
+| 0002 | [Zero-buffering input path](./0002-zero-buffering-input-path.md)                       | Accepted | latency, bridge, client        |
+| 0003 | [Split control and pane data channels](./0003-split-control-and-pane-data-channels.md) | Accepted | protocol, bridge, client       |
+| 0004 | [Single-owner session model](./0004-single-owner-session-model.md)                     | Accepted | ownership, handoff, UX         |
+| 0005 | [Bridge is consumer-agnostic](./0005-bridge-is-consumer-agnostic.md)                   | Accepted | package boundaries, API design |
 
 ## When To Write One
 

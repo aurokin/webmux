@@ -66,29 +66,32 @@ export const DEFAULT_PREFIX: PrefixConfig = {
   display: '⌃b',
 }
 
-export const DEFAULT_KEYBINDS: Record<ActionId, { key: KeyDescriptor; label: string; category: string }> = {
-  toggleSwitcher:      { key: 's',   label: 'Session Switcher',   category: 'Sessions' },
-  toggleCommandPalette:{ key: ':',   label: 'Command Palette',    category: 'View' },
-  toggleSidebar:       { key: 'b',   label: 'Toggle Sidebar',     category: 'View' },
-  settings:            { key: ',',   label: 'Settings',            category: 'View' },
-  splitHorizontal:     { key: '"',   label: 'Split Horizontal',   category: 'Panes' },
-  splitVertical:       { key: '%',   label: 'Split Vertical',     category: 'Panes' },
-  zoomPane:            { key: 'z',   label: 'Zoom Pane',          category: 'Panes' },
-  closePane:           { key: 'x',   label: 'Close Pane',         category: 'Panes' },
-  newWindow:           { key: 'c',   label: 'New Window',         category: 'Windows' },
-  nextWindow:          { key: 'n',   label: 'Next Window',        category: 'Windows' },
-  prevWindow:          { key: 'p',   label: 'Previous Window',    category: 'Windows' },
-  detach:              { key: 'd',   label: 'Detach',             category: 'Sessions' },
-  jumpToSession0:      { key: '0',   label: 'Jump to Session 0',  category: 'Sessions' },
-  jumpToSession1:      { key: '1',   label: 'Jump to Session 1',  category: 'Sessions' },
-  jumpToSession2:      { key: '2',   label: 'Jump to Session 2',  category: 'Sessions' },
-  jumpToSession3:      { key: '3',   label: 'Jump to Session 3',  category: 'Sessions' },
-  jumpToSession4:      { key: '4',   label: 'Jump to Session 4',  category: 'Sessions' },
-  jumpToSession5:      { key: '5',   label: 'Jump to Session 5',  category: 'Sessions' },
-  jumpToSession6:      { key: '6',   label: 'Jump to Session 6',  category: 'Sessions' },
-  jumpToSession7:      { key: '7',   label: 'Jump to Session 7',  category: 'Sessions' },
-  jumpToSession8:      { key: '8',   label: 'Jump to Session 8',  category: 'Sessions' },
-  jumpToSession9:      { key: '9',   label: 'Jump to Session 9',  category: 'Sessions' },
+export const DEFAULT_KEYBINDS: Record<
+  ActionId,
+  { key: KeyDescriptor; label: string; category: string }
+> = {
+  toggleSwitcher: { key: 's', label: 'Session Switcher', category: 'Sessions' },
+  toggleCommandPalette: { key: ':', label: 'Command Palette', category: 'View' },
+  toggleSidebar: { key: 'b', label: 'Toggle Sidebar', category: 'View' },
+  settings: { key: ',', label: 'Settings', category: 'View' },
+  splitHorizontal: { key: '"', label: 'Split Horizontal', category: 'Panes' },
+  splitVertical: { key: '%', label: 'Split Vertical', category: 'Panes' },
+  zoomPane: { key: 'z', label: 'Zoom Pane', category: 'Panes' },
+  closePane: { key: 'x', label: 'Close Pane', category: 'Panes' },
+  newWindow: { key: 'c', label: 'New Window', category: 'Windows' },
+  nextWindow: { key: 'n', label: 'Next Window', category: 'Windows' },
+  prevWindow: { key: 'p', label: 'Previous Window', category: 'Windows' },
+  detach: { key: 'd', label: 'Detach', category: 'Sessions' },
+  jumpToSession0: { key: '0', label: 'Jump to Session 0', category: 'Sessions' },
+  jumpToSession1: { key: '1', label: 'Jump to Session 1', category: 'Sessions' },
+  jumpToSession2: { key: '2', label: 'Jump to Session 2', category: 'Sessions' },
+  jumpToSession3: { key: '3', label: 'Jump to Session 3', category: 'Sessions' },
+  jumpToSession4: { key: '4', label: 'Jump to Session 4', category: 'Sessions' },
+  jumpToSession5: { key: '5', label: 'Jump to Session 5', category: 'Sessions' },
+  jumpToSession6: { key: '6', label: 'Jump to Session 6', category: 'Sessions' },
+  jumpToSession7: { key: '7', label: 'Jump to Session 7', category: 'Sessions' },
+  jumpToSession8: { key: '8', label: 'Jump to Session 8', category: 'Sessions' },
+  jumpToSession9: { key: '9', label: 'Jump to Session 9', category: 'Sessions' },
 }
 
 const STORAGE_KEY = 'webmux:keybinds'
@@ -213,7 +216,11 @@ export function getPrefix(): PrefixConfig {
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const merged = { ...DEFAULT_PREFIX, ...parsed }
         // Validate critical fields — fall back to defaults on corrupt data
-        if (typeof merged.ctrl !== 'boolean' || typeof merged.key !== 'string' || merged.key.length === 0) {
+        if (
+          typeof merged.ctrl !== 'boolean' ||
+          typeof merged.key !== 'string' ||
+          merged.key.length === 0
+        ) {
           return { ...DEFAULT_PREFIX }
         }
         // Reconstruct display from key+ctrl to avoid trusting stored display
@@ -255,7 +262,9 @@ export function buildKeyMap(binds: Record<ActionId, KeyDescriptor>): Map<string,
     if (key === 'none') continue
     const normalized = normalizeKey(key)
     if (import.meta.env.DEV && map.has(normalized)) {
-      console.warn(`[webmux] keybind conflict on "${normalized}": ${map.get(normalized)} vs ${action}`)
+      console.warn(
+        `[webmux] keybind conflict on "${normalized}": ${map.get(normalized)} vs ${action}`,
+      )
     }
     map.set(normalized, action as ActionId)
   }
@@ -264,9 +273,16 @@ export function buildKeyMap(binds: Record<ActionId, KeyDescriptor>): Map<string,
 
 /** Human-readable names for multi-character KeyboardEvent.key values */
 const KEY_DISPLAY: Record<string, string> = {
-  arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→',
-  enter: '⏎', escape: 'esc', backspace: '⌫', tab: '⇥',
-  ' ': 'space', delete: 'del',
+  arrowup: '↑',
+  arrowdown: '↓',
+  arrowleft: '←',
+  arrowright: '→',
+  enter: '⏎',
+  escape: 'esc',
+  backspace: '⌫',
+  tab: '⇥',
+  ' ': 'space',
+  delete: 'del',
 }
 
 /** Format a keybind for display: prefix + key */
@@ -281,15 +297,15 @@ export function getKeybindEntries(): KeybindEntry[] {
   const binds = getKeybinds()
   const prefix = getPrefix()
 
-  return (Object.entries(DEFAULT_KEYBINDS) as [ActionId, typeof DEFAULT_KEYBINDS[ActionId]][]).map(
-    ([action, def]) => ({
-      action,
-      key: binds[action],
-      label: def.label,
-      category: def.category,
-      display: formatKeybind(prefix, binds[action]),
-    }),
-  )
+  return (
+    Object.entries(DEFAULT_KEYBINDS) as [ActionId, (typeof DEFAULT_KEYBINDS)[ActionId]][]
+  ).map(([action, def]) => ({
+    action,
+    key: binds[action],
+    label: def.label,
+    category: def.category,
+    display: formatKeybind(prefix, binds[action]),
+  }))
 }
 
 /** Ref-count of active RecordingBadge capture sessions.
@@ -314,4 +330,3 @@ export function matchesPrefix(e: KeyboardEvent, prefix: PrefixConfig): boolean {
   if (e.metaKey || e.altKey || e.shiftKey) return false
   return normalizeKey(e.key) === normalizeKey(prefix.key)
 }
-

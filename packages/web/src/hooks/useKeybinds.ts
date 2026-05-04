@@ -50,7 +50,9 @@ export function useKeybinds(actions: KeybindActions): (action: ActionId) => void
   // before paint. This guarantees the keydown handler always reads current
   // values from refs — no stale closures — even if a key event fires in the
   // same frame as a render.
-  useLayoutEffect(() => { actionsRef.current = actions })
+  useLayoutEffect(() => {
+    actionsRef.current = actions
+  })
 
   const [binds, setBinds] = useState(() => getKeybinds())
   const [prefix, setPrefix] = useState(() => getPrefix())
@@ -195,16 +197,36 @@ export function executeAction(action: ActionId, actions: KeybindActions) {
     case 'settings':
       actions.openSettings()
       break
-    case 'jumpToSession0': actions.jumpToSession(0); break
-    case 'jumpToSession1': actions.jumpToSession(1); break
-    case 'jumpToSession2': actions.jumpToSession(2); break
-    case 'jumpToSession3': actions.jumpToSession(3); break
-    case 'jumpToSession4': actions.jumpToSession(4); break
-    case 'jumpToSession5': actions.jumpToSession(5); break
-    case 'jumpToSession6': actions.jumpToSession(6); break
-    case 'jumpToSession7': actions.jumpToSession(7); break
-    case 'jumpToSession8': actions.jumpToSession(8); break
-    case 'jumpToSession9': actions.jumpToSession(9); break
+    case 'jumpToSession0':
+      actions.jumpToSession(0)
+      break
+    case 'jumpToSession1':
+      actions.jumpToSession(1)
+      break
+    case 'jumpToSession2':
+      actions.jumpToSession(2)
+      break
+    case 'jumpToSession3':
+      actions.jumpToSession(3)
+      break
+    case 'jumpToSession4':
+      actions.jumpToSession(4)
+      break
+    case 'jumpToSession5':
+      actions.jumpToSession(5)
+      break
+    case 'jumpToSession6':
+      actions.jumpToSession(6)
+      break
+    case 'jumpToSession7':
+      actions.jumpToSession(7)
+      break
+    case 'jumpToSession8':
+      actions.jumpToSession(8)
+      break
+    case 'jumpToSession9':
+      actions.jumpToSession(9)
+      break
     default: {
       // Exhaustiveness guard — a new ActionId added to the union without a
       // case here will produce a compile error on this line.

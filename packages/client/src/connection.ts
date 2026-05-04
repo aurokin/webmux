@@ -35,7 +35,10 @@ export class Connection {
 
   connect(): void {
     // Guard: don't tear down a live or in-flight connection
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return
     }
     this.cleanup()

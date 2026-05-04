@@ -27,14 +27,22 @@ const ICONS: Partial<Record<ActionId, string>> = {
 // jumpToSession0-9: too many entries. toggleCommandPalette: self-toggle loop.
 const PALETTE_EXCLUDED: Set<ActionId> = new Set([
   'toggleCommandPalette',
-  'jumpToSession0', 'jumpToSession1', 'jumpToSession2', 'jumpToSession3',
-  'jumpToSession4', 'jumpToSession5', 'jumpToSession6', 'jumpToSession7',
-  'jumpToSession8', 'jumpToSession9',
+  'jumpToSession0',
+  'jumpToSession1',
+  'jumpToSession2',
+  'jumpToSession3',
+  'jumpToSession4',
+  'jumpToSession5',
+  'jumpToSession6',
+  'jumpToSession7',
+  'jumpToSession8',
+  'jumpToSession9',
 ])
 
 // Derived automatically — any new ActionId not in PALETTE_EXCLUDED appears in the palette.
-const PALETTE_ACTIONS: ActionId[] = (Object.keys(DEFAULT_KEYBINDS) as ActionId[])
-  .filter((id) => !PALETTE_EXCLUDED.has(id))
+const PALETTE_ACTIONS: ActionId[] = (Object.keys(DEFAULT_KEYBINDS) as ActionId[]).filter(
+  (id) => !PALETTE_EXCLUDED.has(id),
+)
 
 // Dev-mode drift check at load time: warn if PALETTE_EXCLUDED references actions not in DEFAULT_KEYBINDS.
 // Both sets are static, so checking once on module init is sufficient.
@@ -54,12 +62,14 @@ export function getCommands(): Command[] {
   return PALETTE_ACTIONS.flatMap((actionId) => {
     const entry = entryMap.get(actionId)
     if (!entry) return []
-    return [{
-      id: actionId,
-      label: entry.label,
-      category: entry.category,
-      keybind: entry.key === 'none' ? null : entry.display,
-      icon: ICONS[actionId] ?? '·',
-    }]
+    return [
+      {
+        id: actionId,
+        label: entry.label,
+        category: entry.category,
+        keybind: entry.key === 'none' ? null : entry.display,
+        icon: ICONS[actionId] ?? '·',
+      },
+    ]
   })
 }

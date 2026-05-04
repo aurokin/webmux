@@ -20,8 +20,10 @@ export function shouldSubmitToken({
 
   // Allow the user to retry the same token after an auth failure. Otherwise,
   // suppress redundant submits while that token is already active or in flight.
-  return connectionIssue === 'auth-failed'
-    || (connectionStatus !== 'connecting'
-      && connectionStatus !== 'connected'
-      && connectionStatus !== 'reconnecting')
+  return (
+    connectionIssue === 'auth-failed' ||
+    (connectionStatus !== 'connecting' &&
+      connectionStatus !== 'connected' &&
+      connectionStatus !== 'reconnecting')
+  )
 }

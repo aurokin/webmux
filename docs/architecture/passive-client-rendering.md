@@ -20,44 +20,53 @@ A single tmux session has one canonical size, set by the active owner. Multiple 
 ## Implementation steps
 
 ### Step 1 — Surface unclaimed state in the UI
+
 **Status:** done
 
 Backend policy is already correct (`canSendInput` returns false for unclaimed sessions). The gap is UI: a passive client connecting to an unclaimed session sees no clear signal that input is being dropped. Add a visible "Take Control to interact" banner/overlay for the unclaimed mode mirroring the existing `HandoffBanner` used for `passive`. Confirm there is no code path that auto-calls `client.takeControl()` on connect.
 
 Files:
+
 - `packages/web/src/components/HandoffBanner.tsx` — render for `unclaimed` mode in addition to `passive`, with appropriate copy.
 - `packages/web/src/App.tsx` and any consumers — verify no auto-claim.
 - `packages/web/src/hooks/useOwnership.ts` — confirm `mode === 'unclaimed'` semantics; no change expected.
 
 ### Step 2 — Confirm `Pane.cols`/`Pane.rows` propagate end-to-end
+
 **Status:** done — `Pane` and `LayoutLeaf` both carry `cols`/`rows`, populated by `tmux list-panes` and the layout parser. No protocol or bridge changes needed.
 
 Shape and bridge query are already in place (`Pane.cols`, `Pane.rows` in shared types; tmux.ts queries `pane_width` and `pane_height`). Verify the values reach the web client through `state.sync`, are exposed by `useSessions`/`useSession`, and are accessible from the `Pane` component. Add a typed accessor if needed.
 
 Files:
+
 - `packages/shared/src/types.ts` — already has the fields.
 - `packages/bridge/src/tmux.ts` — already queries them.
 - `packages/web/src/hooks/useSession.ts` — verify pane data is reachable for components.
 - `packages/web/src/components/Pane.tsx` — confirm we can pull `cols`/`rows` from the pane object. Wire as props if missing.
 
 ### Step 3 — Passive rendering with letterbox
+
 **Status:** done
 
 Branch `useTerminal` on owner mode:
+
 - **Active:** existing behavior — xterm sized to container, FitAddon drives `cols × rows`, ResizeObserver fires `resize-pane`.
 - **Passive/unclaimed:** xterm constructed at `pane.cols × pane.rows`, no FitAddon. Wrapper computes scale via `Math.min(containerW / xtermW, containerH / xtermH)` and applies `transform: scale(s)`. Wrapper is centered with `bg-bg-deep` letterbox bars.
 
 Files:
+
 - `packages/web/src/hooks/useTerminal.ts` — accept a `mode: 'active' | 'passive'` arg, branch construction and resize logic.
 - `packages/web/src/components/Pane.tsx` — pass mode based on `useSessionOwnership`. Add letterbox wrapper that measures container and computes scale.
 - New CSS for the letterbox container (likely inline in Pane.tsx via Tailwind).
 
 ### Step 4 — Take-control transition
+
 **Status:** done (simplified — no crossfade)
 
 Original plan was a freeze-and-crossfade overlay during the passive→active transition. In practice the overlay introduced a DOM-capture bug (the `transform: scale()` lived on a wrapper, not on the captured `innerHTML`, so the frozen frame rendered at the unscaled owner dims and dominated the viewport). The visual discontinuity it was meant to hide was also minor in practice, so the overlay was removed instead of papering over it with a pane snapshot replay.
 
 Current behavior:
+
 1. User clicks **Take Control** (or the banner's button).
 2. `session.takeControl` goes out; bridge resizes tmux to the client's dims once it switches into active mode.
 3. `useTerminal` keeps the same xterm instance and pane data channel alive, switches into active mode in place, runs FitAddon, and publishes the new client dims to the bridge.
