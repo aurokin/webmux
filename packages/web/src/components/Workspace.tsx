@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import type { WebmuxClient, RichPaneState } from '@webmux/client'
+import type { InputMode, WebmuxClient, RichPaneState } from '@webmux/client'
 import type { LayoutNode } from '@webmux/shared'
 import { Pane } from './Pane'
 import type { TerminalMode } from '../hooks/useTerminal'
@@ -16,9 +16,12 @@ interface WorkspaceProps {
   paneCommands: Record<string, string>
   richPanes: Record<string, RichPaneState>
   paneMode: TerminalMode
+  paneInputModes: Record<string, InputMode>
+  suggestBufferedInputPaneId: string | null
   canMutate: boolean
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  onInputModeChange: (paneId: string, mode: InputMode) => void
   onMutationUnavailable: (notice: {
     title: string
     detail: string
@@ -38,9 +41,12 @@ export function Workspace({
   paneCommands,
   richPanes,
   paneMode,
+  paneInputModes,
+  suggestBufferedInputPaneId,
   canMutate,
   focusedPaneId,
   onFocusPane,
+  onInputModeChange,
   onMutationUnavailable,
   showPaneHeaders,
   state,
@@ -77,9 +83,12 @@ export function Workspace({
         paneCommands={paneCommands}
         richPanes={richPanes}
         paneMode={paneMode}
+        paneInputModes={paneInputModes}
+        suggestBufferedInputPaneId={suggestBufferedInputPaneId}
         canMutate={canMutate}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
+        onInputModeChange={onInputModeChange}
         onMutationUnavailable={onMutationUnavailable}
         showPaneHeaders={showPaneHeaders}
         suppressTerminalResize={Boolean(resizeCursor)}
@@ -102,9 +111,12 @@ interface LayoutRendererProps {
   paneCommands: Record<string, string>
   richPanes: Record<string, RichPaneState>
   paneMode: TerminalMode
+  paneInputModes: Record<string, InputMode>
+  suggestBufferedInputPaneId: string | null
   canMutate: boolean
   focusedPaneId: string | null
   onFocusPane: (paneId: string) => void
+  onInputModeChange: (paneId: string, mode: InputMode) => void
   onMutationUnavailable: (notice: {
     title: string
     detail: string
@@ -121,9 +133,12 @@ function LayoutRenderer({
   paneCommands,
   richPanes,
   paneMode,
+  paneInputModes,
+  suggestBufferedInputPaneId,
   canMutate,
   focusedPaneId,
   onFocusPane,
+  onInputModeChange,
   onMutationUnavailable,
   showPaneHeaders,
   suppressTerminalResize,
@@ -139,10 +154,13 @@ function LayoutRenderer({
         cols={node.cols}
         rows={node.rows}
         mode={paneMode}
+        inputMode={paneInputModes[node.paneId] ?? 'direct'}
+        suggestBufferedInput={suggestBufferedInputPaneId === node.paneId}
         suppressResize={suppressTerminalResize}
         canMutate={canMutate}
         focused={node.paneId === focusedPaneId}
         onFocus={() => onFocusPane(node.paneId)}
+        onInputModeChange={onInputModeChange}
         onMutationUnavailable={onMutationUnavailable}
         showHeader={showPaneHeaders}
       />
@@ -156,9 +174,12 @@ function LayoutRenderer({
       paneCommands={paneCommands}
       richPanes={richPanes}
       paneMode={paneMode}
+      paneInputModes={paneInputModes}
+      suggestBufferedInputPaneId={suggestBufferedInputPaneId}
       canMutate={canMutate}
       focusedPaneId={focusedPaneId}
       onFocusPane={onFocusPane}
+      onInputModeChange={onInputModeChange}
       onMutationUnavailable={onMutationUnavailable}
       showPaneHeaders={showPaneHeaders}
       suppressTerminalResize={suppressTerminalResize}
@@ -173,9 +194,12 @@ function ResizableLayoutContainer({
   paneCommands,
   richPanes,
   paneMode,
+  paneInputModes,
+  suggestBufferedInputPaneId,
   canMutate,
   focusedPaneId,
   onFocusPane,
+  onInputModeChange,
   onMutationUnavailable,
   showPaneHeaders,
   suppressTerminalResize,
@@ -299,9 +323,12 @@ function ResizableLayoutContainer({
                 paneCommands={paneCommands}
                 richPanes={richPanes}
                 paneMode={paneMode}
+                paneInputModes={paneInputModes}
+                suggestBufferedInputPaneId={suggestBufferedInputPaneId}
                 canMutate={canMutate}
                 focusedPaneId={focusedPaneId}
                 onFocusPane={onFocusPane}
+                onInputModeChange={onInputModeChange}
                 onMutationUnavailable={onMutationUnavailable}
                 showPaneHeaders={showPaneHeaders}
                 suppressTerminalResize={suppressTerminalResize}

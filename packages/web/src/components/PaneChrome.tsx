@@ -1,4 +1,5 @@
-import { Maximize2, PanelLeft, PanelTop, X } from 'lucide-react'
+import { Keyboard, Maximize2, PanelLeft, PanelTop, X } from 'lucide-react'
+import type { InputMode } from '@webmux/client'
 import { cn } from '../lib/cn'
 
 interface PaneChromeProps {
@@ -6,6 +7,9 @@ interface PaneChromeProps {
   currentCommand: string
   focused: boolean
   canMutate: boolean
+  inputMode: InputMode
+  suggestBufferedInput: boolean
+  onToggleInputMode: () => void
   onSplit: (direction: 'horizontal' | 'vertical') => void
   onZoom: () => void
   onClose: () => void
@@ -21,6 +25,9 @@ export function PaneChrome({
   currentCommand,
   focused,
   canMutate,
+  inputMode,
+  suggestBufferedInput,
+  onToggleInputMode,
   onSplit,
   onZoom,
   onClose,
@@ -41,6 +48,35 @@ export function PaneChrome({
 
       {/* Pane ID */}
       <span className="text-text-ghost truncate">{paneId}</span>
+      <button
+        type="button"
+        title={
+          inputMode === 'buffered'
+            ? 'Switch to direct input'
+            : suggestBufferedInput
+              ? 'High latency detected. Switch to buffered input'
+              : 'Switch to buffered input'
+        }
+        aria-label={
+          inputMode === 'buffered' ? 'Switch to direct input' : 'Switch to buffered input'
+        }
+        onClick={(event) => {
+          event.stopPropagation()
+          onToggleInputMode()
+        }}
+        data-testid={`input-mode-toggle-${paneId}`}
+        className={cn(
+          'focus-ring flex h-5 items-center gap-1 rounded-[3px] border px-1.5 text-[10px] transition-colors',
+          inputMode === 'buffered'
+            ? 'border-accent-yellow/50 bg-accent-yellow-dim text-accent-yellow'
+            : suggestBufferedInput
+              ? 'border-accent-yellow/40 text-accent-yellow hover:bg-bg-hover'
+              : 'border-border-subtle text-text-ghost hover:bg-bg-hover hover:text-text-secondary',
+        )}
+      >
+        <Keyboard size={11} />
+        <span className="hidden sm:inline">{inputMode === 'buffered' ? 'buffered' : 'direct'}</span>
+      </button>
 
       {/* Hover actions */}
       <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

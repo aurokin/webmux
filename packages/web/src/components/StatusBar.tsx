@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Menu } from 'lucide-react'
-import type { WebmuxClient, ConnectionStatus } from '@webmux/client'
+import { Keyboard, Menu } from 'lucide-react'
+import type { InputMode, WebmuxClient, ConnectionStatus } from '@webmux/client'
 import type { Session } from '@webmux/shared'
 import type { OwnershipState } from '../hooks/useOwnership'
 import { cn } from '../lib/cn'
@@ -12,9 +12,13 @@ interface StatusBarProps {
   ownership: OwnershipState
   connectionStatus: ConnectionStatus
   latency: number | null
+  focusedPaneInputMode: InputMode
+  canToggleInputMode: boolean
+  suggestBufferedInput: boolean
   tabPosition: 'top' | 'bottom'
   showSidebarToggle?: boolean
   onToggleSidebar?: () => void
+  onToggleFocusedPaneInputMode: () => void
   onOpenSwitcher: () => void
 }
 
@@ -24,9 +28,13 @@ export function StatusBar({
   ownership,
   connectionStatus,
   latency,
+  focusedPaneInputMode,
+  canToggleInputMode,
+  suggestBufferedInput,
   tabPosition,
   showSidebarToggle = false,
   onToggleSidebar,
+  onToggleFocusedPaneInputMode,
   onOpenSwitcher,
 }: StatusBarProps) {
   const [prefixDisplay, setPrefixDisplay] = useState(() => getPrefix().display)
@@ -113,6 +121,39 @@ export function StatusBar({
           {prefixDisplay}
         </kbd>
         <span>prefix</span>
+      </Segment>
+
+      <Segment className="hidden md:flex">
+        <button
+          type="button"
+          disabled={!canToggleInputMode}
+          title={
+            focusedPaneInputMode === 'buffered'
+              ? 'Switch focused pane to direct input'
+              : suggestBufferedInput
+                ? 'High latency detected. Switch focused pane to buffered input'
+                : 'Switch focused pane to buffered input'
+          }
+          aria-label={
+            focusedPaneInputMode === 'buffered'
+              ? 'Switch focused pane to direct input'
+              : 'Switch focused pane to buffered input'
+          }
+          onClick={onToggleFocusedPaneInputMode}
+          data-testid="focused-input-mode-toggle"
+          className={cn(
+            'focus-ring flex h-6 items-center gap-1 rounded-[3px] border px-1.5 text-[10px] transition-colors',
+            focusedPaneInputMode === 'buffered'
+              ? 'border-accent-yellow/50 bg-accent-yellow-dim text-accent-yellow'
+              : suggestBufferedInput
+                ? 'border-accent-yellow/40 text-accent-yellow hover:bg-bg-hover'
+                : 'border-border-subtle text-text-ghost hover:bg-bg-hover hover:text-text-secondary',
+            !canToggleInputMode && 'cursor-not-allowed opacity-50',
+          )}
+        >
+          <Keyboard size={12} />
+          <span>{focusedPaneInputMode}</span>
+        </button>
       </Segment>
 
       {/* Right side */}

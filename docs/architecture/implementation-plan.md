@@ -287,6 +287,7 @@ Status:
 - Bridge-backed pane resize handles shipped under `AUR-78`.
 - Responsive shell behavior and accessibility cleanup shipped under `AUR-81`.
 - Additional theme coverage and presentation coherence shipped under `AUR-82`.
+- Buffered input mode shipped under `AUR-101`.
 - Remaining work in this phase is iterative refinement on top of the working design.
 
 Done when:
@@ -363,7 +364,6 @@ Current detailed execution is organized in Linear milestones:
 - Electron wrapper
 - Native mobile app work before the bridge and browser contracts are stable
 - tmux control mode (`tmux -CC`)
-- Buffered input mode unless latency forces it
 - Extension work before the base web client is dependable
 - UI polish before daemon, bridge, and protocol behavior are stable
 - AI agent workflows before the core tmux path is dependable

@@ -51,6 +51,12 @@ terminal.onData((data: string) => {
 
 `onData` fires for every keystroke, including special keys (arrow keys emit escape sequences like `\x1b[A`). We pass them straight through.
 
+When a pane is explicitly switched to buffered input mode, the web consumer
+suppresses `onData` forwarding for that pane and renders a local compose bar.
+Pressing Enter in that bar calls `client.sendInput(paneId, fullLine + '\n')`.
+The bridge still only receives bytes on the pane data channel; there is no
+buffered-mode protocol branch.
+
 ### Resize
 
 ```typescript

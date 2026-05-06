@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, type RefObject } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import type { WebmuxClient } from '@webmux/client'
+import type { InputMode, WebmuxClient } from '@webmux/client'
 import { usePreferences } from './usePreferences'
 import { getTheme } from '../lib/themes'
 import { getPassivePaneSize, type TerminalMode } from './terminalSizing'
@@ -26,6 +26,7 @@ export function useTerminal(
   paneId: string,
   containerRef: RefObject<HTMLDivElement | null>,
   mode: TerminalMode,
+  inputMode: InputMode,
   paneDims: { cols: number; rows: number },
   options: UseTerminalOptions = {},
 ) {
@@ -33,9 +34,11 @@ export function useTerminal(
   const fitAddonRef = useRef<FitAddon | null>(null)
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const modeRef = useRef(mode)
+  const inputModeRef = useRef(inputMode)
   const suppressResizeRef = useRef(Boolean(options.suppressResize))
   const { preferences } = usePreferences()
   modeRef.current = mode
+  inputModeRef.current = inputMode
   suppressResizeRef.current = Boolean(options.suppressResize)
 
   const resizeActiveTerminal = useCallback(
@@ -100,6 +103,7 @@ export function useTerminal(
 
     const inputDisposable = terminal.onData((data) => {
       if (modeRef.current === 'passive') return
+      if (inputModeRef.current === 'buffered') return
       client.sendInput(paneId, data)
     })
 
@@ -124,6 +128,10 @@ export function useTerminal(
       fitAddonRef.current = null
     }
   }, [client, paneId, containerRef])
+
+  useEffect(() => {
+    client.setInputMode(paneId, inputMode)
+  }, [client, inputMode, paneId])
 
   useEffect(() => {
     const terminal = terminalRef.current

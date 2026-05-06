@@ -25,6 +25,129 @@ test.describe.serial('webmux browser validation', () => {
     expect(captureEither(stack, 'webmux-e2e')).toBe(true)
   })
 
+  test('buffers pane input locally until Enter sends the composed line', async ({ page }) => {
+    const sessionName = `webmux-buffered-${crypto.randomUUID().slice(0, 8)}`
+    const marker = `buffered-e2e-${crypto.randomUUID().slice(0, 8)}`
+    const afterBlankMarker = `after-blank-${crypto.randomUUID().slice(0, 8)}`
+    const directAfterExitMarker = `direct-after-exit-${crypto.randomUUID().slice(0, 8)}`
+    const sentPaneFrames: string[] = []
+    page.on('websocket', (socket) => {
+      if (!socket.url().includes('/pane/')) {
+        return
+      }
+
+      socket.on('framesent', (event) => {
+        sentPaneFrames.push(
+          typeof event.payload === 'string' ? event.payload : event.payload.toString('utf8'),
+        )
+      })
+    })
+    stack.createSession(sessionName)
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await selectSession(page, sessionName)
+      await page.waitForSelector('.xterm')
+      await takeControl(page)
+
+      await page.locator('.xterm').first().click()
+      await expect(page.getByTestId('focused-input-mode-toggle')).toBeEnabled()
+      await page.getByTestId('focused-input-mode-toggle').click()
+      const input = page.locator('input[data-testid^="buffered-input-"]').first()
+      await expect(input).toBeVisible()
+      await expect(page.locator('[data-testid^="buffered-input-bar-"]').first()).toBeVisible()
+      await expect(input).toBeFocused()
+
+      await page.locator('.xterm').first().click()
+      await expect(input).toBeFocused()
+
+      await input.fill(marker)
+      await page.waitForTimeout(500)
+      expect(stack.capturePane(sessionName)).not.toContain(marker)
+
+      const composingFrameCount = sentPaneFrames.length
+      await input.dispatchEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        bubbles: true,
+        cancelable: true,
+        isComposing: true,
+      })
+      await page.waitForTimeout(200)
+      expect(sentPaneFrames).toHaveLength(composingFrameCount)
+      await expect(input).toHaveValue(marker)
+
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(800)
+      await expect.poll(() => sentPaneFrames.includes(`${marker}\n`)).toBe(true)
+      expect(stack.capturePane(sessionName)).toContain(marker)
+
+      await expect(input).toBeFocused()
+      await expect(input).toHaveValue('')
+      const sentFrameCount = sentPaneFrames.length
+      await input.press('Enter')
+      await expect.poll(() => sentPaneFrames.slice(sentFrameCount).includes('\n')).toBe(true)
+      await input.fill(afterBlankMarker)
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(800)
+
+      expect(stack.capturePane(sessionName)).toContain(afterBlankMarker)
+
+      await page.getByTestId('focused-input-mode-toggle').click()
+      await expect(page.locator('[data-testid^="buffered-input-bar-"]').first()).toHaveCount(0)
+      await page.keyboard.type(directAfterExitMarker)
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(800)
+
+      expect(stack.capturePane(sessionName)).toContain(directAfterExitMarker)
+    } finally {
+      await restoreDefaultSession(page, stack)
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+    }
+  })
+
+  test('focuses the pane when clicking its buffered input bar', async ({ page }) => {
+    const sessionName = `webmux-buffer-focus-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await selectSession(page, sessionName)
+      await page.waitForSelector('.xterm')
+      await takeControl(page)
+
+      await page.locator('.xterm').first().click()
+      await page.locator('[data-testid^="split-horizontal-"]').first().click({ force: true })
+      await expect.poll(() => stack.paneCount(sessionName)).toBe(2)
+
+      const panes = stack.paneSizes(sessionName)
+      expect(panes).toHaveLength(2)
+      const firstPaneId = panes[0]!.id
+      const secondPaneId = panes[1]!.id
+      await page.getByTestId(`input-mode-toggle-${firstPaneId}`).click({ force: true })
+      await expect(page.getByTestId(`buffered-input-bar-${firstPaneId}`)).toBeVisible()
+      await page.getByTestId(`input-mode-toggle-${secondPaneId}`).click({ force: true })
+      await expect(page.getByTestId(`buffered-input-bar-${secondPaneId}`)).toBeVisible()
+
+      await page.getByTestId(`input-mode-toggle-${firstPaneId}`).click({ force: true })
+      await expect(page.getByTestId(`buffered-input-bar-${firstPaneId}`)).toHaveCount(0)
+      await page.getByTestId(`input-mode-toggle-${firstPaneId}`).click({ force: true })
+      await expect(page.getByTestId(`buffered-input-bar-${firstPaneId}`)).toBeVisible()
+
+      await page.getByTestId(`buffered-input-${secondPaneId}`).click()
+      await expect(page.getByTestId(`buffered-input-${secondPaneId}`)).toBeFocused()
+      await page.getByTestId('focused-input-mode-toggle').click()
+
+      await expect(page.getByTestId(`buffered-input-bar-${firstPaneId}`)).toBeVisible()
+      await expect(page.getByTestId(`buffered-input-bar-${secondPaneId}`)).toHaveCount(0)
+    } finally {
+      await restoreDefaultSession(page, stack)
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+    }
+  })
+
   test('switches between live tmux sessions from the session picker', async ({ page }) => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
@@ -494,7 +617,16 @@ async function selectSession(page: Page, sessionName: string): Promise<void> {
   await page.getByTestId('session-switcher-button').click()
   await page.getByPlaceholder('Filter sessions...').fill(sessionName)
   await page.getByTestId(`session-option-${sessionName}`).click()
-  await expect(page.locator('body')).toContainText(sessionName)
+  await expect(page.getByTestId('session-switcher-button')).toContainText(sessionName)
+}
+
+async function restoreDefaultSession(page: Page, stack: WebmuxE2EStack): Promise<void> {
+  if (page.isClosed()) {
+    return
+  }
+
+  await selectSession(page, stack.sessionName)
+  await page.waitForSelector('.xterm')
 }
 
 async function createNamedSessionFromSwitcher(page: Page, sessionName: string): Promise<void> {

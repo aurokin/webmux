@@ -6,10 +6,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { WebmuxClient, RichPaneState } from '@webmux/client'
+import type { InputMode, WebmuxClient, RichPaneState } from '@webmux/client'
 import { useTerminal, type TerminalMode } from '../hooks/useTerminal'
 import { PaneChrome } from './PaneChrome'
 import { RichPaneView } from './RichPaneView'
+import { BufferedInputBar, type BufferedInputBarHandle } from './BufferedInputBar'
 import { cn } from '../lib/cn'
 import { classifyRichPane } from '../lib/richPaneSafety'
 
@@ -21,10 +22,13 @@ interface PaneProps {
   cols: number
   rows: number
   mode: TerminalMode
+  inputMode: InputMode
+  suggestBufferedInput: boolean
   suppressResize: boolean
   canMutate: boolean
   focused: boolean
   onFocus: () => void
+  onInputModeChange: (paneId: string, mode: InputMode) => void
   onMutationUnavailable: (notice: {
     title: string
     detail: string
@@ -41,20 +45,29 @@ export function Pane({
   cols,
   rows,
   mode,
+  inputMode,
+  suggestBufferedInput,
   suppressResize,
   canMutate,
   focused,
   onFocus,
+  onInputModeChange,
   onMutationUnavailable,
   showHeader,
 }: PaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalViewportRef = useRef<TerminalPaneViewportHandle>(null)
+  const bufferedInputRef = useRef<BufferedInputBarHandle>(null)
   const richPaneSafety = richPane ? classifyRichPane(richPane) : null
   const chromeTitle = richPaneSafety ? `webview:${richPaneSafety.label}` : currentCommand
 
   const handleClick = () => {
     onFocus()
+    if (inputMode === 'buffered') {
+      bufferedInputRef.current?.focus()
+      return
+    }
+
     if (!richPane) {
       terminalViewportRef.current?.focus()
     }
@@ -75,6 +88,12 @@ export function Pane({
           currentCommand={chromeTitle}
           focused={focused}
           canMutate={canMutate}
+          inputMode={inputMode}
+          suggestBufferedInput={suggestBufferedInput}
+          onToggleInputMode={() => {
+            onFocus()
+            onInputModeChange(paneId, inputMode === 'direct' ? 'buffered' : 'direct')
+          }}
           onSplit={(direction) => client.splitPane(paneId, direction)}
           onZoom={() => client.zoomPane(paneId)}
           onClose={() => client.closePane(paneId)}
@@ -88,10 +107,23 @@ export function Pane({
         cols={cols}
         rows={rows}
         mode={mode}
+        inputMode={inputMode}
         suppressResize={suppressResize}
         focused={focused && !richPane}
         hidden={Boolean(richPane)}
       />
+      {!richPane && inputMode === 'buffered' && (
+        <BufferedInputBar
+          ref={bufferedInputRef}
+          client={client}
+          paneId={paneId}
+          canSend={canMutate}
+          focused={focused}
+          onFocusPane={onFocus}
+          onExitBufferedMode={() => onInputModeChange(paneId, 'direct')}
+          onUnavailable={onMutationUnavailable}
+        />
+      )}
       {richPane && richPaneSafety && (
         <RichPaneView
           state={richPane}
@@ -110,6 +142,7 @@ interface TerminalPaneViewportProps {
   cols: number
   rows: number
   mode: TerminalMode
+  inputMode: InputMode
   suppressResize: boolean
   focused: boolean
   hidden: boolean
@@ -121,7 +154,7 @@ interface TerminalPaneViewportHandle {
 
 const TerminalPaneViewport = forwardRef<TerminalPaneViewportHandle, TerminalPaneViewportProps>(
   function TerminalPaneViewport(
-    { client, paneId, cols, rows, mode, suppressResize, focused, hidden },
+    { client, paneId, cols, rows, mode, inputMode, suppressResize, focused, hidden },
     ref,
   ) {
     const letterboxRef = useRef<HTMLDivElement>(null)
@@ -131,6 +164,7 @@ const TerminalPaneViewport = forwardRef<TerminalPaneViewportHandle, TerminalPane
       paneId,
       xtermHostRef,
       mode,
+      inputMode,
       { cols, rows },
       {
         suppressResize,
@@ -140,10 +174,10 @@ const TerminalPaneViewport = forwardRef<TerminalPaneViewportHandle, TerminalPane
     useImperativeHandle(ref, () => ({ focus }), [focus])
 
     useEffect(() => {
-      if (focused) {
+      if (focused && inputMode === 'direct') {
         focus()
       }
-    }, [focus, focused])
+    }, [focus, focused, inputMode])
 
     useEffect(() => {
       if (hidden) {

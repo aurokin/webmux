@@ -34,14 +34,14 @@ Output is less latency-sensitive but should still be fast.
 
 3. **Never block output on input.** A pane receiving heavy output must not affect input latency on any other pane (or the same pane). Separate data channels make this natural.
 
-## Buffered input mode (post-v0)
+## Buffered input mode
 
-For high-latency scenarios (cross-continent), a future feature allows local input composition:
+For high-latency scenarios (cross-continent), buffered input allows local input composition:
 
-- A thin input bar appears at the bottom of the pane.
+- A thin input bar appears at the bottom of the pane when buffered mode is enabled.
 - User types into a local buffer rendered with zero latency.
 - On Enter, the entire line is sent to the PTY as a single write.
-- The input bar disappears and the pane shows the result.
+- The pane shows the result after the command is sent.
 
 This is especially well-suited for Claude Code, where interaction is prompt-based: type a question, wait for a response. Character-by-character echo doesn't matter.
 
@@ -51,6 +51,7 @@ This is especially well-suited for Claude Code, where interaction is prompt-base
 - A latency indicator in the pane chrome can suggest switching when RTT exceeds 80ms.
 - The "send input" function in the client SDK must accept both single bytes and full strings — design this into the API from day one.
 - The bridge doesn't care — it receives bytes on the data channel and writes them to the PTY. A full line looks the same as fast typing.
+- Buffered mode must remain opt-in. Direct mode keeps the zero-buffering path.
 
 ## Speculative echo (not planned for v0 or v1)
 

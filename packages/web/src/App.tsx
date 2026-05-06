@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { WebmuxClient, type BridgeError, type RichPaneState } from '@webmux/client'
-import type { LayoutNode, Session, Window } from '@webmux/shared'
+import { WebmuxClient, type BridgeError, type InputMode, type RichPaneState } from '@webmux/client'
+import {
+  LATENCY_THRESHOLD_BUFFERED_MS,
+  type LayoutNode,
+  type Session,
+  type Window,
+} from '@webmux/shared'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TabBar } from './components/TabBar'
 import { Workspace } from './components/Workspace'
@@ -38,6 +43,13 @@ import {
   getWorkspaceState,
   type DestroyedSession,
 } from './lib/workspaceState'
+import {
+  getPaneInputMode,
+  prunePaneInputModes,
+  setPaneInputMode,
+  togglePaneInputMode,
+  type PaneInputModes,
+} from './lib/paneInputModes'
 
 // Read config and strip token from URL immediately — before React renders —
 // to minimize the window where the token is visible in the address bar,
@@ -97,6 +109,7 @@ export function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
+  const [paneInputModes, setPaneInputModes] = useState<PaneInputModes>({})
   const [destroyedSession, setDestroyedSession] = useState<DestroyedSession | null>(null)
   const [mutationNotice, setMutationNotice] = useState<MutationNotice | null>(null)
   const previousSessionsRef = useRef<Session[]>([])
@@ -264,6 +277,17 @@ export function App() {
   const ownership = useSessionOwnership(client, activeSession?.id ?? null)
   const paneCommands = getPaneCommands(activeWindow)
   const richPanes = useMemo(() => getRichPanesById(richPaneStates), [richPaneStates])
+  const focusedPaneInputMode = getPaneInputMode(paneInputModes, focusedPaneId)
+  const suggestBufferedInput =
+    ownership.mode === 'active' &&
+    Boolean(focusedPaneId) &&
+    focusedPaneInputMode === 'direct' &&
+    latency !== null &&
+    latency > LATENCY_THRESHOLD_BUFFERED_MS
+
+  useEffect(() => {
+    setPaneInputModes((current) => prunePaneInputModes(current, collectSessionPaneIds(sessions)))
+  }, [sessions])
 
   // Auto-focus first pane when window changes
   useEffect(() => {
@@ -441,6 +465,18 @@ export function App() {
     [compactShell],
   )
 
+  const handleInputModeChange = useCallback((paneId: string, mode: InputMode) => {
+    setPaneInputModes((current) => setPaneInputMode(current, paneId, mode))
+  }, [])
+
+  const toggleFocusedPaneInputMode = useCallback(() => {
+    if (!focusedPaneId) {
+      return
+    }
+
+    setPaneInputModes((current) => togglePaneInputMode(current, focusedPaneId))
+  }, [focusedPaneId])
+
   return (
     <div className="flex h-dvh w-screen overflow-hidden bg-bg-deep text-text-primary">
       {/* Sidebar */}
@@ -490,9 +526,12 @@ export function App() {
             paneCommands={paneCommands}
             richPanes={richPanes}
             paneMode={ownership.mode === 'active' ? 'active' : 'passive'}
+            paneInputModes={paneInputModes}
+            suggestBufferedInputPaneId={suggestBufferedInput ? focusedPaneId : null}
             canMutate={ownership.mode === 'active'}
             focusedPaneId={focusedPaneId}
             onFocusPane={setFocusedPaneId}
+            onInputModeChange={handleInputModeChange}
             onMutationUnavailable={showMutationNotice}
             state={workspaceState}
             showPaneHeaders={preferences.paneHeaders}
@@ -506,9 +545,13 @@ export function App() {
           ownership={ownership}
           connectionStatus={connectionStatus}
           latency={latency}
+          focusedPaneInputMode={focusedPaneInputMode}
+          canToggleInputMode={Boolean(focusedPaneId)}
+          suggestBufferedInput={suggestBufferedInput}
           tabPosition={preferences.tabPosition}
           showSidebarToggle={compactShell && preferences.tabPosition === 'bottom'}
           onToggleSidebar={toggleSidebar}
+          onToggleFocusedPaneInputMode={toggleFocusedPaneInputMode}
           onOpenSwitcher={() => setSwitcherOpen(true)}
         />
       </div>
@@ -551,6 +594,12 @@ function collectPaneIds(node: LayoutNode): string[] {
     return [node.paneId]
   }
   return node.children.flatMap(collectPaneIds)
+}
+
+function collectSessionPaneIds(sessions: Session[]): string[] {
+  return sessions.flatMap((session) =>
+    session.windows.flatMap((window) => collectPaneIds(window.layout)),
+  )
 }
 
 interface MutationNotice {

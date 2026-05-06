@@ -493,6 +493,84 @@ describe('WebmuxClient connection handshake', () => {
     ])
   })
 
+  test('sends string input as UTF-8 bytes when the client owns the pane', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [
+        {
+          sessionId: '1',
+          ownerId: 'web-test',
+          ownerType: 'web',
+          acquiredAt: 100,
+        },
+      ],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    paneSocket.simulateOpen()
+
+    client.sendInput('%1', 'buffered line\n')
+
+    expect(new TextDecoder().decode(paneSocket.sent[0] as Uint8Array)).toBe('buffered line\n')
+  })
+
+  test('drops string input when the client does not own the pane', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [
+        {
+          sessionId: '1',
+          ownerId: 'other-client',
+          ownerType: 'web',
+          acquiredAt: 100,
+        },
+      ],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    paneSocket.simulateOpen()
+
+    client.sendInput('%1', 'blocked buffered line\n')
+
+    expect(paneSocket.sent).toEqual([])
+  })
+
   test('stores rich pane state and emits upgrade and sync events', async () => {
     const client = new WebmuxClient({
       url: 'ws://bridge.test',

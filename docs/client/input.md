@@ -17,20 +17,21 @@ xterm.js's `onData` fires for every keystroke. The consumer passes it straight t
 
 This is the lowest-latency path. Use this for LAN and same-city connections.
 
-## Buffered mode (post-v0)
+## Buffered mode
 
 For high-latency connections, the consumer can implement a local input buffer:
 
-1. User types into a local text input (not xterm.js) with zero-latency rendering.
-2. On Enter, the consumer calls `client.sendInput(paneId, fullLine + '\n')`.
-3. The SDK sends the entire string as a single binary frame.
-4. The bridge writes it to the PTY fd. The application receives it as if the user typed very fast.
+1. User enables buffered mode for a pane.
+2. User types into a local text input (not xterm.js) with zero-latency rendering.
+3. On Enter, the consumer calls `client.sendInput(paneId, fullLine + '\n')`.
+4. The SDK sends the entire string as a single binary frame.
+5. The bridge writes it to the PTY fd. The application receives it as if the user typed very fast.
 
 ### SDK design for buffered mode
 
 `sendInput()` already accepts `string`. The SDK converts it to `Uint8Array` (UTF-8) and sends as a binary frame. No special protocol message needed — the bridge just sees bytes on the data channel.
 
-The buffered input UI (the local text input bar, the latency indicator, the mode toggle) is entirely a consumer concern. The SDK doesn't know about it.
+The buffered input UI (the local text input bar, the latency indicator, the mode toggle) is entirely a consumer concern. The bridge doesn't know about it.
 
 ### When to suggest buffered mode
 
