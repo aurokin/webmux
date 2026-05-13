@@ -76,6 +76,7 @@ export function Pane({
   return (
     <div
       ref={containerRef}
+      data-webmux-pane-id={paneId}
       onClick={handleClick}
       className={cn(
         'relative flex-1 flex flex-col min-h-0 min-w-0 bg-bg-base rounded-sm overflow-hidden transition-shadow duration-200',

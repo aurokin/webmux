@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "webmux companion",
+  "description": "Forwards configured terminal shortcuts to focused webmux tabs.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "102",
+  "action": {
+    "default_title": "webmux companion",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "commands": {
+    "forward-control-w": {
+      "description": "Forward Ctrl+W to the active webmux pane"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://webmux.localhost/*",
+        "https://*.webmux.localhost/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content_script.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

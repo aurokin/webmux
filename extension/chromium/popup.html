@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>webmux companion</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+        background: #11121a;
+        color: #c0caf5;
+      }
+
+      body {
+        width: 280px;
+        margin: 0;
+        background: #11121a;
+      }
+
+      main {
+        padding: 14px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: #a9b1d6;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px 10px;
+        margin: 0 0 14px;
+        font-size: 11px;
+      }
+
+      dt {
+        color: #a9b1d6;
+      }
+
+      dd {
+        margin: 0;
+        color: #9ece6a;
+      }
+
+      dd.unassigned {
+        color: #f7768e;
+      }
+
+      button {
+        width: 100%;
+        border: 1px solid #3b4261;
+        border-radius: 6px;
+        background: #1a1b26;
+        color: #c0caf5;
+        padding: 8px 10px;
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: #7aa2f7;
+        background: #24283b;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>webmux companion</h1>
+      <p>Assign shortcuts in Chrome, then use them while a webmux tab is focused.</p>
+      <dl id="commands"></dl>
+      <button id="open-shortcuts" type="button">Open Chrome shortcuts</button>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

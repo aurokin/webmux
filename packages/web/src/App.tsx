@@ -26,6 +26,7 @@ import { useSessionOwnership } from './hooks/useOwnership'
 import { usePreferences, readPreferences } from './hooks/usePreferences'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useKeybinds, type KeybindActions } from './hooks/useKeybinds'
+import { useExtensionShortcuts } from './hooks/useExtensionShortcuts'
 import {
   DEFAULT_BRIDGE_URL,
   type TokenSource,
@@ -285,6 +286,12 @@ export function App() {
     latency !== null &&
     latency > LATENCY_THRESHOLD_BUFFERED_MS
 
+  useExtensionShortcuts({
+    client,
+    paneInputModes,
+    canSendInput: ownership.mode === 'active',
+  })
+
   useEffect(() => {
     setPaneInputModes((current) => prunePaneInputModes(current, collectSessionPaneIds(sessions)))
   }, [sessions])
@@ -478,7 +485,10 @@ export function App() {
   }, [focusedPaneId])
 
   return (
-    <div className="flex h-dvh w-screen overflow-hidden bg-bg-deep text-text-primary">
+    <div
+      data-webmux-app="true"
+      className="flex h-dvh w-screen overflow-hidden bg-bg-deep text-text-primary"
+    >
       {/* Sidebar */}
       <Sidebar
         sessions={sessions}

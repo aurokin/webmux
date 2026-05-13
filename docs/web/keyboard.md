@@ -21,15 +21,22 @@ Terminal application keybinds (Ctrl+C, Ctrl+D, Ctrl+Z, Ctrl+A, Ctrl+E, Ctrl+L, C
 
 In practice, **Ctrl+W is the only shortcut that matters**, and only for users running vim inside webmux panes. For Claude Code, shell usage, and most terminal workflows, there are zero conflicts.
 
-## Companion extension (optional, post-v0)
+## Companion extension (optional)
 
 A lightweight browser extension that intercepts conflicting shortcuts and forwards them to the webmux web app when the webmux tab is focused. Browser keybinds are automatically restored when the user switches to any other tab.
 
 ### Chrome / Chromium browsers
 
-The extension defines commands in manifest.json for each conflicting shortcut. The user assigns the keybinds once via `chrome://extensions/shortcuts`. This is a one-time setup. Once configured, the extension reliably overrides Ctrl+W etc. in normal windowed mode — no fullscreen required.
+The extension defines commands in `manifest.json` for each conflicting shortcut. The user assigns the keybinds once via `chrome://extensions/shortcuts`. This is a one-time setup.
 
-The extension cannot programmatically assign these shortcuts. It can open the shortcuts settings page and guide the user through the setup.
+Chrome's commands API has two important constraints:
+
+- The extension cannot programmatically assign shortcuts. It can open the shortcuts settings page and guide the user through setup.
+- Some Chrome and operating-system shortcuts always take priority over extension commands and cannot be overridden. This is called out in the official [Chrome commands API docs](https://developer.chrome.com/docs/extensions/reference/api/commands).
+
+Because of that second constraint, `Ctrl+W` support must be verified on the target Chromium browser and operating system. The extension's first command is `Forward Ctrl+W`; if the browser refuses to route that command to the extension, webmux treats it as a documented browser limitation rather than a web app defect.
+
+On macOS, Chrome maps `Ctrl` to `Command` in extension command definitions unless the manifest uses `MacCtrl`. The unpacked extension leaves the command unassigned so the user can choose the exact browser-supported shortcut in Chrome's shortcut settings UI.
 
 ### Firefox / Zen
 
@@ -43,9 +50,32 @@ Possible paths:
 
 ### Extension architecture
 
-The extension would live in a separate repo or in a `packages/extension` directory (not a workspace dependency — it has its own build/publish lifecycle). It communicates with the webmux web app via `window.postMessage` or by detecting the webmux page URL and injecting a content script.
+The extension lives in `extension/chromium`, outside `packages/*` so it is not a workspace dependency. It communicates with the webmux web app by injecting a content script on local webmux URLs and forwarding validated command messages through a `webmux:extensionShortcut` DOM event.
+
+The current command bridge is intentionally narrow:
+
+- Extension command: `forward-control-w`
+- Page event: `webmux:extensionShortcut`
+- Event payload type: `webmux.forwardShortcut`
+- Forwarded terminal input: `\x17` (`Ctrl+W`)
+- Allowed page matches: `https://webmux.localhost/*`, `https://*.webmux.localhost/*`, `http://localhost/*`, and `http://127.0.0.1/*`
+
+The page event is cancelable. The web app only acknowledges it when a pane has
+DOM focus and that pane is in direct input mode. If the content script does not
+receive that acknowledgement, the service worker preserves the default
+`Ctrl+W` behavior by closing the active tab.
 
 The extension is fully optional. The webmux web app must work perfectly without it. The extension only enhances the experience for users who need the conflicting keybinds.
+
+### Local setup
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Click **Load unpacked** and select `extension/chromium`.
+4. Open the webmux companion popup.
+5. Click **Open Chrome shortcuts**.
+6. Assign the `Forward Ctrl+W` command.
+7. Focus a webmux pane and test the shortcut in a terminal app such as vim.
 
 ## Prefix key interception
 

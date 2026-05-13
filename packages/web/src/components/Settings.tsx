@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, RotateCcw } from 'lucide-react'
+import { Keyboard, RotateCcw, ShieldCheck, X } from 'lucide-react'
 import { usePreferences, type UserPreferences } from '../hooks/usePreferences'
 import { TERMINAL_FONTS } from '../lib/fonts'
 import { THEMES } from '../lib/themes'
@@ -25,7 +25,7 @@ interface SettingsProps {
   onClose: () => void
 }
 
-type Tab = 'general' | 'keybinds'
+type Tab = 'general' | 'keybinds' | 'extension'
 
 export function Settings({ onClose }: SettingsProps) {
   const { preferences, setPreference } = usePreferences()
@@ -59,6 +59,9 @@ export function Settings({ onClose }: SettingsProps) {
               <TabButton active={tab === 'keybinds'} onClick={() => setTab('keybinds')}>
                 Keybinds
               </TabButton>
+              <TabButton active={tab === 'extension'} onClick={() => setTab('extension')}>
+                Extension
+              </TabButton>
             </div>
           </div>
           <button
@@ -70,11 +73,11 @@ export function Settings({ onClose }: SettingsProps) {
           </button>
         </div>
 
-        {tab === 'general' ? (
+        {tab === 'general' && (
           <GeneralSettings preferences={preferences} setPreference={setPreference} />
-        ) : (
-          <KeybindSettings />
         )}
+        {tab === 'keybinds' && <KeybindSettings />}
+        {tab === 'extension' && <ExtensionSettings />}
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border-subtle text-[10px] text-text-ghost font-ui">
@@ -83,6 +86,99 @@ export function Settings({ onClose }: SettingsProps) {
       </div>
     </div>
   )
+}
+
+/* ═══ Extension Settings ═══ */
+
+function ExtensionSettings() {
+  const [detected, setDetected] = useState(() => isExtensionDetected())
+
+  useEffect(() => {
+    setDetected(isExtensionDetected())
+
+    const observer = new MutationObserver(() => {
+      setDetected(isExtensionDetected())
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-webmux-extension'],
+    })
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div className="p-4 space-y-4 max-h-[min(55vh,calc(100dvh-150px))] overflow-y-auto">
+      <div
+        className={cn(
+          'rounded-md border px-3 py-2.5',
+          detected
+            ? 'border-accent-green/50 bg-accent-green-dim'
+            : 'border-border-default bg-bg-elevated',
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <ShieldCheck
+            size={14}
+            className={detected ? 'text-accent-green' : 'text-text-tertiary'}
+            aria-hidden="true"
+          />
+          <span className="text-[12px] font-semibold text-text-primary font-ui">
+            {detected ? 'Companion extension detected' : 'Companion extension not detected'}
+          </span>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-5 text-text-tertiary">
+          The extension is optional. webmux keeps normal terminal input working when it is absent.
+        </p>
+      </div>
+
+      <SettingRow label="Shortcut command">
+        <div className="rounded-md border border-border-default bg-bg-elevated px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2 text-[12px] text-text-secondary font-ui">
+              <Keyboard size={13} className="text-text-tertiary" aria-hidden="true" />
+              Forward Ctrl+W
+            </span>
+            <code className="shrink-0 rounded border border-border-subtle bg-bg-base px-2 py-0.5 text-[11px] text-accent-green">
+              ^W
+            </code>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-text-tertiary">
+            Assign this command in the extension popup. Chrome or the operating system can still
+            reserve a shortcut before extensions see it.
+          </p>
+        </div>
+      </SettingRow>
+
+      <SettingRow label="Setup">
+        <ol className="space-y-2 text-[11px] leading-5 text-text-tertiary">
+          <li className="rounded-md border border-border-subtle bg-bg-base px-3 py-2">
+            Load <code>extension/chromium</code> as an unpacked extension.
+          </li>
+          <li className="rounded-md border border-border-subtle bg-bg-base px-3 py-2">
+            Open the extension popup and use{' '}
+            <span className="text-text-secondary">Open Chrome shortcuts</span>.
+          </li>
+          <li className="rounded-md border border-border-subtle bg-bg-base px-3 py-2">
+            Assign <span className="text-text-secondary">Forward Ctrl+W</span>, then focus a webmux
+            pane and test vim window-prefix behavior.
+          </li>
+        </ol>
+      </SettingRow>
+
+      <SettingRow label="Scope">
+        <div className="rounded-md border border-border-default bg-bg-elevated px-3 py-2 text-[11px] leading-5 text-text-tertiary">
+          The content script is limited to <code>webmux.localhost</code>, <code>localhost</code>,
+          and <code>127.0.0.1</code>. Firefox and Zen support remains a documented browser
+          limitation for this slice.
+        </div>
+      </SettingRow>
+    </div>
+  )
+}
+
+function isExtensionDetected(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.getAttribute('data-webmux-extension') === 'installed'
 }
 
 function TabButton({

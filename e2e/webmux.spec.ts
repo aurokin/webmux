@@ -148,6 +148,97 @@ test.describe.serial('webmux browser validation', () => {
     }
   })
 
+  test('forwards companion extension shortcut messages to the focused pane', async ({ page }) => {
+    const sessionName = `webmux-extension-${crypto.randomUUID().slice(0, 8)}`
+    const directInputMarker = `direct-${crypto.randomUUID().slice(0, 8)}`
+    const sentPaneFrames: string[] = []
+    page.on('websocket', (socket) => {
+      if (!socket.url().includes('/pane/')) {
+        return
+      }
+
+      socket.on('framesent', (event) => {
+        sentPaneFrames.push(
+          typeof event.payload === 'string' ? event.payload : event.payload.toString('utf8'),
+        )
+      })
+    })
+    stack.createSession(sessionName)
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await selectSession(page, sessionName)
+      await page.waitForSelector('.xterm')
+
+      await page.locator('.xterm').first().click()
+      const unclaimedFrameCount = sentPaneFrames.length
+      const unclaimedHandled = await dispatchExtensionShortcut(page, {
+        source: 'webmux-extension',
+      })
+      expect(unclaimedHandled).toBe(false)
+      await page.waitForTimeout(300)
+      expect(sentPaneFrames).toHaveLength(unclaimedFrameCount)
+
+      await takeControl(page)
+
+      await page.locator('.xterm').first().click()
+      await page.keyboard.type(directInputMarker)
+      await expect.poll(() => stack.capturePane(sessionName)).toContain(directInputMarker)
+
+      const frameCount = sentPaneFrames.length
+      const invalidHandled = await dispatchExtensionShortcut(page, {
+        source: 'other-extension',
+      })
+      expect(invalidHandled).toBe(false)
+      await page.waitForTimeout(300)
+      expect(sentPaneFrames).toHaveLength(frameCount)
+
+      await page.getByTestId('session-switcher-button').focus()
+      const chromeFocusFrameCount = sentPaneFrames.length
+      const chromeFocusHandled = await dispatchExtensionShortcut(page, {
+        source: 'webmux-extension',
+      })
+      expect(chromeFocusHandled).toBe(false)
+      await page.waitForTimeout(300)
+      expect(sentPaneFrames).toHaveLength(chromeFocusFrameCount)
+
+      await page.locator('.xterm').first().click()
+      await page.locator('[data-testid^="input-mode-toggle-"]').first().focus()
+      const paneChromeFrameCount = sentPaneFrames.length
+      const paneChromeHandled = await dispatchExtensionShortcut(page, {
+        source: 'webmux-extension',
+      })
+      expect(paneChromeHandled).toBe(false)
+      await page.waitForTimeout(300)
+      expect(sentPaneFrames).toHaveLength(paneChromeFrameCount)
+
+      await page.locator('.xterm').first().click()
+      await page.getByTestId('focused-input-mode-toggle').click()
+      await expect(page.locator('[data-testid^="buffered-input-bar-"]').first()).toBeVisible()
+      const bufferedFrameCount = sentPaneFrames.length
+      const bufferedHandled = await dispatchExtensionShortcut(page, {
+        source: 'webmux-extension',
+      })
+      expect(bufferedHandled).toBe(false)
+      await page.waitForTimeout(300)
+      expect(sentPaneFrames).toHaveLength(bufferedFrameCount)
+      await page.getByTestId('focused-input-mode-toggle').click()
+      await expect(page.locator('[data-testid^="buffered-input-bar-"]').first()).toHaveCount(0)
+
+      await page.locator('.xterm').first().click()
+      const directHandled = await dispatchExtensionShortcut(page, {
+        source: 'webmux-extension',
+      })
+      expect(directHandled).toBe(true)
+
+      await expect.poll(() => sentPaneFrames.includes('\x17')).toBe(true)
+    } finally {
+      await restoreDefaultSession(page, stack)
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+    }
+  })
+
   test('switches between live tmux sessions from the session picker', async ({ page }) => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
@@ -618,6 +709,25 @@ async function selectSession(page: Page, sessionName: string): Promise<void> {
   await page.getByPlaceholder('Filter sessions...').fill(sessionName)
   await page.getByTestId(`session-option-${sessionName}`).click()
   await expect(page.getByTestId('session-switcher-button')).toContainText(sessionName)
+}
+
+async function dispatchExtensionShortcut(
+  page: Page,
+  options: { source: string },
+): Promise<boolean> {
+  return await page.evaluate((source) => {
+    return !window.dispatchEvent(
+      new CustomEvent('webmux:extensionShortcut', {
+        cancelable: true,
+        detail: JSON.stringify({
+          source,
+          type: 'webmux.forwardShortcut',
+          version: 1,
+          command: 'control-w',
+        }),
+      }),
+    )
+  }, options.source)
 }
 
 async function restoreDefaultSession(page: Page, stack: WebmuxE2EStack): Promise<void> {
