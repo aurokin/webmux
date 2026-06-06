@@ -53,6 +53,7 @@ describe('workspace recovery state', () => {
         connectionIssue: null,
         connectionStatus: 'reconnecting',
         sessions: [session('$1')],
+        selectedSessionId: '$1',
         activeSession: session('$1'),
         activeWindow: session('$1').windows[0] ?? null,
         destroyedSession: null,
@@ -68,6 +69,7 @@ describe('workspace recovery state', () => {
         connectionIssue: null,
         connectionStatus: 'connected',
         sessions: [],
+        selectedSessionId: null,
         activeSession: null,
         activeWindow: null,
         destroyedSession: null,
@@ -83,6 +85,7 @@ describe('workspace recovery state', () => {
         connectionIssue: null,
         connectionStatus: 'connected',
         sessions: [session('$2')],
+        selectedSessionId: null,
         activeSession: null,
         activeWindow: null,
         destroyedSession: { id: '$1', name: 'work' },
@@ -92,12 +95,45 @@ describe('workspace recovery state', () => {
     })
   })
 
+  test('keeps destroyed-session recovery above an unselected live fallback session', () => {
+    const liveSession = session('$2')
+    expect(
+      getWorkspaceState({
+        connectionIssue: null,
+        connectionStatus: 'connected',
+        sessions: [liveSession],
+        selectedSessionId: null,
+        activeSession: liveSession,
+        activeWindow: liveSession.windows[0] ?? null,
+        destroyedSession: { id: '$1', name: 'work' },
+      }),
+    ).toMatchObject({
+      title: 'Session ended: work',
+    })
+  })
+
+  test('ignores a stale destroyed marker when a live session is selected', () => {
+    const liveSession = session('$2')
+    expect(
+      getWorkspaceState({
+        connectionIssue: null,
+        connectionStatus: 'connected',
+        sessions: [liveSession],
+        selectedSessionId: '$2',
+        activeSession: liveSession,
+        activeWindow: liveSession.windows[0] ?? null,
+        destroyedSession: { id: '$1', name: 'work' },
+      }),
+    ).toBeNull()
+  })
+
   test('keeps protocol mismatch above runtime recovery states', () => {
     expect(
       getWorkspaceState({
         connectionIssue: 'protocol-error',
         connectionStatus: 'reconnecting',
         sessions: [],
+        selectedSessionId: null,
         activeSession: null,
         activeWindow: null,
         destroyedSession: { id: '$1', name: 'work' },

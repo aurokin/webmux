@@ -16,6 +16,7 @@ export interface WorkspaceStateInput {
   connectionIssue: ConnectionIssue
   connectionStatus: ConnectionStatus
   sessions: Session[]
+  selectedSessionId: string | null
   activeSession: Session | null
   activeWindow: Window | null
   destroyedSession: DestroyedSession | null
@@ -45,6 +46,7 @@ export function getWorkspaceState({
   connectionIssue,
   connectionStatus,
   sessions,
+  selectedSessionId,
   activeSession,
   activeWindow,
   destroyedSession,
@@ -81,7 +83,7 @@ export function getWorkspaceState({
     }
   }
 
-  if (destroyedSession) {
+  if (destroyedSession && (!activeSession || selectedSessionId === null)) {
     const detail =
       sessions.length > 0
         ? 'Select another live tmux session to continue.'

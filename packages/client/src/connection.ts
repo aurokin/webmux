@@ -9,6 +9,10 @@ import {
   type ConnectionStatus,
 } from '@webmux/shared'
 
+function isOwnerManagedClose(code: number, reason: string): boolean {
+  return code === WS_CLOSE.GOING_AWAY && reason === 'PANE_SUBSCRIBER_DROPPED'
+}
+
 /**
  * WebSocket connection with automatic reconnection and heartbeat.
  *
@@ -66,7 +70,8 @@ export class Connection {
         if (
           event.code === WS_CLOSE.AUTH_FAILED ||
           event.code === WS_CLOSE.PROTOCOL_ERROR ||
-          event.code === WS_CLOSE.PANE_DESTROYED
+          event.code === WS_CLOSE.PANE_DESTROYED ||
+          isOwnerManagedClose(event.code, event.reason)
         ) {
           this.onStatusChange?.('disconnected')
           return

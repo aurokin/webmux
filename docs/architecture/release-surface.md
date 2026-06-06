@@ -33,7 +33,8 @@ Deferred out of the current release surface:
 - Homebrew package
 - standalone bridge binary download
 - launchd/systemd service templates
-- desktop or mobile app packages
+- desktop app packages
+- public mobile app packages
 
 ## Supported Local Product Loop
 
@@ -53,6 +54,10 @@ The root `dev` script runs Portless against package-level `dev:raw` scripts. The
 raw scripts exist so Portless can start each service and so maintainers can
 debug a service directly when necessary; they are not the documented contributor
 entrypoint.
+
+`@webmux/mobile` also has a package-level `dev:raw` script for direct validation
+and browser E2E. It is intentionally not listed in `portless.json`, so it is not
+part of the supported `bun run dev` product loop yet.
 
 For an isolated tmux server:
 

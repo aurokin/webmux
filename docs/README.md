@@ -61,6 +61,8 @@ That path gives you current status, locked decisions, proof strategy, and only t
 - [0003-split-control-and-pane-data-channels.md](./decisions/0003-split-control-and-pane-data-channels.md) — separate control and pane data channels
 - [0004-single-owner-session-model.md](./decisions/0004-single-owner-session-model.md) — single-owner session handoff
 - [0005-bridge-is-consumer-agnostic.md](./decisions/0005-bridge-is-consumer-agnostic.md) — consumer-agnostic bridge contract
+- [0008-mobile-consumer-uses-client-sdk.md](./decisions/0008-mobile-consumer-uses-client-sdk.md) — mobile consumer SDK boundary
+- [0009-ai-workflows-are-tmux-native.md](./decisions/0009-ai-workflows-are-tmux-native.md) — AI workflow model
 
 ### I need to know how to verify a change
 
@@ -114,6 +116,10 @@ That path gives you current status, locked decisions, proof strategy, and only t
 - [terminal.md](./web/terminal.md) — xterm.js lifecycle and pane binding
 - [keyboard.md](./web/keyboard.md) — browser shortcut constraints and prefix behavior
 - [gotchas.md](./web/gotchas.md) — web-client failure modes and integration mistakes
+
+### Mobile
+
+- [gotchas.md](./mobile/gotchas.md) — mobile validation-shell constraints and traps
 
 ### CLI
 

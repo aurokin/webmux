@@ -13,6 +13,7 @@ interface TabBarProps {
     tone: 'warning' | 'error'
   }) => void
   onToggleSidebar: () => void
+  onSelectWindow: (sessionId: string, windowIndex: number) => void
   onOpenPalette: () => void
 }
 
@@ -22,6 +23,7 @@ export function TabBar({
   canMutate,
   onMutationUnavailable,
   onToggleSidebar,
+  onSelectWindow,
   onOpenPalette,
 }: TabBarProps) {
   const requireMutation = (title: string) => {
@@ -59,7 +61,7 @@ export function TabBar({
             aria-current={win.active ? 'page' : undefined}
             onClick={() => {
               if (requireMutation('Select window')) {
-                client.selectWindow(activeSession.id, win.index)
+                onSelectWindow(activeSession.id, win.index)
               }
             }}
             className={cn(

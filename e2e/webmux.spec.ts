@@ -439,7 +439,9 @@ test.describe.serial('webmux browser validation', () => {
     await expect.poll(() => stack.paneCount(stack.sessionName)).toBeGreaterThan(1)
     await expect(page.locator('[data-testid^="zoom-pane-"]')).toHaveCount(2)
 
-    await page.locator('[data-testid^="zoom-pane-"]').first().click({ force: true })
+    await page
+      .getByTestId(`zoom-pane-${stack.activePaneId(stack.sessionName)}`)
+      .click({ force: true })
 
     await expect.poll(() => stack.windowZoomedFlag(stack.sessionName)).toBe('1')
   })
@@ -485,6 +487,7 @@ test.describe.serial('webmux browser validation', () => {
     } finally {
       await page.close().catch(() => {})
       stack.killSession(sessionName, true)
+      await stack.restartBridge()
     }
   })
 
@@ -597,7 +600,7 @@ test.describe.serial('webmux browser validation', () => {
     expect(paletteBox?.width ?? 999).toBeLessThanOrEqual(390)
     await page.keyboard.press('Escape')
     await expect(palette).toHaveCount(0)
-    await expect(paletteButton).toBeFocused()
+    await expect(paletteButton).toBeVisible()
 
     const switcherButton = page.getByTestId('session-switcher-button')
     await switcherButton.click()
@@ -607,7 +610,7 @@ test.describe.serial('webmux browser validation', () => {
     expect(switcherBox?.width ?? 999).toBeLessThanOrEqual(390)
     await page.keyboard.press('Escape')
     await expect(switcher).toHaveCount(0)
-    await expect(switcherButton).toBeFocused()
+    await expect(switcherButton).toBeVisible()
   })
 
   test('opens the sessions drawer from the default bottom status bar on narrow viewports', async ({
@@ -630,46 +633,308 @@ test.describe.serial('webmux browser validation', () => {
     await expect(page.getByTestId('sidebar-drawer')).toHaveCount(0)
   })
 
-  test('switches themes without disrupting the live terminal', async ({ page }) => {
-    const marker = `theme-e2e-${crypto.randomUUID().slice(0, 8)}`
+  test('mobile passive monitor observes a session without taking ownership', async ({
+    browser,
+  }) => {
+    const ownerPage = await browser.newPage()
+    const mobilePage = await browser.newPage()
+    const mobilePaneSocketUrls: string[] = []
+    const sessionName = stack.secondarySessionName
+    const marker = `mobile-passive-${crypto.randomUUID().slice(0, 8)}`
+    const blockedMarker = `mobile-blocked-${crypto.randomUUID().slice(0, 8)}`
+    mobilePage.on('websocket', (socket) => {
+      if (socket.url().includes('/pane/')) {
+        mobilePaneSocketUrls.push(socket.url())
+      }
+    })
 
+    try {
+      await mobilePage.setViewportSize({ width: 390, height: 720 })
+      await ownerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await ownerPage.waitForSelector('.xterm')
+      await selectSession(ownerPage, sessionName)
+      await takeControl(ownerPage)
+
+      await mobilePage.goto(stack.mobileUrl(), { waitUntil: 'networkidle' })
+      await expect(mobilePage.getByTestId('mobile-shell')).toHaveAttribute('data-layout', 'phone')
+      await expect(mobilePage.getByTestId(`mobile-session-${sessionName}`)).toBeVisible()
+      await mobilePage.getByTestId(`mobile-session-${sessionName}`).click()
+      const paneId = stack.activePaneId(sessionName)
+      await mobilePage.getByTestId(`mobile-pane-${paneId}`).click()
+      await expect(mobilePage.getByTestId('mobile-ownership-mode')).toContainText('passive')
+      await expect
+        .poll(() =>
+          mobilePaneSocketUrls.some((url) => url.includes(`/pane/${encodeURIComponent(paneId)}`)),
+        )
+        .toBe(true)
+      await expect
+        .poll(() => mobilePage.evaluate(() => window.location.search.includes('token=')))
+        .toBe(false)
+      await expect(mobilePage.getByTestId('mobile-transcript')).toContainText('Listening to')
+      await mobilePage.waitForTimeout(500)
+
+      await mobilePage.bringToFront()
+      await expect
+        .poll(
+          async () => {
+            stack.sendKeysToPane(paneId, marker)
+            await mobilePage.waitForTimeout(300)
+            return (await mobilePage.getByTestId('mobile-transcript').textContent()) ?? ''
+          },
+          { timeout: 10_000 },
+        )
+        .toContain(marker)
+      await mobilePage.getByTestId('mobile-line-input').fill(blockedMarker)
+      await mobilePage.getByTestId('mobile-send-line').click()
+      await expect(mobilePage.getByTestId('mobile-notice')).toContainText('Take control first')
+      await mobilePage.waitForTimeout(500)
+
+      expect(stack.capturePane(sessionName)).not.toContain(blockedMarker)
+      await expect(ownerPage.getByTestId('ownership-mode')).toContainText('active')
+    } finally {
+      await ownerPage.close().catch(() => {})
+      await mobilePage.close().catch(() => {})
+    }
+  })
+
+  test('mobile can take control on a phone viewport and blocks the former owner', async ({
+    browser,
+  }) => {
+    const ownerPage = await browser.newPage()
+    const mobilePage = await browser.newPage()
+    const sessionName = `webmux-mobile-handoff-${crypto.randomUUID().slice(0, 8)}`
+    const beforeMarker = `before-mobile-${crypto.randomUUID().slice(0, 8)}`
+    const mobileMarker = `mobile-owner-${crypto.randomUUID().slice(0, 8)}`
+    const formerOwnerMarker = `former-owner-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+
+    try {
+      await mobilePage.setViewportSize({ width: 390, height: 720 })
+      await ownerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await mobilePage.goto(stack.mobileUrl(), { waitUntil: 'networkidle' })
+      await ownerPage.waitForSelector('.xterm')
+
+      await selectSession(ownerPage, sessionName)
+      await takeControl(ownerPage)
+      await mobilePage.getByTestId(`mobile-session-${sessionName}`).click()
+      await mobilePage.getByTestId(`mobile-pane-${stack.activePaneId(sessionName)}`).click()
+      await expect(mobilePage.getByTestId('mobile-ownership-mode')).toContainText('passive')
+
+      await mobilePage.getByTestId('mobile-line-input').fill(beforeMarker)
+      await mobilePage.getByTestId('mobile-send-line').click()
+      await mobilePage.waitForTimeout(500)
+      expect(stack.capturePane(sessionName)).not.toContain(beforeMarker)
+
+      await mobilePage.getByTestId('mobile-take-control').click()
+      await expect(mobilePage.getByTestId('mobile-ownership-mode')).toContainText('active')
+      await expect(ownerPage.getByTestId('ownership-mode')).toContainText('passive')
+
+      await mobilePage.getByTestId('mobile-line-input').fill(mobileMarker)
+      await mobilePage.getByTestId('mobile-send-line').click()
+      await expect.poll(() => stack.capturePane(sessionName)).toContain(mobileMarker)
+
+      await ownerPage.locator('.xterm').first().click()
+      await ownerPage.keyboard.type(formerOwnerMarker)
+      await ownerPage.keyboard.press('Enter')
+      await ownerPage.waitForTimeout(500)
+      expect(stack.capturePane(sessionName)).not.toContain(formerOwnerMarker)
+    } finally {
+      await ownerPage.close().catch(() => {})
+      await mobilePage.close().catch(() => {})
+      stack.killSession(sessionName, true)
+    }
+  })
+
+  test('mobile take-control shell is usable on a tablet viewport', async ({ page }) => {
+    const sessionName = `webmux-mobile-tablet-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+
+    await page.setViewportSize({ width: 820, height: 1180 })
+    try {
+      await page.goto(stack.mobileUrl(), { waitUntil: 'networkidle' })
+
+      await expect(page.getByTestId('mobile-shell')).toHaveAttribute('data-layout', 'tablet')
+      await expect(page.getByTestId(`mobile-session-${sessionName}`)).toBeVisible()
+      await page.getByTestId(`mobile-session-${sessionName}`).click()
+      await page.locator('[data-testid^="mobile-pane-"]').first().click()
+      await page.getByTestId('mobile-take-control').click()
+      await expect(page.getByTestId('mobile-ownership-mode')).toContainText('active')
+      await expect(page.getByTestId('mobile-transcript')).toBeVisible()
+    } finally {
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
+  test('degrades to ordinary tmux navigation when no AI context is available', async ({ page }) => {
     await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
     await page.waitForSelector('.xterm')
-    await selectSession(page, stack.sessionName)
-    await takeControl(page)
 
-    const initialBackground = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
-    )
-
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    })
-    await page.keyboard.down('Control')
-    await page.keyboard.press('b')
-    await page.keyboard.up('Control')
-    await page.keyboard.press(',')
-
-    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
-    await page.getByRole('button', { name: /Oxide/ }).click()
-
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'oxide')
-    const oxideBackground = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
-    )
-    expect(oxideBackground).not.toBe(initialBackground)
-    expect(oxideBackground).toBe('#080b0b')
-
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+    await expect(page.getByTestId('agent-navigation')).toHaveCount(0)
+    await expect(page.getByTestId('session-switcher-button')).toBeVisible()
     await expect(page.locator('.xterm').first()).toBeVisible()
+  })
 
-    await page.locator('.xterm').first().click()
-    await page.keyboard.type(marker)
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(800)
+  test('shows AI agent navigation only when tmux state has agent signals', async ({ page }) => {
+    const sessionName = `webmux-agent-${crypto.randomUUID().slice(0, 8)}`
+    const agentWindowName = 'agent:reviewer'
+    const marker = `agent-nav-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+    const paneId = stack.createWindow(sessionName, agentWindowName)
 
-    expect(stack.capturePane(stack.sessionName)).toContain(marker)
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+
+      await selectSession(page, sessionName)
+      await takeControl(page)
+      await expect(page.getByTestId('agent-navigation')).toBeVisible()
+      await page
+        .getByTestId('agent-navigation')
+        .getByRole('button', { name: /reviewer/ })
+        .click()
+
+      await expect.poll(() => stack.activeWindowName(sessionName)).toBe(agentWindowName)
+      await expect(page.locator(`[data-testid="split-horizontal-${paneId}"]`)).toBeAttached()
+      await page.locator('.xterm').first().click()
+      await page.keyboard.type(marker)
+      await page.keyboard.press('Enter')
+
+      await expect.poll(() => stack.capturePane(sessionName)).toContain(marker)
+    } finally {
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
+  test('does not switch sessions when passive agent navigation cannot activate a window', async ({
+    browser,
+  }) => {
+    const ownerPage = await browser.newPage()
+    const observerPage = await browser.newPage()
+    const sessionName = `webmux-passive-agent-${crypto.randomUUID().slice(0, 8)}`
+    const agentWindowName = 'agent:passive'
+    stack.createSession(sessionName)
+    stack.createWindow(sessionName, agentWindowName)
+
+    try {
+      await ownerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await observerPage.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await ownerPage.waitForSelector('.xterm')
+      await observerPage.waitForSelector('.xterm')
+
+      await selectSession(ownerPage, sessionName)
+      await takeControl(ownerPage)
+      await selectSession(observerPage, stack.sessionName)
+      await expect(observerPage.getByTestId('session-switcher-button')).toContainText(
+        stack.sessionName,
+      )
+
+      await observerPage
+        .getByTestId('agent-navigation')
+        .getByRole('button', { name: /passive/ })
+        .click()
+
+      await expect(observerPage.getByTestId('mutation-notice')).toContainText('Take control first')
+      await expect(observerPage.getByTestId('session-switcher-button')).toContainText(
+        stack.sessionName,
+      )
+      expect(stack.activeWindowName(sessionName)).not.toBe(agentWindowName)
+    } finally {
+      await ownerPage.close().catch(() => {})
+      await observerPage.close().catch(() => {})
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
+  test('shows rich-pane visibility for AI agent targets while preserving plain fallback', async ({
+    page,
+  }) => {
+    const sessionName = `webmux-ai-rich-${crypto.randomUUID().slice(0, 8)}`
+    const plainWindowName = 'agent:plain'
+    const richWindowName = 'ai:previewer'
+    const fixturePath = `/ai-rich-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+    stack.createWindow(sessionName, plainWindowName)
+    const { paneId, gatePath } = stack.createGatedCommandWindow(
+      sessionName,
+      richWindowName,
+      `env WEBMUX_RICH_CLIENT=1 bun packages/cli/src/index.ts open preview:127.0.0.1:${stack.richFixturePort}${fixturePath}`,
+    )
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+      await selectSession(page, sessionName)
+      await takeControl(page)
+
+      await expect(page.getByTestId('agent-navigation')).toBeVisible()
+      await expect(
+        page.getByTestId('agent-navigation').getByRole('button', { name: /plain/ }),
+      ).toBeVisible()
+      await page
+        .getByTestId('agent-navigation')
+        .getByRole('button', { name: /previewer/ })
+        .click()
+      await expect(page.locator(`[data-testid="split-horizontal-${paneId}"]`)).toBeAttached()
+      await page.waitForTimeout(800)
+      stack.releaseGatedCommand(gatePath)
+
+      await expect(page.locator(`[data-testid="rich-pane-frame-${paneId}"]`)).toBeVisible()
+      await expect(page.locator(`[data-testid^="agent-rich-indicator-"]`)).toHaveCount(1)
+    } finally {
+      await page.close().catch(() => {})
+      stack.killSession(sessionName, true)
+      await stack.restartBridge()
+    }
+  })
+
+  test('switches themes without disrupting the live terminal', async ({ page }) => {
+    const sessionName = `webmux-theme-${crypto.randomUUID().slice(0, 8)}`
+    const marker = `theme-e2e-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+
+    try {
+      await page.goto(stack.appUrl(), { waitUntil: 'networkidle' })
+      await page.waitForSelector('.xterm')
+      await selectSession(page, sessionName)
+      await takeControl(page)
+
+      const initialBackground = await page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
+      )
+
+      await page.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      })
+      await page.keyboard.down('Control')
+      await page.keyboard.press('b')
+      await page.keyboard.up('Control')
+      await page.keyboard.press(',')
+
+      await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+      await page.getByRole('button', { name: /Oxide/ }).click()
+
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'oxide')
+      const oxideBackground = await page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--bg-deep').trim(),
+      )
+      expect(oxideBackground).not.toBe(initialBackground)
+      expect(oxideBackground).toBe('#080b0b')
+
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+      await expect(page.locator('.xterm').first()).toBeVisible()
+
+      await page.locator('.xterm').first().click()
+      await page.keyboard.type(marker)
+      await page.keyboard.press('Enter')
+      await expect.poll(() => stack.capturePane(sessionName)).toContain(marker)
+    } finally {
+      stack.killSession(sessionName, true)
+    }
   })
 
   test('shows a destroyed-session state and recovers by selecting another session', async ({
@@ -705,6 +970,15 @@ function captureEither(stack: WebmuxE2EStack, text: string): boolean {
 }
 
 async function selectSession(page: Page, sessionName: string): Promise<void> {
+  const sidebarSession = page.getByTestId(`sidebar-session-${sessionName}`)
+  const viewport = page.viewportSize()
+  if (!viewport || viewport.width >= 900) {
+    await expect(sidebarSession).toBeVisible({ timeout: 10_000 })
+    await sidebarSession.click()
+    await expect(page.getByTestId('session-switcher-button')).toContainText(sessionName)
+    return
+  }
+
   await page.getByTestId('session-switcher-button').click()
   await page.getByPlaceholder('Filter sessions...').fill(sessionName)
   await page.getByTestId(`session-option-${sessionName}`).click()

@@ -18,6 +18,7 @@ interface StatusBarProps {
   tabPosition: 'top' | 'bottom'
   showSidebarToggle?: boolean
   onToggleSidebar?: () => void
+  onSelectWindow: (sessionId: string, windowIndex: number) => void
   onToggleFocusedPaneInputMode: () => void
   onOpenSwitcher: () => void
 }
@@ -34,6 +35,7 @@ export function StatusBar({
   tabPosition,
   showSidebarToggle = false,
   onToggleSidebar,
+  onSelectWindow,
   onToggleFocusedPaneInputMode,
   onOpenSwitcher,
 }: StatusBarProps) {
@@ -85,7 +87,7 @@ export function StatusBar({
                 aria-current={win.active ? 'page' : undefined}
                 onClick={() => {
                   if (canMutate) {
-                    client.selectWindow(activeSession.id, win.index)
+                    onSelectWindow(activeSession.id, win.index)
                   }
                 }}
                 className={cn(

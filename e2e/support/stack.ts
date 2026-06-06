@@ -91,6 +91,16 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+function appendLog(pathname: string, chunk: Buffer): void {
+  try {
+    appendFileSync(pathname, chunk)
+  } catch {
+    // Processes can emit a final chunk while the test runtime dir is being
+    // removed after a timeout. The original test failure is more useful than a
+    // secondary logging error.
+  }
+}
+
 export class WebmuxE2EStack {
   readonly rootDir: string
   readonly runtimeDir = mkdtempSync(path.join(os.tmpdir(), 'webmux-e2e-'))
@@ -100,12 +110,15 @@ export class WebmuxE2EStack {
   readonly token = 'feedfacefeedfacefeedfacefeedface'
   readonly bridgeLogPath = path.join(this.runtimeDir, 'bridge.log')
   readonly webLogPath = path.join(this.runtimeDir, 'web.log')
+  readonly mobileLogPath = path.join(this.runtimeDir, 'mobile.log')
 
   bridgePort = 0
   webPort = 0
+  mobilePort = 0
   richFixturePort = 0
   bridgeProcess: ChildProcessWithoutNullStreams | null = null
   webProcess: ChildProcessWithoutNullStreams | null = null
+  mobileProcess: ChildProcessWithoutNullStreams | null = null
   richFixtureServer: Server | null = null
 
   constructor(rootDir: string) {
@@ -120,10 +133,12 @@ export class WebmuxE2EStack {
 
     this.bridgePort = await getFreePort()
     this.webPort = await getFreePort()
+    this.mobilePort = await getFreePort()
 
     await this.startRichFixture()
     await this.startBridge()
     await this.startWeb()
+    await this.startMobile()
   }
 
   async startRichFixture(): Promise<void> {
@@ -166,10 +181,10 @@ export class WebmuxE2EStack {
     })
 
     this.bridgeProcess.stdout.on('data', (chunk) => {
-      appendFileSync(this.bridgeLogPath, chunk)
+      appendLog(this.bridgeLogPath, chunk)
     })
     this.bridgeProcess.stderr.on('data', (chunk) => {
-      appendFileSync(this.bridgeLogPath, chunk)
+      appendLog(this.bridgeLogPath, chunk)
     })
 
     await waitForPort(this.bridgePort, 'bridge')
@@ -193,13 +208,34 @@ export class WebmuxE2EStack {
     )
 
     this.webProcess.stdout.on('data', (chunk) => {
-      appendFileSync(this.webLogPath, chunk)
+      appendLog(this.webLogPath, chunk)
     })
     this.webProcess.stderr.on('data', (chunk) => {
-      appendFileSync(this.webLogPath, chunk)
+      appendLog(this.webLogPath, chunk)
     })
 
     await waitForPort(this.webPort, 'web client')
+  }
+
+  async startMobile(): Promise<void> {
+    this.mobileProcess = spawn(
+      'bunx',
+      ['vite', '--host', '127.0.0.1', '--port', String(this.mobilePort)],
+      {
+        cwd: path.join(this.rootDir, 'packages/mobile'),
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
+
+    this.mobileProcess.stdout.on('data', (chunk) => {
+      appendLog(this.mobileLogPath, chunk)
+    })
+    this.mobileProcess.stderr.on('data', (chunk) => {
+      appendLog(this.mobileLogPath, chunk)
+    })
+
+    await waitForPort(this.mobilePort, 'mobile client')
   }
 
   async stopBridge(): Promise<void> {
@@ -225,6 +261,13 @@ export class WebmuxE2EStack {
       await new Promise((resolve) => processToStop.once('exit', resolve))
     }
 
+    if (this.mobileProcess) {
+      const processToStop = this.mobileProcess
+      this.mobileProcess = null
+      processToStop.kill('SIGTERM')
+      await new Promise((resolve) => processToStop.once('exit', resolve))
+    }
+
     if (this.richFixtureServer) {
       const serverToStop = this.richFixtureServer
       this.richFixtureServer = null
@@ -245,6 +288,10 @@ export class WebmuxE2EStack {
 
   appUrl(token = this.token): string {
     return `http://127.0.0.1:${this.webPort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${token}`
+  }
+
+  mobileUrl(token = this.token): string {
+    return `http://127.0.0.1:${this.mobilePort}/?bridge=ws://127.0.0.1:${this.bridgePort}&token=${token}`
   }
 
   richFixtureUrl(pathname: string): string {
@@ -283,7 +330,7 @@ export class WebmuxE2EStack {
     ])
 
     return {
-      paneId: this.singlePaneId(`${sessionName}:${windowName}`),
+      paneId: this.singlePaneIdByWindowName(sessionName, windowName),
       gatePath,
       readyMarker,
     }
@@ -297,8 +344,14 @@ export class WebmuxE2EStack {
     runTmux(this.tmuxSocketPath, ['new-session', '-d', '-s', sessionName, 'cat'])
   }
 
+  createWindow(sessionName: string, windowName: string, command = 'cat'): string {
+    runTmux(this.tmuxSocketPath, ['new-window', '-d', '-t', sessionName, '-n', windowName, command])
+    return this.singlePaneIdByWindowName(sessionName, windowName)
+  }
+
   selectWindowByName(sessionName: string, windowName: string): void {
-    runTmux(this.tmuxSocketPath, ['select-window', '-t', `${sessionName}:${windowName}`])
+    const index = this.windowIndexByName(sessionName, windowName)
+    runTmux(this.tmuxSocketPath, ['select-window', '-t', `${sessionName}:${index}`])
   }
 
   windowExists(sessionName: string, windowName: string): boolean {
@@ -336,6 +389,30 @@ export class WebmuxE2EStack {
       '#{pane_id}',
     ])
     return output ? output.split('\n').length : 0
+  }
+
+  activePaneId(sessionName = this.sessionName): string {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-panes',
+      '-t',
+      this.activeWindowTarget(sessionName),
+      '-F',
+      '#{pane_id}\t#{pane_active}',
+    ])
+
+    for (const line of output.split('\n')) {
+      const [paneId, active] = line.split('\t')
+      if (active === '1') {
+        return paneId
+      }
+    }
+
+    throw new Error(`No active pane found for session ${sessionName}`)
+  }
+
+  sendKeysToPane(paneId: string, text: string): void {
+    runTmux(this.tmuxSocketPath, ['send-keys', '-t', paneId, '-l', text])
+    runTmux(this.tmuxSocketPath, ['send-keys', '-t', paneId, 'Enter'])
   }
 
   paneSizes(sessionName = this.sessionName): Array<{ id: string; width: number; height: number }> {
@@ -396,5 +473,45 @@ export class WebmuxE2EStack {
       throw new Error(`Expected one pane for ${target}, found ${paneIds.length}`)
     }
     return paneIds[0]
+  }
+
+  private singlePaneIdByWindowName(sessionName: string, windowName: string): string {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-panes',
+      '-a',
+      '-F',
+      '#{session_name}\t#{window_name}\t#{pane_id}',
+    ])
+    const paneIds = output
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('\t'))
+      .filter(([session, window]) => session === sessionName && window === windowName)
+      .map((parts) => parts[2])
+      .filter(Boolean)
+
+    if (paneIds.length !== 1) {
+      throw new Error(`Expected one pane for ${sessionName}:${windowName}, found ${paneIds.length}`)
+    }
+    return paneIds[0]!
+  }
+
+  private windowIndexByName(sessionName: string, windowName: string): string {
+    const output = runTmux(this.tmuxSocketPath, [
+      'list-windows',
+      '-t',
+      sessionName,
+      '-F',
+      '#{window_index}\t#{window_name}',
+    ])
+
+    for (const line of output.split('\n')) {
+      const [index, name] = line.split('\t')
+      if (name === windowName) {
+        return index
+      }
+    }
+
+    throw new Error(`Window not found: ${sessionName}:${windowName}`)
   }
 }

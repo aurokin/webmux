@@ -9,7 +9,8 @@
       "@webmux/bridge": ["packages/bridge/src/index.ts"],
       "@webmux/client": ["packages/client/src/index.ts"],
       "@webmux/cli": ["packages/cli/src/index.ts"],
-      "@webmux/web": ["packages/web/src/main.tsx"]
+      "@webmux/web": ["packages/web/src/main.tsx"],
+      "@webmux/mobile": ["packages/mobile/src/main.tsx"]
     },
     "strict": true,
     "esModuleInterop": true,

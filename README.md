@@ -6,7 +6,7 @@ webmux connects to your existing tmux sessions and gives them a browser-based UI
 
 ## Status
 
-This repository is still a scaffold-first codebase, but it now includes a working core bridge path and a minimal browser validation client.
+This repository is still early, but it now includes a working core bridge path, browser validation client, rich-pane primitive, mobile validation shell, and first AI workflow navigation slice.
 
 - The daemon, bridge, tmux discovery, pane streaming, ownership enforcement, and browser-backed validation path are implemented and covered by automated checks.
 - Some files under `packages/` are still illustrative snippets rather than finished production implementation.
@@ -29,7 +29,7 @@ This repository is still a scaffold-first codebase, but it now includes a workin
 ┌─────────────────────────────────────────────────────┐
 │                    Consumers                         │
 │  ┌─────────┐  ┌────────────────────────────────────┐  │
-│  │ @webmux/web│  │ electron / mobile (distant future) │  │
+│  │ @webmux/web│  │ @webmux/mobile / future desktop    │  │
 │  └────┬────┘  └────────────────┬───────────────────┘  │
 │       └────────────────────────┘                      │
 │              ┌─────┴─────┐                           │
@@ -48,7 +48,7 @@ This repository is still a scaffold-first codebase, but it now includes a workin
                └─────────────┘
 ```
 
-The web app is the primary product. The architecture also needs to support future consumers, especially a dedicated mobile app, via the `@webmux/client` SDK. At the moment, treat the diagram above as target architecture rather than proof of current completeness.
+The web app is the primary product. `@webmux/mobile` is a source-checkout validation consumer for phone and tablet monitoring/handoff; public mobile packaging remains deferred.
 
 ## Packages
 
@@ -59,6 +59,7 @@ The web app is the primary product. The architecture also needs to support futur
 | `@webmux/client` | `packages/client` | Client SDK. Connection lifecycle, session state, event model. Framework-agnostic.                  |
 | `@webmux/cli`    | `packages/cli`    | CLI entry points: `webmux serve`, `webmux open`, `webmux status`.                                  |
 | `@webmux/web`    | `packages/web`    | React + xterm.js web application. One consumer of `@webmux/client`.                                |
+| `@webmux/mobile` | `packages/mobile` | Browser-based mobile validation shell for passive monitoring, handoff, and limited line input.     |
 
 ## Scaffold commands
 
@@ -126,7 +127,7 @@ The current automated coverage covers the implemented backend path and a minimal
 - A modern browser (Chrome, Firefox, Safari, Arc, Zen)
 
 webmux is currently source-checkout only. Packaged CLI, Homebrew, standalone
-binary, desktop, and mobile distribution paths are deferred.
+binary, desktop, and public mobile distribution paths are deferred.
 
 ## Dependency rule
 
@@ -135,7 +136,8 @@ The dependency graph is strictly one-directional. This is an invariant that must
 ```
 shared ← bridge
 shared ← client ← web
-shared ← client ← (future: electron, mobile)
+shared ← client ← mobile
+shared ← client ← (future: electron)
 shared ← cli
 ```
 
@@ -143,7 +145,7 @@ shared ← cli
 - No consumer ever imports from bridge.
 - Client never imports from web.
 - Shared imports from nothing.
-- Future mobile and desktop consumers are not currently in the repo. When added, they should import `@webmux/client` or another consumer-safe SDK layer rather than the bridge directly.
+- Mobile and future desktop consumers should import `@webmux/client` or another consumer-safe SDK layer rather than the bridge directly.
 
 ## Documentation
 

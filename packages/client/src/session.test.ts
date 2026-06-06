@@ -279,7 +279,7 @@ describe('WebmuxClient connection handshake', () => {
     expect(paneSocket).toBeDefined()
     paneSocket.simulateOpen()
 
-    paneSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+    paneSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'SERVER_GOING_AWAY')
 
     await new Promise((resolve) => setTimeout(resolve, 150))
 
@@ -288,6 +288,60 @@ describe('WebmuxClient connection handshake', () => {
     expect(reconnectedSocket.url).toBe(paneSocket.url)
 
     client.disconnectPane('pane-1')
+  })
+
+  test('clears and reconnects pane data channels dropped for backpressure', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    paneSocket.simulateOpen()
+    paneSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const reconnectedSocket = FakeWebSocket.instances[2]
+    expect(reconnectedSocket).toBeDefined()
+    expect(reconnectedSocket.url).toBe(paneSocket.url)
+    expect(FakeWebSocket.instances).toHaveLength(3)
+
+    client.disconnectPane('%1')
+  })
+
+  test('encodes tmux pane ids in pane data URLs', () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    client.connectPane('%16')
+
+    const paneSocket = FakeWebSocket.instances[0]
+    expect(paneSocket.url).toBe(
+      'ws://bridge.test/pane/%2516?token=accepted-token&clientId=web-test',
+    )
   })
 
   test('disconnects pane data channels when state sync omits their pane', async () => {
@@ -325,6 +379,78 @@ describe('WebmuxClient connection handshake', () => {
 
     expect(paneSocket.readyState).toBe(FakeWebSocket.CLOSED)
     await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(FakeWebSocket.instances).toHaveLength(2)
+  })
+
+  test('reconnects a terminally closed pane data channel while the pane still exists', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    paneSocket.simulateOpen()
+    client.setInputMode('%1', 'buffered')
+    expect(client.getInputMode('%1')).toBe('buffered')
+
+    paneSocket.simulateClose(WS_CLOSE.PANE_DESTROYED, 'PANE_CLOSED')
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const reconnectedSocket = FakeWebSocket.instances[2]
+    expect(reconnectedSocket).toBeDefined()
+    expect(reconnectedSocket.url).toBe(paneSocket.url)
+    expect(client.getInputMode('%1')).toBe('buffered')
+  })
+
+  test('does not reconnect a pane data channel when the bridge reports pane not found', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+    paneSocket.simulateOpen()
+    paneSocket.simulateClose(WS_CLOSE.PANE_DESTROYED, 'PANE_NOT_FOUND')
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
     expect(FakeWebSocket.instances).toHaveLength(2)
   })
 

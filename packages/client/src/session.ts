@@ -26,6 +26,13 @@ export interface WebmuxClientOptions {
 
 export type { BridgeError, ConnectionIssue, RichPaneState } from './events'
 
+function isPaneDataChannelClosed(code: number, reason: string): boolean {
+  return (
+    code === WS_CLOSE.PANE_DESTROYED ||
+    (code === WS_CLOSE.GOING_AWAY && reason === 'PANE_SUBSCRIBER_DROPPED')
+  )
+}
+
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
  * webmux client API, but the implementation is not complete yet.
@@ -38,6 +45,8 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private controlConnection: Connection
   private paneConnections = new Map<string, Connection>()
   private paneInputs = new Map<string, InputHandler>()
+  private paneInputModes = new Map<string, InputMode>()
+  private paneReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private receivedWelcome = false
   private receivedInitialStateSync = false
 
@@ -225,12 +234,13 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   connectPane(paneId: string): void {
     if (this.paneConnections.has(paneId)) return
+    this.clearPaneReconnect(paneId)
 
     const params = new URLSearchParams({
       token: this.options.token,
       clientId: this.options.clientId,
     })
-    const url = `${this.options.url}/pane/${paneId}?${params.toString()}`
+    const url = `${this.options.url}/pane/${encodeURIComponent(paneId)}?${params.toString()}`
     const conn = new Connection(url)
 
     conn.onMessage = (data) => {
@@ -244,15 +254,31 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       // (control channel reconnection handles the broader case)
     }
 
+    conn.onClose = (code, reason) => {
+      if (!isPaneDataChannelClosed(code, reason)) {
+        return
+      }
+
+      this.paneConnections.delete(paneId)
+      this.paneInputs.get(paneId)?.dispose()
+      this.paneInputs.delete(paneId)
+      if (reason === 'PANE_NOT_FOUND') {
+        return
+      }
+      this.schedulePaneReconnect(paneId)
+    }
+
     conn.connect()
     this.paneConnections.set(paneId, conn)
 
     // Set up input handler
     const input = new InputHandler((data) => conn.send(data))
+    input.setMode(this.paneInputModes.get(paneId) ?? 'direct')
     this.paneInputs.set(paneId, input)
   }
 
   disconnectPane(paneId: string): void {
+    this.clearPaneReconnect(paneId)
     this.paneConnections.get(paneId)?.disconnect()
     this.paneConnections.delete(paneId)
     this.paneInputs.get(paneId)?.dispose()
@@ -271,11 +297,12 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   }
 
   setInputMode(paneId: string, mode: InputMode): void {
+    this.paneInputModes.set(paneId, mode)
     this.paneInputs.get(paneId)?.setMode(mode)
   }
 
   getInputMode(paneId: string): InputMode {
-    return this.paneInputs.get(paneId)?.getMode() ?? 'direct'
+    return this.paneInputs.get(paneId)?.getMode() ?? this.paneInputModes.get(paneId) ?? 'direct'
   }
 
   // ── Subscribe (for useSyncExternalStore) ──
@@ -360,6 +387,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         this.emit('pane:removed', msg.paneId)
         // Clean up data channel if connected
         this.disconnectPane(msg.paneId)
+        this.paneInputModes.delete(msg.paneId)
         if (this._richPanes.delete(msg.paneId)) {
           this.emitRichPaneSync()
         }
@@ -409,6 +437,11 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   }
 
   private disconnectAllPanes(): void {
+    for (const timer of this.paneReconnectTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.paneReconnectTimers.clear()
+
     for (const conn of this.paneConnections.values()) {
       conn.disconnect()
     }
@@ -422,9 +455,17 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private prunePaneConnections(sessions: Session[]): void {
     const activePaneIds = this.getPaneIds(sessions)
 
+    for (const paneId of [...this.paneReconnectTimers.keys()]) {
+      if (!activePaneIds.has(paneId)) {
+        this.clearPaneReconnect(paneId)
+        this.paneInputModes.delete(paneId)
+      }
+    }
+
     for (const paneId of [...this.paneConnections.keys()]) {
       if (!activePaneIds.has(paneId)) {
         this.disconnectPane(paneId)
+        this.paneInputModes.delete(paneId)
       }
     }
   }
@@ -449,6 +490,27 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         session.windows.flatMap((window) => window.panes.map((pane) => pane.id)),
       ),
     )
+  }
+
+  private schedulePaneReconnect(paneId: string): void {
+    if (this.paneReconnectTimers.has(paneId)) return
+
+    const timer = setTimeout(() => {
+      this.paneReconnectTimers.delete(paneId)
+      if (this.findSessionByPaneId(paneId) && !this.paneConnections.has(paneId)) {
+        this.connectPane(paneId)
+      }
+    }, 100)
+
+    this.paneReconnectTimers.set(paneId, timer)
+  }
+
+  private clearPaneReconnect(paneId: string): void {
+    const timer = this.paneReconnectTimers.get(paneId)
+    if (!timer) return
+
+    clearTimeout(timer)
+    this.paneReconnectTimers.delete(paneId)
   }
 
   private emitRichPaneSync(): void {

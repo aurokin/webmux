@@ -72,6 +72,13 @@ Command-line interface. `webmux serve` starts the bridge daemon. `webmux open` i
 
 A React application that imports `@webmux/client` and renders tmux panes using xterm.js. This is one consumer of the client SDK — not the only possible one.
 
+### @webmux/mobile
+
+A browser-based mobile validation shell that imports `@webmux/client`, connects
+as `clientType: "mobile"`, and proves passive monitoring plus intentional
+handoff on phone and tablet viewports. It is not a public native app package in
+the current release surface.
+
 ## Data flow
 
 ### Input (keystroke → PTY)
@@ -142,7 +149,7 @@ The architecture supports multiple consumers via `@webmux/client`. The priority 
 
 1. **Web app** (`@webmux/web`) — the product. Ships first, primary focus.
 2. **Companion browser extension** — optional keybind enhancement for browser authenticity. Small scope, post-v0.
-3. **Native mobile app** (`@webmux/mobile`, not yet created) — a phone + tablet consumer focused on touch ergonomics, handoff, and session control while preserving the same tmux-backed model.
+3. **Mobile consumer** (`@webmux/mobile`) — currently a browser-based validation shell for phone + tablet monitoring and handoff; a public native package remains future work.
 4. **Mobile web** — a responsive fallback for quick access from any browser, even if the long-term mobile experience is better in a dedicated app.
 5. **Electron wrapper** (`@webmux/desktop`, not yet created) — only if demand remains after the web app, extension, and mobile app settle.
 
@@ -152,7 +159,7 @@ Each consumer imports `@webmux/client` and implements its own rendering layer. T
 
 webmux is not only a terminal renderer. Once the core tmux experience is dependable, the product should support higher-level workflows that fit naturally around tmux sessions.
 
-The first planned example is fast switching between AI agents, inspired by tools like cmux. The likely implementation path is integration with `agentscan`, but the bridge and client APIs should stay generic enough that this workflow is not hard-coded to one external project.
+The first AI workflow slice is fast switching between agent-like tmux panes and windows. The web app derives this from explicit `agent:` / `ai:` names and a narrow command allowlist, and richer AI views reuse the generic rich-pane primitive. Future integrations such as `agentscan` can provide stronger signals, but the bridge and client APIs should stay generic enough that this workflow is not hard-coded to one external project.
 
 ## Future: tmux -CC control mode
 

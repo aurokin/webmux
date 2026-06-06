@@ -29,6 +29,8 @@ Read in this order if you are new:
 5. [0005-bridge-is-consumer-agnostic.md](./0005-bridge-is-consumer-agnostic.md)
 6. [0006-portless-local-development.md](./0006-portless-local-development.md)
 7. [0007-source-checkout-release-surface.md](./0007-source-checkout-release-surface.md)
+8. [0008-mobile-consumer-uses-client-sdk.md](./0008-mobile-consumer-uses-client-sdk.md)
+9. [0009-ai-workflows-are-tmux-native.md](./0009-ai-workflows-are-tmux-native.md)
 
 ## Current Decision Index
 
@@ -41,6 +43,8 @@ Read in this order if you are new:
 | 0005 | [Bridge is consumer-agnostic](./0005-bridge-is-consumer-agnostic.md)                   | Accepted | package boundaries, API design |
 | 0006 | [Portless local development surface](./0006-portless-local-development.md)             | Accepted | local dev, release surface     |
 | 0007 | [Source checkout release surface](./0007-source-checkout-release-surface.md)           | Accepted | packaging, release surface     |
+| 0008 | [Mobile consumer uses client SDK](./0008-mobile-consumer-uses-client-sdk.md)           | Accepted | mobile, client SDK, release    |
+| 0009 | [AI workflows are tmux-native](./0009-ai-workflows-are-tmux-native.md)                 | Accepted | AI workflows, rich panes, web  |
 
 ## When To Write One
 

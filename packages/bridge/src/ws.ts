@@ -33,6 +33,9 @@ interface DataSocketData {
 
 type SocketData = ControlSocketData | DataSocketData
 
+const MAX_BACKPRESSURED_PANE_SENDS = 64
+const backpressuredPaneSends = new WeakMap<object, number>()
+
 interface ServerOptions {
   port: number
   host: string
@@ -105,7 +108,7 @@ export function createWebSocketServer(options: ServerOptions) {
       // Route: /pane/:paneId
       const paneMatch = url.pathname.match(/^\/pane\/(.+)$/)
       if (paneMatch) {
-        const paneId = paneMatch[1]
+        const paneId = decodePathSegment(paneMatch[1])
         if (!clientId) {
           return new Response('Missing clientId', { status: 400 })
         }
@@ -173,7 +176,11 @@ export function createWebSocketServer(options: ServerOptions) {
 
               try {
                 const result = ws.send(data)
-                return result > 0
+                const keepSubscriber = shouldKeepPaneSubscriberAfterSend(ws, result)
+                if (!keepSubscriber && ws.readyState === WebSocket.OPEN) {
+                  ws.close(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+                }
+                return keepSubscriber
               } catch (error) {
                 console.error(`[ws] failed to send pane output for ${paneId}:`, error)
                 return false
@@ -726,4 +733,61 @@ function getPaneIds(sessions: Session[]): string[] {
   return sessions.flatMap((session) =>
     session.windows.flatMap((window) => window.panes.map((pane) => pane.id)),
   )
+}
+
+export function decodePathSegment(segment: string): string {
+  if (/^%25\d+$/.test(segment)) {
+    return `%${segment.slice(3)}`
+  }
+
+  if (/^%\d+$/.test(segment)) {
+    return segment
+  }
+
+  try {
+    const decoded = decodeURIComponent(segment)
+    return hasControlCharacter(decoded) ? segment : decoded
+  } catch {
+    return segment
+  }
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code < 0x20 || code === 0x7f) {
+      return true
+    }
+  }
+  return false
+}
+
+export function isWebSocketSendQueued(result: number): boolean {
+  // Bun returns -1 when the frame is enqueued under backpressure;
+  // only 0 means the frame was dropped.
+  return result !== 0
+}
+
+export function shouldKeepPaneSubscriberAfterSend(
+  ws: object,
+  result: number,
+  maxBackpressuredSends = MAX_BACKPRESSURED_PANE_SENDS,
+): boolean {
+  if (result === 0) {
+    backpressuredPaneSends.delete(ws)
+    return false
+  }
+
+  if (result === -1) {
+    const queuedSends = (backpressuredPaneSends.get(ws) ?? 0) + 1
+    if (queuedSends > maxBackpressuredSends) {
+      backpressuredPaneSends.delete(ws)
+      return false
+    }
+    backpressuredPaneSends.set(ws, queuedSends)
+    return true
+  }
+
+  backpressuredPaneSends.delete(ws)
+  return true
 }

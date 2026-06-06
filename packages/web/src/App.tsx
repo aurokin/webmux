@@ -51,6 +51,8 @@ import {
   togglePaneInputMode,
   type PaneInputModes,
 } from './lib/paneInputModes'
+import { deriveAgentTargets, type AgentTarget } from './lib/agentWorkflows'
+import { resolvePendingAgentFocus, type PendingAgentFocus } from './lib/agentFocus'
 
 // Read config and strip token from URL immediately — before React renders —
 // to minimize the window where the token is visible in the address bar,
@@ -115,6 +117,13 @@ export function App() {
   const [mutationNotice, setMutationNotice] = useState<MutationNotice | null>(null)
   const previousSessionsRef = useRef<Session[]>([])
   const pendingCreatedSessionNameRef = useRef<string | null>(null)
+  const explicitSelectionVersionRef = useRef(0)
+  const pendingAgentFocusRef = useRef<PendingAgentFocus | null>(null)
+
+  const selectSessionExplicitly = useCallback((sessionId: string | null) => {
+    explicitSelectionVersionRef.current += 1
+    setSelectedSessionId(sessionId)
+  }, [])
 
   const sessions = useSessions(client)
   const richPaneStates = useRichPaneStates(client)
@@ -208,6 +217,7 @@ export function App() {
         })
       )
         return
+      pendingAgentFocusRef.current = null
       setToken(newToken)
       setTokenSource('user')
       setSelectedSessionId(null)
@@ -217,6 +227,8 @@ export function App() {
     },
     [connectionIssue, connectionStatus, token],
   )
+
+  const explicitSelectionVersion = explicitSelectionVersionRef.current
 
   // Keep selected session state explicit. A destroyed selected session should
   // render a recovery state instead of silently falling through to another one.
@@ -229,6 +241,11 @@ export function App() {
     if (selectedSessionId) {
       const selectedStillExists = sessions.some((session) => session.id === selectedSessionId)
       if (!selectedStillExists) {
+        if (explicitSelectionVersionRef.current !== explicitSelectionVersion) {
+          previousSessionsRef.current = sessions
+          return
+        }
+
         const previousSession = previousSessionsRef.current.find(
           (session) => session.id === selectedSessionId,
         )
@@ -236,7 +253,7 @@ export function App() {
           id: selectedSessionId,
           name: previousSession?.name ?? selectedSessionId,
         })
-        setSelectedSessionId(null)
+        setSelectedSessionId((current) => (current === selectedSessionId ? null : current))
         setFocusedPaneId(null)
         previousSessionsRef.current = sessions
         return
@@ -257,7 +274,7 @@ export function App() {
     }
 
     previousSessionsRef.current = sessions
-  }, [connectionStatus, destroyedSession, selectedSessionId, sessions])
+  }, [connectionStatus, destroyedSession, explicitSelectionVersion, selectedSessionId, sessions])
 
   useEffect(() => {
     const pendingName = pendingCreatedSessionNameRef.current
@@ -268,16 +285,20 @@ export function App() {
 
     pendingCreatedSessionNameRef.current = null
     setDestroyedSession(null)
-    setSelectedSessionId(createdSession.id)
+    selectSessionExplicitly(createdSession.id)
     const createdWindow = createdSession.windows.find((window) => window.active) ?? null
     setFocusedPaneId(createdWindow ? (collectPaneIds(createdWindow.layout)[0] ?? null) : null)
-  }, [sessions])
+  }, [selectSessionExplicitly, sessions])
 
   const activeSession = getActiveSession(sessions, selectedSessionId)
   const activeWindow = getActiveWindow(activeSession)
   const ownership = useSessionOwnership(client, activeSession?.id ?? null)
   const paneCommands = getPaneCommands(activeWindow)
   const richPanes = useMemo(() => getRichPanesById(richPaneStates), [richPaneStates])
+  const agentTargets = useMemo(
+    () => deriveAgentTargets(sessions, richPaneStates),
+    [richPaneStates, sessions],
+  )
   const focusedPaneInputMode = getPaneInputMode(paneInputModes, focusedPaneId)
   const suggestBufferedInput =
     ownership.mode === 'active' &&
@@ -299,11 +320,26 @@ export function App() {
   // Auto-focus first pane when window changes
   useEffect(() => {
     const paneIds = activeWindow ? collectPaneIds(activeWindow.layout) : []
+    const pendingAgentFocus = resolvePendingAgentFocus({
+      pending: pendingAgentFocusRef.current,
+      activeSessionId: activeSession?.id ?? null,
+      activeWindowIndex: activeWindow?.index ?? null,
+      paneIds,
+    })
+    if (pendingAgentFocus.kind === 'target') {
+      pendingAgentFocusRef.current = null
+      setFocusedPaneId(pendingAgentFocus.paneId)
+      return
+    }
+    if (pendingAgentFocus.clearPending) {
+      pendingAgentFocusRef.current = null
+    }
+
     setFocusedPaneId((current) => {
       if (paneIds.length === 0) return null
       return current && paneIds.includes(current) ? current : paneIds[0]
     })
-  }, [activeWindow])
+  }, [activeSession?.id, activeWindow])
 
   // Keybind actions
   const requireActiveOwnership = useCallback(
@@ -352,11 +388,20 @@ export function App() {
       return
     }
 
+    pendingAgentFocusRef.current = null
     client.killSession(activeSession.id)
     setSelectedSessionId(null)
     setFocusedPaneId(null)
     setDestroyedSession(null)
   }, [activeSession, client, requireActiveOwnership])
+
+  const handleSelectWindow = useCallback(
+    (sessionId: string, windowIndex: number) => {
+      pendingAgentFocusRef.current = null
+      client.selectWindow(sessionId, windowIndex)
+    },
+    [client],
+  )
 
   const keybindActions: KeybindActions = useMemo(
     () => ({
@@ -366,8 +411,9 @@ export function App() {
       jumpToSession: (index: number) => {
         const session = sessions[index]
         if (!session) return
+        pendingAgentFocusRef.current = null
         setDestroyedSession(null)
-        setSelectedSessionId(session.id)
+        selectSessionExplicitly(session.id)
         const targetWindow = session.windows.find((w) => w.active) ?? null
         const paneIds = targetWindow ? collectPaneIds(targetWindow.layout) : []
         setFocusedPaneId(paneIds[0] ?? null)
@@ -404,7 +450,7 @@ export function App() {
         if (currentIdx === -1) return
         const nextIdx = (currentIdx + 1) % windows.length
         if (requireActiveOwnership('Select window')) {
-          client.selectWindow(activeSession.id, windows[nextIdx].index)
+          handleSelectWindow(activeSession.id, windows[nextIdx].index)
         }
       },
       prevWindow: () => {
@@ -414,10 +460,11 @@ export function App() {
         if (currentIdx === -1) return
         const prevIdx = (currentIdx - 1 + windows.length) % windows.length
         if (requireActiveOwnership('Select window')) {
-          client.selectWindow(activeSession.id, windows[prevIdx].index)
+          handleSelectWindow(activeSession.id, windows[prevIdx].index)
         }
       },
       detach: () => {
+        pendingAgentFocusRef.current = null
         client.disconnect()
         setSelectedSessionId(null)
         setFocusedPaneId(null)
@@ -427,7 +474,16 @@ export function App() {
         setSettingsOpen(true)
       },
     }),
-    [sessions, activeSession, focusedPaneId, toggleSidebar, client, requireActiveOwnership],
+    [
+      sessions,
+      activeSession,
+      focusedPaneId,
+      toggleSidebar,
+      client,
+      handleSelectWindow,
+      requireActiveOwnership,
+      selectSessionExplicitly,
+    ],
   )
 
   // dispatch is stable (reads from actionsRef internally), so
@@ -445,6 +501,7 @@ export function App() {
     connectionIssue,
     connectionStatus,
     sessions,
+    selectedSessionId,
     activeSession,
     activeWindow,
     destroyedSession,
@@ -452,9 +509,21 @@ export function App() {
 
   const handleSelectSession = useCallback(
     (sessionId: string) => {
+      pendingAgentFocusRef.current = null
       setDestroyedSession(null)
-      setSelectedSessionId(sessionId)
+      selectSessionExplicitly(sessionId)
       setFocusedPaneId(null)
+      if (compactShell) {
+        setMobileSidebarOpen(false)
+      }
+    },
+    [compactShell, selectSessionExplicitly],
+  )
+
+  const handleFocusPane = useCallback(
+    (paneId: string) => {
+      pendingAgentFocusRef.current = null
+      setFocusedPaneId(paneId)
       if (compactShell) {
         setMobileSidebarOpen(false)
       }
@@ -462,14 +531,40 @@ export function App() {
     [compactShell],
   )
 
-  const handleFocusPane = useCallback(
-    (paneId: string) => {
-      setFocusedPaneId(paneId)
+  const handleSelectAgent = useCallback(
+    (target: AgentTarget) => {
+      setDestroyedSession(null)
+
+      if (target.windowActive) {
+        selectSessionExplicitly(target.sessionId)
+        pendingAgentFocusRef.current = null
+        setFocusedPaneId(target.paneId)
+      } else if (client.isOwner(target.sessionId)) {
+        selectSessionExplicitly(target.sessionId)
+        const targetSession = sessions.find((session) => session.id === target.sessionId)
+        const sourceWindowIndex =
+          targetSession?.windows.find((window) => window.active)?.index ?? null
+        pendingAgentFocusRef.current = {
+          sessionId: target.sessionId,
+          windowIndex: target.windowIndex,
+          paneId: target.paneId,
+          sourceWindowIndex,
+        }
+        client.selectWindow(target.sessionId, target.windowIndex)
+      } else {
+        pendingAgentFocusRef.current = null
+        showMutationNotice({
+          title: 'Take control first',
+          detail: `Switching ${target.windowName} requires ownership of ${target.sessionName}.`,
+          tone: 'warning',
+        })
+      }
+
       if (compactShell) {
         setMobileSidebarOpen(false)
       }
     },
-    [compactShell],
+    [client, compactShell, selectSessionExplicitly, sessions, showMutationNotice],
   )
 
   const handleInputModeChange = useCallback((paneId: string, mode: InputMode) => {
@@ -495,6 +590,7 @@ export function App() {
         selectedSessionId={selectedSessionId}
         activeWindow={activeWindow}
         focusedPaneId={focusedPaneId}
+        agentTargets={agentTargets}
         canCreateSession={sessions.length === 0 || ownership.mode === 'active'}
         canKillSession={ownership.mode === 'active' && Boolean(activeSession)}
         isOpen={sidebarOpen}
@@ -503,6 +599,7 @@ export function App() {
         onRequestClose={() => setMobileSidebarOpen(false)}
         onSelectSession={handleSelectSession}
         onFocusPane={handleFocusPane}
+        onSelectAgent={handleSelectAgent}
         onCreateSession={() => createSession()}
         onKillSession={killSelectedSession}
         onMutationUnavailable={showMutationNotice}
@@ -518,6 +615,7 @@ export function App() {
             canMutate={ownership.mode === 'active'}
             onMutationUnavailable={showMutationNotice}
             onToggleSidebar={toggleSidebar}
+            onSelectWindow={handleSelectWindow}
             onOpenPalette={() => setPaletteOpen(true)}
           />
         )}
@@ -540,7 +638,7 @@ export function App() {
             suggestBufferedInputPaneId={suggestBufferedInput ? focusedPaneId : null}
             canMutate={ownership.mode === 'active'}
             focusedPaneId={focusedPaneId}
-            onFocusPane={setFocusedPaneId}
+            onFocusPane={handleFocusPane}
             onInputModeChange={handleInputModeChange}
             onMutationUnavailable={showMutationNotice}
             state={workspaceState}
@@ -560,6 +658,7 @@ export function App() {
           suggestBufferedInput={suggestBufferedInput}
           tabPosition={preferences.tabPosition}
           showSidebarToggle={compactShell && preferences.tabPosition === 'bottom'}
+          onSelectWindow={handleSelectWindow}
           onToggleSidebar={toggleSidebar}
           onToggleFocusedPaneInputMode={toggleFocusedPaneInputMode}
           onOpenSwitcher={() => setSwitcherOpen(true)}

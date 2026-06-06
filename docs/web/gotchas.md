@@ -33,3 +33,12 @@ Do not let xterm's container `ResizeObserver` spam `pane.resize` while a drag is
 The web shell should stay usable below desktop width, but it should not become a second mobile product model. Narrow web viewports use a temporary sidebar drawer and compact chrome while keeping the same bridge/client/session semantics.
 
 Do not persist narrow-only drawer state into the desktop sidebar preference. The user can collapse the desktop sidebar deliberately; opening the drawer on a phone-sized browser window should not rewrite that choice.
+
+## AI navigation is derived, not authoritative
+
+The Agents section is a browser-side convenience over tmux state. Keep the
+signal narrow and deterministic. Explicit `agent:` / `ai:` names and known agent
+commands are acceptable; broad process guessing is not.
+
+Selecting an agent must still route through sessions, windows, panes, and
+ownership checks. Do not add a parallel AI workspace model in React.

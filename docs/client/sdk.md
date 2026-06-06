@@ -13,7 +13,7 @@ const client = new WebmuxClient({
   url: 'ws://localhost:7400',
   token: 'abc123...',
   clientId: 'browser-1',
-  clientType: 'web',
+  clientType: 'web', // or 'mobile' for the mobile validation shell
 });
 
 // Connect to bridge
@@ -76,3 +76,9 @@ The client SDK does not know what xterm.js is. It emits `pane:output` events wit
 ### No layout logic
 
 The client SDK does not know about CSS flex, pane positions, or resize handles. It reports pane dimensions as cols/rows. The consumer handles spatial layout.
+
+### Consumer reuse
+
+The current web app and mobile validation shell both use this SDK directly. If a
+future consumer needs a thinner layer, that layer should sit above this SDK or
+the shared protocol without importing bridge internals.

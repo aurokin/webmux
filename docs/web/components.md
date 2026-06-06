@@ -6,12 +6,14 @@ The web app (`@webmux/web`) is a React application. Here's the component tree an
 
 ```
 App
+├── Sidebar                  # Sessions, panes, and derived agent navigation
 ├── SessionSwitcher          # Overlay: fuzzy-searchable session list
 ├── Workspace                # The pane layout area
 │   ├── PaneColumn           # Vertical stack of panes (maps to tmux layout)
 │   │   ├── Pane             # One tmux pane
 │   │   │   ├── PaneChrome   # Header: title, path, split/zoom controls
-│   │   │   └── Terminal     # xterm.js instance (see terminal.md)
+│   │   │   ├── Terminal     # xterm.js instance (see terminal.md)
+│   │   │   └── RichPaneView # Optional upgraded pane surface
 │   │   ├── ResizeHandle     # Horizontal resize between panes
 │   │   └── Pane
 │   ├── ResizeHandle         # Vertical resize between columns
@@ -46,6 +48,8 @@ const sessions = useSyncExternalStore(client.subscribe, () => client.sessions)
 - Window tab active state: derived from `client.activeWindow`.
 - Pane count in status bar: derived from `client.panes.length`.
 - Owner status: derived from `client.isOwner()` and `client.getOwnership()`.
+- Agent targets: derived from tmux session/window/pane names, pane commands, and
+  rich-pane state. The web app does not store a separate AI workspace model.
 
 ## Key components
 
@@ -79,3 +83,10 @@ Static layout with a small amount of ownership behavior. Reads from client SDK s
 ### HandoffBanner
 
 Shown when the selected session is in passive mode. Displays which client/device currently owns the session. "Take Control" button calls `client.takeControl()`.
+
+### Sidebar
+
+Shows sessions, panes for the selected active window, and the derived Agents
+section when agent-like tmux context exists. Agent selection still selects a
+tmux session/window/pane; if switching windows would mutate tmux and the current
+client is passive, the sidebar surfaces the existing take-control requirement.

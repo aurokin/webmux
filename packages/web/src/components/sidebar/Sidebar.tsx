@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session, Window } from '@webmux/shared'
 import { cn } from '../../lib/cn'
-import { ChevronLeft, Plus, Trash2, X } from 'lucide-react'
+import { Bot, ChevronLeft, ExternalLink, Plus, Trash2, X } from 'lucide-react'
+import { formatAgentLocation, type AgentTarget } from '../../lib/agentWorkflows'
 
 interface SidebarProps {
   sessions: Session[]
   selectedSessionId: string | null
   activeWindow: Window | null
   focusedPaneId: string | null
+  agentTargets: AgentTarget[]
   canCreateSession: boolean
   canKillSession: boolean
   isOpen: boolean
@@ -16,6 +18,7 @@ interface SidebarProps {
   onRequestClose: () => void
   onSelectSession: (sessionId: string) => void
   onFocusPane: (paneId: string) => void
+  onSelectAgent: (target: AgentTarget) => void
   onCreateSession: () => void
   onKillSession: () => void
   onMutationUnavailable: (notice: {
@@ -30,6 +33,7 @@ export function Sidebar({
   selectedSessionId,
   activeWindow,
   focusedPaneId,
+  agentTargets,
   canCreateSession,
   canKillSession,
   isOpen,
@@ -38,6 +42,7 @@ export function Sidebar({
   onRequestClose,
   onSelectSession,
   onFocusPane,
+  onSelectAgent,
   onCreateSession,
   onKillSession,
   onMutationUnavailable,
@@ -108,6 +113,7 @@ export function Sidebar({
           {sessions.map((session) => (
             <button
               key={session.id}
+              data-testid={`sidebar-session-${session.name}`}
               onClick={() => onSelectSession(session.id)}
               aria-current={session.id === selectedSessionId ? 'page' : undefined}
               className={cn(
@@ -132,6 +138,54 @@ export function Sidebar({
             <div className="px-3 py-6 text-center text-[12px] text-text-ghost">No sessions</div>
           )}
         </div>
+
+        {agentTargets.length > 0 && (
+          <div
+            data-testid="agent-navigation"
+            className="border-t border-border-subtle p-2"
+            aria-label="AI agents"
+          >
+            <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-ghost font-ui">
+              <Bot size={11} />
+              Agents
+            </div>
+            {agentTargets.map((target) => (
+              <button
+                key={target.id}
+                data-testid={`agent-target-${target.testId}`}
+                onClick={() => onSelectAgent(target)}
+                className={cn(
+                  'focus-ring w-full flex items-center gap-2 px-3 py-2 rounded-md text-left transition-colors mb-0.5',
+                  target.paneId === focusedPaneId ? 'bg-bg-hover' : 'hover:bg-bg-hover',
+                )}
+              >
+                <span
+                  className={cn(
+                    'w-1.5 h-1.5 rounded-full shrink-0',
+                    target.paneId === focusedPaneId ? 'bg-accent-purple' : 'bg-text-ghost',
+                  )}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-medium text-text-secondary">
+                    {target.label}
+                  </span>
+                  <span className="block truncate text-[10px] text-text-ghost">
+                    {formatAgentLocation(target)}
+                  </span>
+                </span>
+                {target.richPane && (
+                  <span
+                    data-testid={`agent-rich-indicator-${target.testId}`}
+                    title="Rich pane active"
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border border-accent-purple/40 bg-accent-purple-dim text-accent-purple"
+                  >
+                    <ExternalLink size={11} />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Pane list for selected session */}
         {activeWindow && (

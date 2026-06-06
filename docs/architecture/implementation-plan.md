@@ -298,6 +298,19 @@ Done when:
 
 Goal: support phone + tablet usage with a real mobile app after the bridge contract and browser experience are stable.
 
+Status:
+
+- The mobile architecture decision landed on 2026-06-06. The first mobile
+  consumer reuses `@webmux/client` directly and keeps the bridge
+  consumer-agnostic. See
+  [0008 Mobile Consumer Uses Client SDK](../decisions/0008-mobile-consumer-uses-client-sdk.md).
+- `@webmux/mobile` exists as a source-checkout browser validation shell, not a
+  public native app package.
+- Passive monitoring, explicit take-control/release, viewport-derived mobile
+  dimensions, and limited line input are implemented.
+- Browser-backed validation covers passive monitoring, phone handoff with former
+  owner blocking, and tablet take-control layout.
+
 Done when:
 
 - A user can connect from a phone or tablet app, monitor sessions, and intentionally take control without changing tmux semantics
@@ -305,6 +318,20 @@ Done when:
 ## Phase 10: Add AI agent workflows
 
 Goal: make switching between AI agents a first-class workflow after the tmux foundation is dependable.
+
+Status:
+
+- The AI workflow product model landed on 2026-06-06. AI workflows are
+  browser-side additions over tmux sessions, windows, panes, and rich panes. See
+  [0009 AI Workflows Are Tmux-Native](../decisions/0009-ai-workflows-are-tmux-native.md).
+- The web app derives agent targets from explicit `agent:` / `ai:` tmux names
+  and a narrow known-agent command allowlist.
+- The sidebar exposes an Agents section only when agent context exists, and
+  selection still targets tmux sessions/windows/panes.
+- Rich AI visibility reuses existing rich-pane state and falls back to plain
+  tmux panes when rich state is absent.
+- Browser-backed validation covers no-AI fallback, agent navigation, and rich
+  pane visibility for agent targets.
 
 Done when:
 
