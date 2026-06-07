@@ -6,6 +6,7 @@ import {
   canSendMobileLine,
   createMobileClientId,
   resolveInitialMobileConfig,
+  resolveMobilePaneSelection,
   resolveMobileSelection,
   shouldRemoveStoredMobileConfig,
   shouldShowMobileReconnect,
@@ -42,6 +43,7 @@ export function App() {
   const sessions = useSessions(client)
   const connectionStatus = useConnectionStatus(client)
   const connectionIssue = useConnectionIssue(client)
+  const selectedPaneConnectionStatus = usePaneConnectionStatus(client, selectedPaneId)
   const tabletLayout = useMediaQuery('(min-width: 700px)')
 
   useEffect(() => {
@@ -80,11 +82,16 @@ export function App() {
   )
   const selectedWindow = getActiveWindow(selectedSession)
   const panes = selectedWindow?.panes ?? []
+  const sessionPaneIds = useMemo(
+    () => selectedSession?.windows.flatMap((window) => window.panes.map((pane) => pane.id)) ?? [],
+    [selectedSession],
+  )
 
   useEffect(() => {
-    const next = resolveMobileSelection({
+    const next = resolveMobilePaneSelection({
       currentId: selectedPaneId,
-      availableIds: panes.map((pane) => pane.id),
+      activePaneIds: panes.map((pane) => pane.id),
+      sessionPaneIds,
       allowAutoSelect: allowAutoSelectPaneRef.current,
     })
     allowAutoSelectPaneRef.current = next.allowAutoSelect
@@ -96,13 +103,14 @@ export function App() {
     if (next.selectedId !== selectedPaneId) {
       setSelectedPaneId(next.selectedId)
     }
-  }, [panes, selectedPaneId])
+  }, [panes, selectedPaneId, sessionPaneIds])
 
   const selectedPane = panes.find((pane) => pane.id === selectedPaneId) ?? null
   const ownership = useOwnership(client, selectedSession?.id ?? null)
   const ownershipMode = getOwnershipMode(client, selectedSession?.id ?? null, ownership)
   const canSend = canSendMobileLine({
     connectionStatus,
+    paneConnectionStatus: selectedPaneConnectionStatus,
     ownershipMode,
     hasSelectedPane: Boolean(selectedPane),
   })
@@ -111,6 +119,7 @@ export function App() {
     connectionStatus,
     connectionIssue,
   })
+  const showProtocolPanel = connectionIssue === 'protocol-error'
 
   useEffect(() => {
     if (!selectedPaneId || connectionStatus !== 'connected') return
@@ -199,13 +208,17 @@ export function App() {
       setNotice('Bridge reconnecting')
       return
     }
+    if (selectedPaneConnectionStatus !== 'connected') {
+      setNotice('Pane reconnecting')
+      return
+    }
     if (!canSend) {
       setNotice('Take control first')
       return
     }
     client.sendInput(selectedPane.id, `${lineDraft}\n`)
     setLineDraft('')
-  }, [canSend, client, connectionStatus, lineDraft, selectedPane])
+  }, [canSend, client, connectionStatus, lineDraft, selectedPane, selectedPaneConnectionStatus])
 
   return (
     <main
@@ -235,6 +248,15 @@ export function App() {
           <button type="button" onClick={submitToken}>
             <Shield size={16} />
             Connect
+          </button>
+        </section>
+      ) : showProtocolPanel ? (
+        <section className="token-panel" data-testid="mobile-protocol-panel">
+          <p>Bridge protocol mismatch.</p>
+          <small>Run the bridge and mobile shell from the same checkout, then reconnect.</small>
+          <button type="button" onClick={reconnect}>
+            <Shield size={16} />
+            Reconnect
           </button>
         </section>
       ) : showReconnectPanel ? (
@@ -309,9 +331,11 @@ export function App() {
                 placeholder={
                   connectionStatus !== 'connected'
                     ? 'Waiting for bridge'
-                    : canSend
-                      ? 'Send line to pane'
-                      : 'Take control to send'
+                    : selectedPaneConnectionStatus !== 'connected'
+                      ? 'Connecting pane'
+                      : canSend
+                        ? 'Send line to pane'
+                        : 'Take control to send'
                 }
                 disabled={!selectedPane}
               />
@@ -320,7 +344,12 @@ export function App() {
                 data-testid="mobile-send-line"
                 onClick={sendLine}
                 data-disabled={!selectedPane || !lineDraft.trim() || !canSend}
-                disabled={!selectedPane || !lineDraft.trim() || connectionStatus !== 'connected'}
+                disabled={
+                  !selectedPane ||
+                  !lineDraft.trim() ||
+                  connectionStatus !== 'connected' ||
+                  selectedPaneConnectionStatus !== 'connected'
+                }
               >
                 <Send size={15} />
                 Send
@@ -402,7 +431,7 @@ function ConnectionPill({ status, issue }: { status: ConnectionStatus; issue: Co
   return (
     <div data-testid="mobile-connection-status" data-status={status} className="connection-pill">
       <span />
-      {issue === 'auth-failed' ? 'auth failed' : status}
+      {issue === 'auth-failed' ? 'auth failed' : issue === 'protocol-error' ? 'protocol' : status}
     </div>
   )
 }
@@ -425,6 +454,28 @@ function useConnectionIssue(client: WebmuxClient): ConnectionIssue {
     [client],
   )
   return useSyncExternalStore(subscribe, () => client.connectionIssue)
+}
+
+function usePaneConnectionStatus(client: WebmuxClient, paneId: string | null): ConnectionStatus {
+  const [status, setStatus] = useState<ConnectionStatus>(() =>
+    paneId ? client.getPaneConnectionStatus(paneId) : 'disconnected',
+  )
+
+  useEffect(() => {
+    if (!paneId) {
+      setStatus('disconnected')
+      return
+    }
+
+    setStatus(client.getPaneConnectionStatus(paneId))
+    return client.on('pane:status', (changedPaneId, nextStatus) => {
+      if (changedPaneId === paneId) {
+        setStatus(nextStatus)
+      }
+    })
+  }, [client, paneId])
+
+  return status
 }
 
 function useOwnership(client: WebmuxClient, sessionId: string | null): SessionOwnership | null {

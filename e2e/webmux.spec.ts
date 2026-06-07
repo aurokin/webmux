@@ -697,6 +697,48 @@ test.describe.serial('webmux browser validation', () => {
     }
   })
 
+  test('mobile passive monitor follows active tmux window changes', async ({ page }) => {
+    const sessionName = `webmux-mobile-window-${crypto.randomUUID().slice(0, 8)}`
+    const secondWindowName = 'mobile-second'
+    const marker = `mobile-window-${crypto.randomUUID().slice(0, 8)}`
+    stack.createSession(sessionName)
+    const firstPaneId = stack.activePaneId(sessionName)
+    const secondPaneId = stack.createWindow(sessionName, secondWindowName)
+
+    try {
+      await page.setViewportSize({ width: 390, height: 720 })
+      await page.goto(stack.mobileUrl(), { waitUntil: 'networkidle' })
+      await expect(page.getByTestId(`mobile-session-${sessionName}`)).toBeVisible()
+      await page.getByTestId(`mobile-session-${sessionName}`).click()
+      await page.getByTestId(`mobile-pane-${firstPaneId}`).click()
+      await expect(page.getByTestId(`mobile-pane-${firstPaneId}`)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+
+      stack.selectWindowByName(sessionName, secondWindowName)
+
+      await expect(page.getByTestId(`mobile-pane-${secondPaneId}`)).toBeVisible()
+      await expect(page.getByTestId(`mobile-pane-${secondPaneId}`)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      await expect(page.getByTestId('mobile-notice')).toHaveCount(0)
+      await expect
+        .poll(
+          async () => {
+            stack.sendKeysToPane(secondPaneId, marker)
+            await page.waitForTimeout(300)
+            return (await page.getByTestId('mobile-transcript').textContent()) ?? ''
+          },
+          { timeout: 10_000 },
+        )
+        .toContain(marker)
+    } finally {
+      stack.killSession(sessionName, true)
+    }
+  })
+
   test('mobile can take control on a phone viewport and blocks the former owner', async ({
     browser,
   }) => {

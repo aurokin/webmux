@@ -33,6 +33,10 @@ function isPaneDataChannelClosed(code: number, reason: string): boolean {
   )
 }
 
+function isBackpressureSubscriberDrop(code: number, reason: string): boolean {
+  return code === WS_CLOSE.GOING_AWAY && reason === 'PANE_SUBSCRIBER_DROPPED'
+}
+
 /**
  * Scaffold for the client SDK. This file defines the intended shape of the
  * webmux client API, but the implementation is not complete yet.
@@ -44,6 +48,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private options: Required<WebmuxClientOptions>
   private controlConnection: Connection
   private paneConnections = new Map<string, Connection>()
+  private paneConnectionStatuses = new Map<string, ConnectionStatus>()
   private paneInputs = new Map<string, InputHandler>()
   private paneInputModes = new Map<string, InputMode>()
   private paneReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -184,6 +189,10 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     return this._richPaneSnapshot
   }
 
+  getPaneConnectionStatus(paneId: string): ConnectionStatus {
+    return this.paneConnectionStatuses.get(paneId) ?? 'disconnected'
+  }
+
   // ── Session commands ──
 
   selectWindow(sessionId: string, windowIndex: number): void {
@@ -249,9 +258,11 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       }
     }
 
-    conn.onStatusChange = (_status) => {
-      // If a pane data channel drops, try to reconnect
-      // (control channel reconnection handles the broader case)
+    conn.onStatusChange = (status) => {
+      if (!this.paneConnections.has(paneId) && status === 'disconnected') {
+        return
+      }
+      this.setPaneConnectionStatus(paneId, status)
     }
 
     conn.onClose = (code, reason) => {
@@ -262,12 +273,14 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this.paneConnections.delete(paneId)
       this.paneInputs.get(paneId)?.dispose()
       this.paneInputs.delete(paneId)
-      if (reason === 'PANE_NOT_FOUND') {
+      this.clearPaneConnectionStatus(paneId)
+      if (reason === 'PANE_NOT_FOUND' || isBackpressureSubscriberDrop(code, reason)) {
         return
       }
       this.schedulePaneReconnect(paneId)
     }
 
+    this.setPaneConnectionStatus(paneId, 'connecting')
     conn.connect()
     this.paneConnections.set(paneId, conn)
 
@@ -281,6 +294,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     this.clearPaneReconnect(paneId)
     this.paneConnections.get(paneId)?.disconnect()
     this.paneConnections.delete(paneId)
+    this.clearPaneConnectionStatus(paneId)
     this.paneInputs.get(paneId)?.dispose()
     this.paneInputs.delete(paneId)
   }
@@ -449,6 +463,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       input.dispose()
     }
     this.paneConnections.clear()
+    for (const paneId of [...this.paneConnectionStatuses.keys()]) {
+      this.clearPaneConnectionStatus(paneId)
+    }
     this.paneInputs.clear()
   }
 
@@ -511,6 +528,21 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
     clearTimeout(timer)
     this.paneReconnectTimers.delete(paneId)
+  }
+
+  private setPaneConnectionStatus(paneId: string, status: ConnectionStatus): void {
+    if (this.paneConnectionStatuses.get(paneId) === status) return
+
+    this.paneConnectionStatuses.set(paneId, status)
+    this.emit('pane:status', paneId, status)
+  }
+
+  private clearPaneConnectionStatus(paneId: string): void {
+    const previous = this.paneConnectionStatuses.get(paneId)
+    this.paneConnectionStatuses.delete(paneId)
+    if (previous && previous !== 'disconnected') {
+      this.emit('pane:status', paneId, 'disconnected')
+    }
   }
 
   private emitRichPaneSync(): void {

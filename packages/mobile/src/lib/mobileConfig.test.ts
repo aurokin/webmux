@@ -3,6 +3,7 @@ import {
   canSendMobileLine,
   createMobileClientId,
   resolveInitialMobileConfig,
+  resolveMobilePaneSelection,
   resolveMobileSelection,
   shouldRemoveStoredMobileConfig,
   shouldShowMobileReconnect,
@@ -136,6 +137,7 @@ describe('canSendMobileLine', () => {
     expect(
       canSendMobileLine({
         connectionStatus: 'connected',
+        paneConnectionStatus: 'connected',
         ownershipMode: 'active',
         hasSelectedPane: true,
       }),
@@ -146,6 +148,18 @@ describe('canSendMobileLine', () => {
     expect(
       canSendMobileLine({
         connectionStatus: 'reconnecting',
+        paneConnectionStatus: 'connected',
+        ownershipMode: 'active',
+        hasSelectedPane: true,
+      }),
+    ).toBe(false)
+  })
+
+  test('blocks sends until the selected pane data channel is open', () => {
+    expect(
+      canSendMobileLine({
+        connectionStatus: 'connected',
+        paneConnectionStatus: 'connecting',
         ownershipMode: 'active',
         hasSelectedPane: true,
       }),
@@ -185,6 +199,41 @@ describe('resolveMobileSelection', () => {
   })
 })
 
+describe('resolveMobilePaneSelection', () => {
+  test('keeps the selected pane while it remains in the active window', () => {
+    expect(
+      resolveMobilePaneSelection({
+        currentId: 'pane-1',
+        activePaneIds: ['pane-1'],
+        sessionPaneIds: ['pane-1', 'pane-2'],
+        allowAutoSelect: true,
+      }),
+    ).toEqual({ selectedId: 'pane-1', allowAutoSelect: true, disappeared: false })
+  })
+
+  test('retargets to the active window when the selected pane still exists elsewhere', () => {
+    expect(
+      resolveMobilePaneSelection({
+        currentId: 'pane-1',
+        activePaneIds: ['pane-2'],
+        sessionPaneIds: ['pane-1', 'pane-2'],
+        allowAutoSelect: false,
+      }),
+    ).toEqual({ selectedId: 'pane-2', allowAutoSelect: true, disappeared: false })
+  })
+
+  test('treats the pane as disappeared only when it leaves the session', () => {
+    expect(
+      resolveMobilePaneSelection({
+        currentId: 'pane-1',
+        activePaneIds: ['pane-2'],
+        sessionPaneIds: ['pane-2'],
+        allowAutoSelect: true,
+      }),
+    ).toEqual({ selectedId: null, allowAutoSelect: false, disappeared: true })
+  })
+})
+
 describe('shouldShowMobileReconnect', () => {
   test('shows reconnect for ordinary disconnected state with a token', () => {
     expect(
@@ -202,6 +251,16 @@ describe('shouldShowMobileReconnect', () => {
         token: 'bad-token',
         connectionStatus: 'disconnected',
         connectionIssue: 'auth-failed',
+      }),
+    ).toBe(false)
+  })
+
+  test('does not hide protocol mismatch behind reconnect', () => {
+    expect(
+      shouldShowMobileReconnect({
+        token: 'accepted-token',
+        connectionStatus: 'disconnected',
+        connectionIssue: 'protocol-error',
       }),
     ).toBe(false)
   })

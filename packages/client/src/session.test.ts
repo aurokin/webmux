@@ -290,7 +290,7 @@ describe('WebmuxClient connection handshake', () => {
     client.disconnectPane('pane-1')
   })
 
-  test('clears and reconnects pane data channels dropped for backpressure', async () => {
+  test('clears pane data channels dropped for backpressure without reconnect churn', async () => {
     const client = new WebmuxClient({
       url: 'ws://bridge.test',
       token: 'accepted-token',
@@ -315,15 +315,20 @@ describe('WebmuxClient connection handshake', () => {
 
     client.connectPane('%1')
     const paneSocket = FakeWebSocket.instances[1]
+    expect(client.getPaneConnectionStatus('%1')).toBe('connecting')
     paneSocket.simulateOpen()
+    expect(client.getPaneConnectionStatus('%1')).toBe('connected')
     paneSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
 
     await new Promise((resolve) => setTimeout(resolve, 150))
 
-    const reconnectedSocket = FakeWebSocket.instances[2]
-    expect(reconnectedSocket).toBeDefined()
-    expect(reconnectedSocket.url).toBe(paneSocket.url)
-    expect(FakeWebSocket.instances).toHaveLength(3)
+    expect(client.getPaneConnectionStatus('%1')).toBe('disconnected')
+    expect(FakeWebSocket.instances).toHaveLength(2)
+
+    client.connectPane('%1')
+    const manuallyReconnectedSocket = FakeWebSocket.instances[2]
+    expect(manuallyReconnectedSocket).toBeDefined()
+    expect(manuallyReconnectedSocket.url).toBe(paneSocket.url)
 
     client.disconnectPane('%1')
   })

@@ -72,14 +72,21 @@ export function shouldSubmitMobileToken({
 
 export function canSendMobileLine({
   connectionStatus,
+  paneConnectionStatus,
   ownershipMode,
   hasSelectedPane,
 }: {
   connectionStatus: string
+  paneConnectionStatus: string
   ownershipMode: string
   hasSelectedPane: boolean
 }): boolean {
-  return connectionStatus === 'connected' && ownershipMode === 'active' && hasSelectedPane
+  return (
+    connectionStatus === 'connected' &&
+    paneConnectionStatus === 'connected' &&
+    ownershipMode === 'active' &&
+    hasSelectedPane
+  )
 }
 
 export function resolveMobileSelection({
@@ -101,6 +108,36 @@ export function resolveMobileSelection({
 
   if (allowAutoSelect) {
     return { selectedId: availableIds[0] ?? null, allowAutoSelect, disappeared: false }
+  }
+
+  return { selectedId: null, allowAutoSelect: false, disappeared: false }
+}
+
+export function resolveMobilePaneSelection({
+  currentId,
+  activePaneIds,
+  sessionPaneIds,
+  allowAutoSelect,
+}: {
+  currentId: string | null
+  activePaneIds: string[]
+  sessionPaneIds: string[]
+  allowAutoSelect: boolean
+}): { selectedId: string | null; allowAutoSelect: boolean; disappeared: boolean } {
+  if (currentId && activePaneIds.includes(currentId)) {
+    return { selectedId: currentId, allowAutoSelect, disappeared: false }
+  }
+
+  if (currentId && sessionPaneIds.includes(currentId)) {
+    return { selectedId: activePaneIds[0] ?? null, allowAutoSelect: true, disappeared: false }
+  }
+
+  if (currentId) {
+    return { selectedId: null, allowAutoSelect: false, disappeared: true }
+  }
+
+  if (allowAutoSelect) {
+    return { selectedId: activePaneIds[0] ?? null, allowAutoSelect, disappeared: false }
   }
 
   return { selectedId: null, allowAutoSelect: false, disappeared: false }

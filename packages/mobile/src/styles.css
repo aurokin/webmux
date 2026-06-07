@@ -134,6 +134,17 @@ h1 {
   text-transform: uppercase;
 }
 
+.token-panel p {
+  margin: 0;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.token-panel small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .token-panel input,
 .line-input input {
   min-width: 0;

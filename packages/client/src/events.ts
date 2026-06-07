@@ -28,6 +28,7 @@ export interface RichPaneState extends RichPaneStub {
 export interface WebmuxEventMap {
   'state:sync': (sessions: Session[]) => void
   'pane:output': (paneId: string, data: Uint8Array) => void
+  'pane:status': (paneId: string, status: ConnectionStatus) => void
   'pane:added': (pane: Pane) => void
   'pane:removed': (paneId: string) => void
   'pane:stubUpgrade': (paneId: string, stubType: RichPaneStubType, url: string) => void
