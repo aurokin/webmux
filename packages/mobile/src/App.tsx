@@ -44,6 +44,7 @@ export function App() {
   const connectionStatus = useConnectionStatus(client)
   const connectionIssue = useConnectionIssue(client)
   const selectedPaneConnectionStatus = usePaneConnectionStatus(client, selectedPaneId)
+  const ownsAnySession = useOwnsAnySession(client, sessions)
   const tabletLayout = useMediaQuery('(min-width: 700px)')
 
   useEffect(() => {
@@ -158,12 +159,17 @@ export function App() {
   }, [client])
 
   useEffect(() => {
+    if (connectionStatus === 'connected') {
+      sendDimensions()
+    }
+  }, [connectionStatus, sendDimensions])
+
+  useEffect(() => {
     if (connectionStatus !== 'connected') return
-    if (ownershipMode !== 'active') return
-    sendDimensions()
+    if (!ownsAnySession) return
     window.addEventListener('resize', sendDimensions)
     return () => window.removeEventListener('resize', sendDimensions)
-  }, [connectionStatus, ownershipMode, sendDimensions])
+  }, [connectionStatus, ownsAnySession, sendDimensions])
 
   useEffect(() => {
     if (connectionIssue === 'auth-failed' && token) {
@@ -186,9 +192,11 @@ export function App() {
 
   const takeControl = useCallback(() => {
     if (!selectedSession) return
-    sendDimensions()
+    if (!ownsAnySession) {
+      sendDimensions()
+    }
     client.takeControl(selectedSession.id)
-  }, [client, selectedSession, sendDimensions])
+  }, [client, ownsAnySession, selectedSession, sendDimensions])
 
   const releaseControl = useCallback(() => {
     if (!selectedSession) return
@@ -476,6 +484,23 @@ function usePaneConnectionStatus(client: WebmuxClient, paneId: string | null): C
   }, [client, paneId])
 
   return status
+}
+
+function useOwnsAnySession(client: WebmuxClient, sessions: Session[]): boolean {
+  const [ownsAnySession, setOwnsAnySession] = useState(() =>
+    sessions.some((session) => client.isOwner(session.id)),
+  )
+
+  useEffect(() => {
+    const sync = () => setOwnsAnySession(sessions.some((session) => client.isOwner(session.id)))
+    sync()
+    const unsubs = [client.on('ownership:sync', sync), client.on('control:changed', sync)]
+    return () => {
+      for (const unsub of unsubs) unsub()
+    }
+  }, [client, sessions])
+
+  return ownsAnySession
 }
 
 function useOwnership(client: WebmuxClient, sessionId: string | null): SessionOwnership | null {

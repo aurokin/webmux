@@ -26,6 +26,10 @@ export interface WebmuxClientOptions {
 
 export type { BridgeError, ConnectionIssue, RichPaneState } from './events'
 
+const PANE_RECONNECT_DELAY_MS = 100
+const BACKPRESSURE_RECONNECT_BASE_MS = 1_000
+const BACKPRESSURE_RECONNECT_MAX_MS = 30_000
+
 function isPaneDataChannelClosed(code: number, reason: string): boolean {
   return (
     code === WS_CLOSE.PANE_DESTROYED ||
@@ -52,6 +56,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private paneInputs = new Map<string, InputHandler>()
   private paneInputModes = new Map<string, InputMode>()
   private paneReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private paneBackpressureReconnectAttempts = new Map<string, number>()
   private receivedWelcome = false
   private receivedInitialStateSync = false
 
@@ -262,6 +267,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (!this.paneConnections.has(paneId) && status === 'disconnected') {
         return
       }
+      if (status === 'connected') {
+        this.paneBackpressureReconnectAttempts.delete(paneId)
+      }
       this.setPaneConnectionStatus(paneId, status)
     }
 
@@ -274,10 +282,16 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this.paneInputs.get(paneId)?.dispose()
       this.paneInputs.delete(paneId)
       this.clearPaneConnectionStatus(paneId)
-      if (reason === 'PANE_NOT_FOUND' || isBackpressureSubscriberDrop(code, reason)) {
+      if (reason === 'PANE_NOT_FOUND') {
+        this.paneBackpressureReconnectAttempts.delete(paneId)
         return
       }
-      this.schedulePaneReconnect(paneId)
+      this.schedulePaneReconnect(
+        paneId,
+        isBackpressureSubscriberDrop(code, reason)
+          ? this.nextBackpressureReconnectDelay(paneId)
+          : PANE_RECONNECT_DELAY_MS,
+      )
     }
 
     this.setPaneConnectionStatus(paneId, 'connecting')
@@ -292,6 +306,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
 
   disconnectPane(paneId: string): void {
     this.clearPaneReconnect(paneId)
+    this.paneBackpressureReconnectAttempts.delete(paneId)
     this.paneConnections.get(paneId)?.disconnect()
     this.paneConnections.delete(paneId)
     this.clearPaneConnectionStatus(paneId)
@@ -455,6 +470,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       clearTimeout(timer)
     }
     this.paneReconnectTimers.clear()
+    this.paneBackpressureReconnectAttempts.clear()
 
     for (const conn of this.paneConnections.values()) {
       conn.disconnect()
@@ -476,6 +492,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (!activePaneIds.has(paneId)) {
         this.clearPaneReconnect(paneId)
         this.paneInputModes.delete(paneId)
+        this.paneBackpressureReconnectAttempts.delete(paneId)
       }
     }
 
@@ -483,6 +500,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (!activePaneIds.has(paneId)) {
         this.disconnectPane(paneId)
         this.paneInputModes.delete(paneId)
+        this.paneBackpressureReconnectAttempts.delete(paneId)
       }
     }
   }
@@ -509,7 +527,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     )
   }
 
-  private schedulePaneReconnect(paneId: string): void {
+  private schedulePaneReconnect(paneId: string, delayMs = PANE_RECONNECT_DELAY_MS): void {
     if (this.paneReconnectTimers.has(paneId)) return
 
     const timer = setTimeout(() => {
@@ -517,9 +535,15 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (this.findSessionByPaneId(paneId) && !this.paneConnections.has(paneId)) {
         this.connectPane(paneId)
       }
-    }, 100)
+    }, delayMs)
 
     this.paneReconnectTimers.set(paneId, timer)
+  }
+
+  private nextBackpressureReconnectDelay(paneId: string): number {
+    const attempts = this.paneBackpressureReconnectAttempts.get(paneId) ?? 0
+    this.paneBackpressureReconnectAttempts.set(paneId, attempts + 1)
+    return Math.min(BACKPRESSURE_RECONNECT_BASE_MS * 2 ** attempts, BACKPRESSURE_RECONNECT_MAX_MS)
   }
 
   private clearPaneReconnect(paneId: string): void {
