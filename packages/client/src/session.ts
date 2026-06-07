@@ -325,6 +325,13 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     if (!session) return
     const ownership = this._ownership.get(session.id)
     if (ownership?.ownerId !== this.options.clientId) return
+    if (this.getPaneConnectionStatus(paneId) !== 'connected') {
+      this.emit('bridge:error', {
+        code: 'TMUX_ERROR',
+        message: 'Pane data channel is reconnecting; input was not sent',
+      })
+      return
+    }
 
     this.paneInputs.get(paneId)?.write(data)
   }

@@ -676,6 +676,52 @@ describe('WebmuxClient connection handshake', () => {
     expect(new TextDecoder().decode(paneSocket.sent[0] as Uint8Array)).toBe('buffered line\n')
   })
 
+  test('reports input attempted while the pane data channel is reconnecting', async () => {
+    const client = new WebmuxClient({
+      url: 'ws://bridge.test',
+      token: 'accepted-token',
+      clientId: 'web-test',
+      clientType: 'web',
+    })
+    const errors: unknown[] = []
+    client.on('bridge:error', (error) => errors.push(error))
+
+    await client.connect()
+
+    const controlSocket = FakeWebSocket.instances[0]
+    controlSocket.simulateOpen()
+    controlSocket.simulateMessage({
+      type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
+      bridgeVersion: '0.1.0',
+      ownership: [
+        {
+          sessionId: '1',
+          ownerId: 'web-test',
+          ownerType: 'web',
+          acquiredAt: 100,
+        },
+      ],
+    })
+    controlSocket.simulateMessage({
+      type: 'state.sync',
+      sessions: [createSession('1')],
+    })
+
+    client.connectPane('%1')
+    const paneSocket = FakeWebSocket.instances[1]
+
+    client.sendInput('%1', 'lost line\n')
+
+    expect(paneSocket.sent).toHaveLength(0)
+    expect(errors).toEqual([
+      {
+        code: 'TMUX_ERROR',
+        message: 'Pane data channel is reconnecting; input was not sent',
+      },
+    ])
+  })
+
   test('drops string input when the client does not own the pane', async () => {
     const client = new WebmuxClient({
       url: 'ws://bridge.test',

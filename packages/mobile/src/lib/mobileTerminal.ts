@@ -20,7 +20,7 @@ const ESC = '\u001b'
 const BEL = '\u0007'
 const ANSI_RE =
   // eslint-disable-next-line no-control-regex
-  /\x1B(?:\][^\x07]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g
+  /\x1B(?:\][^\x1B\x07]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g
 
 export function appendTranscript(
   current: string,

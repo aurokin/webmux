@@ -32,6 +32,10 @@ describe('mobile terminal helpers', () => {
     expect(second).toEqual({ text: 'ready', controlCarry: '' })
   })
 
+  test('does not strip printable text between separate OSC sequences', () => {
+    expect(stripTerminalControl('\x1b]0;one\x1b\\visible\x1b]0;two\x1b\\')).toBe('visible')
+  })
+
   test('bounds unterminated control sequence carry so transcript updates can recover', () => {
     const first = appendTranscriptChunk({ text: '', controlCarry: '' }, `\x1b]${'x'.repeat(5000)}`)
     expect(first).toEqual({ text: '', controlCarry: '' })

@@ -533,13 +533,13 @@ export function App() {
 
   const handleSelectAgent = useCallback(
     (target: AgentTarget) => {
-      setDestroyedSession(null)
-
       if (target.windowActive) {
+        setDestroyedSession(null)
         selectSessionExplicitly(target.sessionId)
         pendingAgentFocusRef.current = null
         setFocusedPaneId(target.paneId)
       } else if (client.isOwner(target.sessionId)) {
+        setDestroyedSession(null)
         selectSessionExplicitly(target.sessionId)
         const targetSession = sessions.find((session) => session.id === target.sessionId)
         const sourceWindowIndex =
