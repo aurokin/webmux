@@ -29,6 +29,7 @@ export type { BridgeError, ConnectionIssue, RichPaneState } from './events'
 const PANE_RECONNECT_DELAY_MS = 100
 const BACKPRESSURE_RECONNECT_BASE_MS = 1_000
 const BACKPRESSURE_RECONNECT_MAX_MS = 30_000
+const BACKPRESSURE_RECONNECT_RESET_MS = 30_000
 
 function isPaneDataChannelClosed(code: number, reason: string): boolean {
   return (
@@ -57,6 +58,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   private paneInputModes = new Map<string, InputMode>()
   private paneReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private paneBackpressureReconnectAttempts = new Map<string, number>()
+  private paneBackpressureResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private receivedWelcome = false
   private receivedInitialStateSync = false
 
@@ -267,6 +269,9 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (!this.paneConnections.has(paneId) && status === 'disconnected') {
         return
       }
+      if (status === 'connected') {
+        this.scheduleBackpressureReconnectReset(paneId)
+      }
       this.setPaneConnectionStatus(paneId, status)
     }
 
@@ -278,6 +283,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       this.paneConnections.delete(paneId)
       this.paneInputs.get(paneId)?.dispose()
       this.paneInputs.delete(paneId)
+      this.clearBackpressureReconnectReset(paneId)
       this.clearPaneConnectionStatus(paneId)
       if (reason === 'PANE_NOT_FOUND') {
         this.paneBackpressureReconnectAttempts.delete(paneId)
@@ -304,6 +310,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
   disconnectPane(paneId: string): void {
     this.clearPaneReconnect(paneId)
     this.paneBackpressureReconnectAttempts.delete(paneId)
+    this.clearBackpressureReconnectReset(paneId)
     this.paneConnections.get(paneId)?.disconnect()
     this.paneConnections.delete(paneId)
     this.clearPaneConnectionStatus(paneId)
@@ -468,6 +475,10 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     }
     this.paneReconnectTimers.clear()
     this.paneBackpressureReconnectAttempts.clear()
+    for (const timer of this.paneBackpressureResetTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.paneBackpressureResetTimers.clear()
 
     for (const conn of this.paneConnections.values()) {
       conn.disconnect()
@@ -490,6 +501,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         this.clearPaneReconnect(paneId)
         this.paneInputModes.delete(paneId)
         this.paneBackpressureReconnectAttempts.delete(paneId)
+        this.clearBackpressureReconnectReset(paneId)
       }
     }
 
@@ -498,6 +510,7 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
         this.disconnectPane(paneId)
         this.paneInputModes.delete(paneId)
         this.paneBackpressureReconnectAttempts.delete(paneId)
+        this.clearBackpressureReconnectReset(paneId)
       }
     }
   }
@@ -541,6 +554,28 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
     const attempts = this.paneBackpressureReconnectAttempts.get(paneId) ?? 0
     this.paneBackpressureReconnectAttempts.set(paneId, attempts + 1)
     return Math.min(BACKPRESSURE_RECONNECT_BASE_MS * 2 ** attempts, BACKPRESSURE_RECONNECT_MAX_MS)
+  }
+
+  private scheduleBackpressureReconnectReset(paneId: string): void {
+    if (!this.paneBackpressureReconnectAttempts.has(paneId)) return
+    this.clearBackpressureReconnectReset(paneId)
+
+    const timer = setTimeout(() => {
+      this.paneBackpressureResetTimers.delete(paneId)
+      if (this.getPaneConnectionStatus(paneId) === 'connected') {
+        this.paneBackpressureReconnectAttempts.delete(paneId)
+      }
+    }, BACKPRESSURE_RECONNECT_RESET_MS)
+
+    this.paneBackpressureResetTimers.set(paneId, timer)
+  }
+
+  private clearBackpressureReconnectReset(paneId: string): void {
+    const timer = this.paneBackpressureResetTimers.get(paneId)
+    if (!timer) return
+
+    clearTimeout(timer)
+    this.paneBackpressureResetTimers.delete(paneId)
   }
 
   private clearPaneReconnect(paneId: string): void {

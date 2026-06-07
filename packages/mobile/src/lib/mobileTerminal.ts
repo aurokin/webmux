@@ -15,6 +15,7 @@ export interface TerminalDimensions {
 
 const DEFAULT_MAX_CHARS = 12_000
 const DEFAULT_MAX_LINES = 120
+const MAX_CONTROL_CARRY = 4_096
 const ESC = '\u001b'
 const BEL = '\u0007'
 const ANSI_RE =
@@ -37,7 +38,7 @@ export function appendTranscriptChunk(
   const { ready, carry } = splitTrailingControlCarry(`${state.controlCarry}${chunk}`)
   return {
     text: appendTranscriptText(state.text, stripTerminalControl(ready), options),
-    controlCarry: carry,
+    controlCarry: carry.length > MAX_CONTROL_CARRY ? '' : carry,
   }
 }
 

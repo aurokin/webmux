@@ -32,6 +32,14 @@ describe('mobile terminal helpers', () => {
     expect(second).toEqual({ text: 'ready', controlCarry: '' })
   })
 
+  test('bounds unterminated control sequence carry so transcript updates can recover', () => {
+    const first = appendTranscriptChunk({ text: '', controlCarry: '' }, `\x1b]${'x'.repeat(5000)}`)
+    expect(first).toEqual({ text: '', controlCarry: '' })
+
+    const second = appendTranscriptChunk(first, 'visible')
+    expect(second).toEqual({ text: 'visible', controlCarry: '' })
+  })
+
   test('estimates bounded mobile terminal dimensions', () => {
     expect(estimateTerminalDimensions(390, 720)).toEqual({ cols: 45, rows: 27 })
     expect(estimateTerminalDimensions(20, 20)).toEqual({ cols: 20, rows: 8 })
