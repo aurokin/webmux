@@ -192,16 +192,24 @@ export function App() {
 
   const takeControl = useCallback(() => {
     if (!selectedSession) return
+    if (connectionStatus !== 'connected') {
+      setNotice('Bridge reconnecting')
+      return
+    }
     if (!ownsAnySession) {
       sendDimensions()
     }
     client.takeControl(selectedSession.id)
-  }, [client, ownsAnySession, selectedSession, sendDimensions])
+  }, [client, connectionStatus, ownsAnySession, selectedSession, sendDimensions])
 
   const releaseControl = useCallback(() => {
     if (!selectedSession) return
+    if (connectionStatus !== 'connected') {
+      setNotice('Bridge reconnecting')
+      return
+    }
     client.releaseControl(selectedSession.id)
-  }, [client, selectedSession])
+  }, [client, connectionStatus, selectedSession])
 
   const reconnect = useCallback(() => {
     setNotice(null)
