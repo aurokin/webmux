@@ -330,6 +330,18 @@ describe('WebmuxClient connection handshake', () => {
     const backedOffReconnectSocket = FakeWebSocket.instances[2]
     expect(backedOffReconnectSocket).toBeDefined()
     expect(backedOffReconnectSocket.url).toBe(paneSocket.url)
+    backedOffReconnectSocket.simulateOpen()
+    backedOffReconnectSocket.simulateClose(WS_CLOSE.GOING_AWAY, 'PANE_SUBSCRIBER_DROPPED')
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100))
+
+    expect(FakeWebSocket.instances).toHaveLength(3)
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+
+    const secondBackedOffReconnectSocket = FakeWebSocket.instances[3]
+    expect(secondBackedOffReconnectSocket).toBeDefined()
+    expect(secondBackedOffReconnectSocket.url).toBe(paneSocket.url)
 
     client.disconnectPane('%1')
   })

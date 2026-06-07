@@ -267,9 +267,6 @@ export class WebmuxClient extends TypedEmitter<WebmuxEventMap> {
       if (!this.paneConnections.has(paneId) && status === 'disconnected') {
         return
       }
-      if (status === 'connected') {
-        this.paneBackpressureReconnectAttempts.delete(paneId)
-      }
       this.setPaneConnectionStatus(paneId, status)
     }
 
