@@ -61,7 +61,7 @@ When a pane receives a `stubUpgrade` event, the `Pane` component switches its vi
 
 - **Terminal mode** (default): xterm.js instance, fed by PTY data channel.
 - **Local webview mode**: a sandboxed iframe for local or loopback URLs.
-- **External link mode**: an open-in-browser fallback for external HTTPS URLs such as GitHub and Linear, because those sites commonly block iframe embedding.
+- **External link mode**: an open-in-browser fallback for external HTTPS URLs such as GitHub, because those sites commonly block iframe embedding.
 - **Blocked mode**: a visible rejection state for unsafe URLs, including embedded credentials, unsupported schemes, and external HTTP.
 
 The hidden terminal stays mounted while the rich pane is visible. The PTY data channel remains connected so later output and lifecycle changes are still observed, but terminal output is not shown over the rich-pane surface.

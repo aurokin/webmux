@@ -11,7 +11,6 @@ import {
 describe('rich pane resource resolution', () => {
   test('resolves supported resource shorthands to webview URLs', () => {
     expectResolved('gh:owner/repo/pull/123', 'https://github.com/owner/repo/pull/123')
-    expectResolved('linear:AUR-134', 'https://linear.app/issue/AUR-134')
     expectResolved('preview:localhost:3000', 'http://localhost:3000/')
   })
 
@@ -35,9 +34,9 @@ describe('rich pane resource resolution', () => {
       ok: false,
       error: 'GitHub resources must look like gh:owner/repo/pull/123',
     })
-    expect(resolveRichPaneResource('linear:not-an-issue')).toMatchObject({
+    expect(resolveRichPaneResource('linear:ABC-123')).toMatchObject({
       ok: false,
-      error: 'Linear resources must look like linear:ABC-123',
+      error: 'Unsupported URL scheme: linear',
     })
   })
 })

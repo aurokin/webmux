@@ -40,14 +40,6 @@ export function resolveRichPaneResource(resource: string): RichPaneResult<RichPa
     return { ok: false, error: 'GitHub resources must look like gh:owner/repo/pull/123' }
   }
 
-  const linearMatch = input.match(/^linear:([A-Za-z][A-Za-z0-9]+-\d+)$/)
-  if (linearMatch) {
-    return toWebviewStub(`https://linear.app/issue/${linearMatch[1]}`)
-  }
-  if (input.startsWith('linear:')) {
-    return { ok: false, error: 'Linear resources must look like linear:ABC-123' }
-  }
-
   const previewMatch = input.match(/^preview:(.+)$/)
   if (previewMatch) {
     const target = previewMatch[1].trim()

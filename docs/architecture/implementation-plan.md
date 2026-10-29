@@ -227,20 +227,20 @@ What remains for later phases:
 
 ## Execution Tracking
 
-Detailed execution now lives in the `Webmux` Linear project.
-
 Use this document for:
 
 - phase order
 - what is already real
 - what broad phase is next
 
-Use Linear for:
+Use GitHub issues and pull requests for:
 
-- parent issue scope
 - tracer-bullet implementation slices
 - blocker relationships
 - issue-scale acceptance criteria
+
+Earlier execution was tracked in Linear; the `AUR-*` keys below are kept as
+historical references only.
 
 ## Phase 6: Add rich-pane primitives
 
@@ -248,7 +248,7 @@ Goal: the project-specific differentiator exists after the core tmux client is s
 
 Status:
 
-- `webmux open <resource>` resolves supported URL, GitHub, Linear, and local preview resources.
+- `webmux open <resource>` resolves supported URL, GitHub, and local preview resources.
 - The CLI emits a namespaced OSC rich-pane signal when `WEBMUX_RICH_CLIENT=1` is present and prints a regular-terminal fallback otherwise.
 - The bridge scans PTY output for rich-pane OSC signals, strips those signals from terminal fan-out, and broadcasts pane upgrades over the control channel.
 - The client stores per-pane rich-pane state, exposes subscription snapshots, and clears stale rich-pane state when panes disappear.
@@ -268,7 +268,7 @@ Goal: move from working prototype to dependable tool.
 
 Status:
 
-- Bridge hardening is tracked in Linear parent `AUR-98`.
+- Bridge hardening was grouped under former parent `AUR-98`.
 - Noisy-pane resilience and explicit no-subscriber drain behavior shipped under `AUR-75`.
 - Pane lifecycle cleanup for churn, removed panes, and reconnect paths shipped under `AUR-76`.
 - tmux compatibility, diagnostics, and health reporting shipped under `AUR-79`.
@@ -367,24 +367,16 @@ Done when:
 5. ~~Add the minimum web client needed to validate one real session.~~ (Phase 4 — done)
 6. ~~Add ownership handoff.~~ (Phase 5 — done)
 7. ~~Redesign web app, wire frontend actions, build keybind system.~~ (Phase 5b — done)
-8. Complete the remaining core tmux surface. (Linear parent `AUR-96`)
-9. Add rich-pane primitives. (Phase 6 / Linear parent `AUR-97`)
-10. Harden the bridge. (Phase 7 / Linear parent `AUR-98`)
-11. Refine browser ergonomics. (Phase 8 / Linear parents `AUR-99`, `AUR-100`, `AUR-101`)
-12. Define release readiness. (Linear parent `AUR-102`)
-13. Add a dedicated mobile consumer. (Phase 9 / Linear parent `AUR-103`)
-14. Add AI agent workflows. (Phase 10 / Linear parent `AUR-104`)
+8. Complete the remaining core tmux surface. (former parent `AUR-96`)
+9. Add rich-pane primitives. (Phase 6 / former parent `AUR-97`)
+10. Harden the bridge. (Phase 7 / former parent `AUR-98`)
+11. Refine browser ergonomics. (Phase 8 / former parents `AUR-99`, `AUR-100`, `AUR-101`)
+12. Define release readiness. (former parent `AUR-102`)
+13. Add a dedicated mobile consumer. (Phase 9 / former parent `AUR-103`)
+14. Add AI agent workflows. (Phase 10 / former parent `AUR-104`)
 
-For issue-scale execution, follow Linear dependency relationships rather than
+For issue-scale execution, follow GitHub issue dependencies rather than
 duplicating child issue order here.
-
-Current detailed execution is organized in Linear milestones:
-
-- `V0 Core Completion`
-- `Browser Ergonomics`
-- `Release Readiness`
-- `Mobile Consumer`
-- `AI Workflows`
 
 ## Explicit non-goals for the first working version
 

@@ -157,7 +157,7 @@ Start in this order:
 2. [`docs/decisions/README.md`](./docs/decisions/README.md) for locked architectural and product constraints
 3. [`docs/architecture/harnesses.md`](./docs/architecture/harnesses.md) for how changes should be proven
 
-Detailed execution lives in the Linear `Webmux` project. The repo keeps durable truth, not a second issue backlog.
+Issue-scale work is tracked in GitHub issues and pull requests. The docs keep durable truth and phase-level direction, not a second issue backlog.
 
 When you make a non-trivial change, update the matching layer instead of burying rationale in code or a PR:
 

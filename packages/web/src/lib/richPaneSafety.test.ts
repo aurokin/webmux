@@ -38,11 +38,6 @@ describe('classifyRichPane', () => {
       label: 'github.com',
       origin: 'https://github.com',
     })
-    expect(classifyRichPane(richPane('https://linear.app/issue/AUR-137'))).toMatchObject({
-      status: 'external',
-      label: 'linear.app',
-      origin: 'https://linear.app',
-    })
   })
 
   test('blocks unsafe or unsupported URLs', () => {

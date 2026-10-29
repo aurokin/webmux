@@ -64,7 +64,6 @@ export function renderOpenUsage(): string {
     'Examples:',
     '  webmux open https://example.com',
     '  webmux open gh:owner/repo/pull/123',
-    '  webmux open linear:ISS-423',
     '  webmux open preview:localhost:3000',
   ].join('\n')
 }
