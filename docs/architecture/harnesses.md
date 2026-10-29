@@ -10,7 +10,7 @@ This document defines how webmux changes should be proven.
 
 The rule is simple: build the smallest harness that can falsify your assumption before you broaden scope.
 
-When detailed execution is tracked in Linear, each implementation issue should make its primary proof surface explicit there as well.
+When work is tracked in a GitHub issue or pull request, it should make its primary proof surface explicit there as well.
 
 For this project, that usually means:
 

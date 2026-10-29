@@ -27,7 +27,7 @@ If two docs disagree, the higher-precedence type wins:
 
 If a deep architecture doc and the implementation plan disagree, trust the implementation plan for what is built now.
 
-Detailed execution planning lives in Linear. The repo should keep durable truth and phase-level direction, not a second issue backlog.
+Issue-scale work is tracked in GitHub issues and pull requests. The docs should keep durable truth and phase-level direction, not a second issue backlog.
 
 ## Start Here
 
@@ -51,7 +51,7 @@ That path gives you current status, locked decisions, proof strategy, and only t
 
 - [implementation-plan.md](./architecture/implementation-plan.md) — current build order
 - [roadmap.md](./architecture/roadmap.md) — longer-range milestones after the current plan
-- Linear `Webmux` project — parent issues and child slices for detailed execution
+- GitHub issues and pull requests — issue-scale slices and their acceptance criteria
 
 ### I need to know why a constraint exists
 
@@ -143,7 +143,7 @@ When you make a non-trivial change, update the matching layer:
 - Proof expectations changed → update `harnesses.md`
 - A package-specific trap surfaced → update that package's `gotchas.md`
 
-Do not store issue-scale planning in the repo once it exists in Linear.
+Do not duplicate issue-scale planning from GitHub issues in the docs.
 
 ## Engineering Bias
 

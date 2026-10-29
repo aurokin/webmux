@@ -59,7 +59,6 @@ describe('renderOpenUsage', () => {
 
     expect(usage).toContain('webmux open https://example.com')
     expect(usage).toContain('webmux open gh:owner/repo/pull/123')
-    expect(usage).toContain('webmux open linear:ISS-423')
     expect(usage).toContain('webmux open preview:localhost:3000')
   })
 })

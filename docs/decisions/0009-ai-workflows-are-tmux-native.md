@@ -23,8 +23,8 @@ AI workflows are additive browser-side workflows over tmux-native state.
 - The web app may derive an agent navigation surface from explicit tmux names
   and a narrow known-agent command allowlist.
 - Rich AI surfaces reuse the existing rich-pane primitive. They are appropriate
-  for durable artifacts such as local previews, GitHub pull requests, Linear
-  issues, dashboards, or generated reports.
+  for durable artifacts such as local previews, GitHub pull requests,
+  dashboards, or generated reports.
 - The bridge and client SDK remain generic. They must not bind to one AI backend
   or expose AI-specific protocol messages for this slice.
 

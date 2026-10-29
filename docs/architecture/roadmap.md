@@ -18,7 +18,7 @@ For the scaffold-to-build work order, use `implementation-plan.md`.
 
 This roadmap intentionally omits completed milestones. Historical build phases live in the implementation plan.
 
-Detailed execution is tracked in the `Webmux` Linear project. This document stays intentionally milestone-scale.
+Issue-scale work is tracked in GitHub issues and pull requests. This document stays intentionally milestone-scale.
 
 Priorities and milestones, in order.
 
